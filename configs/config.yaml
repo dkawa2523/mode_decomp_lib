@@ -1,0 +1,19 @@
+# Hydra main config (skeleton)
+defaults:
+  - task: doctor
+  - dataset: placeholder
+  - domain: rectangle
+  - preprocess: basic
+  - decompose: fft2
+  - coeff_post: none
+  - model: ridge
+  - _self_
+
+seed: 123
+
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: outputs/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}

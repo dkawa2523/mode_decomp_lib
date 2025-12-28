@@ -1,0 +1,18 @@
+# This file is intentionally named `pyproject.devkit.toml` to avoid clobbering an existing pyproject.toml.
+# If your repo has no packaging yet and you want to install the new code as a package, rename to pyproject.toml.
+
+[project]
+name = "mode-decomp-ml"
+version = "0.0.0"
+requires-python = ">=3.9"
+dependencies = [
+  "numpy",
+  "scipy",
+  "scikit-learn",
+  "matplotlib",
+  "hydra-core",
+  "omegaconf",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

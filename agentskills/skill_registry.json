@@ -1,0 +1,15 @@
+{
+  "S00_repo_onboarding": "repo棚卸し（入口/I-O/係数規約の把握）",
+  "S10_config_hydra": "Hydra config設計と運用規約",
+  "S20_data_io": "データI/O・split・dataset versioning",
+  "S30_preprocess": "前処理パイプライン（mask安全）",
+  "S42_decomposition": "モード分解プラグイン実装（特殊関数/データ駆動含む）",
+  "S43_coeff_post": "係数後処理（PCA/ICA/標準化/不変化）",
+  "S44_domain_geometry": "DomainSpec（rect/disk/mask/points/mesh）と座標/重み",
+  "S50_models": "回帰モデル（sklearn/torch）",
+  "S60_training_hpo": "学習ループ・再現性・HPOの足場",
+  "S70_eval_metrics": "評価指標・可視化・leaderboard",
+  "S90_ops_integrations": "運用・統合（ClearML等）",
+  "S95_tests_ci": "テスト/CI/doctor",
+  "S98_security": "セキュリティ/秘密情報/権限"
+}

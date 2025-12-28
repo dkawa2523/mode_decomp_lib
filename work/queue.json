@@ -1,0 +1,281 @@
+{
+  "policy": {
+    "auto_set_in_progress_on_next": true,
+    "blocked_policy": {
+      "stop_when_only_blocked": true,
+      "max_same_task_attempts": 3,
+      "max_no_change_attempts": 2,
+      "force_progress_on_stall": true
+    },
+    "status_values": [
+      "todo",
+      "in_progress",
+      "blocked",
+      "done"
+    ],
+    "wip_limit": 1,
+    "task_creep_guard": true
+  },
+  "tasks": [
+    {
+      "id": "000",
+      "priority": "P0",
+      "status": "todo",
+      "title": "Greenfield初期化（スコープ固定・最小骨格・doctor通過）",
+      "path": "work/tasks/000_greenfield_setup.md",
+      "skills": [
+        "S00_repo_onboarding",
+        "S95_tests_ci"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/18_SCOPE_LOCK.md",
+        "docs/13_TASK_FLOW.md"
+      ],
+      "depends_on": [],
+      "unblocks": [
+        "010"
+      ]
+    },
+    {
+      "id": "010",
+      "priority": "P0",
+      "status": "todo",
+      "title": "Hydra最小導入（config真実・task入口統一）",
+      "path": "work/tasks/010_hydra_mvp.md",
+      "skills": [
+        "S40_hydra_configs"
+      ],
+      "contracts": [
+        "docs/03_CONFIG_CONVENTIONS.md",
+        "docs/10_PROCESS_CATALOG.md"
+      ],
+      "depends_on": [
+        "000"
+      ],
+      "unblocks": [
+        "020"
+      ]
+    },
+    {
+      "id": "020",
+      "priority": "P0",
+      "status": "todo",
+      "title": "データスキーマとDataset実装（scalar/vector, mask）",
+      "path": "work/tasks/020_dataset_schema.md",
+      "skills": [
+        "S20_data_io"
+      ],
+      "contracts": [
+        "docs/02_DOMAIN_MODEL.md",
+        "docs/00_INVARIANTS.md"
+      ],
+      "depends_on": [
+        "010"
+      ],
+      "unblocks": [
+        "030"
+      ]
+    },
+    {
+      "id": "030",
+      "priority": "P0",
+      "status": "todo",
+      "title": "Domain: rectangle/disk（座標生成・正規化・互換チェック）",
+      "path": "work/tasks/030_domain_rectangle_disk.md",
+      "skills": [
+        "S44_domain_adapter"
+      ],
+      "contracts": [
+        "docs/02_DOMAIN_MODEL.md",
+        "docs/01_ARCHITECTURE.md"
+      ],
+      "depends_on": [
+        "020"
+      ],
+      "unblocks": [
+        "040",
+        "050"
+      ]
+    },
+    {
+      "id": "040",
+      "priority": "P0",
+      "status": "todo",
+      "title": "Decomposer: FFT2 + DCT2（transform/inverse/係数meta）",
+      "path": "work/tasks/040_decompose_fft_dct.md",
+      "skills": [
+        "S42_decomposer_plugin"
+      ],
+      "contracts": [
+        "docs/11_PLUGIN_REGISTRY.md",
+        "docs/00_INVARIANTS.md"
+      ],
+      "depends_on": [
+        "030"
+      ],
+      "unblocks": [
+        "060"
+      ]
+    },
+    {
+      "id": "050",
+      "priority": "P0",
+      "status": "todo",
+      "title": "Decomposer: Zernike（legacy移植 or 最小実装）",
+      "path": "work/tasks/050_decompose_zernike.md",
+      "skills": [
+        "S42_decomposer_plugin"
+      ],
+      "contracts": [
+        "docs/11_PLUGIN_REGISTRY.md",
+        "docs/00_INVARIANTS.md"
+      ],
+      "depends_on": [
+        "030"
+      ],
+      "unblocks": [
+        "060"
+      ]
+    },
+    {
+      "id": "060",
+      "priority": "P0",
+      "status": "todo",
+      "title": "CoeffPost: standardize + PCA（train-only fit, inverse）",
+      "path": "work/tasks/060_coeff_post_pca.md",
+      "skills": [
+        "S43_coeff_post"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/09_EVALUATION_PROTOCOL.md"
+      ],
+      "depends_on": [
+        "040",
+        "050"
+      ],
+      "unblocks": [
+        "070"
+      ]
+    },
+    {
+      "id": "070",
+      "priority": "P0",
+      "status": "todo",
+      "title": "Model: Ridge多出力（cond→(a|z)）",
+      "path": "work/tasks/070_model_ridge.md",
+      "skills": [
+        "S52_regression_models"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/11_PLUGIN_REGISTRY.md"
+      ],
+      "depends_on": [
+        "060"
+      ],
+      "unblocks": [
+        "080"
+      ]
+    },
+    {
+      "id": "080",
+      "priority": "P0",
+      "status": "todo",
+      "title": "Process: train/predict/reconstruct/eval（artifact契約）",
+      "path": "work/tasks/080_processes_train_eval_predict.md",
+      "skills": [
+        "S70_pipeline",
+        "S95_tests_ci"
+      ],
+      "contracts": [
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/10_PROCESS_CATALOG.md"
+      ],
+      "depends_on": [
+        "070"
+      ],
+      "unblocks": [
+        "090"
+      ]
+    },
+    {
+      "id": "090",
+      "priority": "P0",
+      "status": "todo",
+      "title": "評価拡張（coeff誤差 + field誤差 + スペクトル診断）",
+      "path": "work/tasks/090_evaluation_extended.md",
+      "skills": [
+        "S60_evaluation"
+      ],
+      "contracts": [
+        "docs/09_EVALUATION_PROTOCOL.md"
+      ],
+      "depends_on": [
+        "080"
+      ],
+      "unblocks": [
+        "100"
+      ]
+    },
+    {
+      "id": "100",
+      "priority": "P0",
+      "status": "todo",
+      "title": "可視化（再構成比較・係数スペクトル・解釈性）",
+      "path": "work/tasks/100_viz_interpretability.md",
+      "skills": [
+        "S96_benchmark_reports"
+      ],
+      "contracts": [
+        "docs/15_REVIEWER_GUIDE.md"
+      ],
+      "depends_on": [
+        "090"
+      ],
+      "unblocks": [
+        "110"
+      ]
+    },
+    {
+      "id": "110",
+      "priority": "P0",
+      "status": "todo",
+      "title": "比較Runner + Leaderboard（最小）",
+      "path": "work/tasks/110_benchmark_leaderboard_mvp.md",
+      "skills": [
+        "S96_benchmark_reports",
+        "S95_tests_ci"
+      ],
+      "contracts": [
+        "docs/04_ARTIFACTS_AND_VERSIONING.md"
+      ],
+      "depends_on": [
+        "100"
+      ],
+      "unblocks": [
+        "120"
+      ]
+    },
+    {
+      "id": "120",
+      "priority": "P0",
+      "status": "todo",
+      "title": "クリーンアップ（不要コード/ファイル削除、docs整合）",
+      "path": "work/tasks/120_cleanup_prune.md",
+      "skills": [
+        "S72_numerical_stability"
+      ],
+      "contracts": [
+        "docs/16_DELETION_AND_PRUNING.md",
+        "docs/14_COMPACT_CODE_POLICY.md"
+      ],
+      "depends_on": [
+        "110"
+      ],
+      "unblocks": []
+    }
+  ],
+  "updated_at": "2025-12-28T12:57:07Z"
+}

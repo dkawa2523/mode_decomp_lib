@@ -1,0 +1,34 @@
+# 2D空間分布のモード分解 + 係数学習 基盤（Greenfield Devkit）
+
+このzipは、既存リポジトリの大規模改修ではなく、**0から目的仕様に沿って作る**ための開発基盤です。
+VSCode + Codex CLI で `autopilot.sh` を回し、`work/queue.json` のP0タスクを順番に完了させていきます。
+
+## 目的（P0で達成する最小完成形）
+- 2Dスカラー場/ベクトル場（2ch）を扱えるデータスキーマ
+- domain（境界）: rectangle / disk をP0で対応
+- decomposer（一次分解）: FFT2, Zernike（P0）
+- coeff_post（係数後処理）: none, standardize, PCA（train-only fit, inverse）
+- model（回帰）: Ridge（多出力）
+- process（CLI）: train / predict / reconstruct / eval / leaderboard / benchmark / doctor
+- artifact契約に沿った保存（config/meta/metrics/preds/model）
+- 比較可能な評価（coeff誤差 + field再構成誤差）
+
+## 使い方（最短）
+1) 本zipを任意の新フォルダに展開
+2) 依存をインストール（どちらでも）
+   - `pip install -r requirements.txt`
+   - もしくは `pip install -e .`
+3) （推奨）git repo化
+   - `git init && git add -A && git commit -m "init"`
+4) 実行
+   - `chmod +x autopilot.sh doctor.sh tools/autopilot.sh`
+   - `LIVE_TEE=1 PYTHON_BIN=/usr/bin/python3 ./doctor.sh`
+   - `LIVE_TEE=1 PYTHON_BIN=/usr/bin/python3 ./autopilot.sh 30`
+
+## 重要：タスクが増え続けないためのルール
+- Autopilot実行中に **queueへ新規タスクIDを追加することは禁止**（Task creep guard 既定ON）
+- 新しい拡張は `docs/17_EXTENSION_PLAYBOOK.md` に従い、別途 `work/queue_p1.json` / `work/queue_p2.json` に起票します
+
+## ドキュメント
+- `docs/README.md` から読むのが最短です
+- 追加の拡張計画は `work/queue_p1.json`, `work/queue_p2.json` にあります（P0完了後に実施）

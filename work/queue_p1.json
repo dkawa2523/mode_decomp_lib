@@ -1,0 +1,115 @@
+{
+  "policy": {
+    "auto_set_in_progress_on_next": true,
+    "blocked_policy": {
+      "stop_when_only_blocked": true,
+      "max_same_task_attempts": 3,
+      "max_no_change_attempts": 2,
+      "force_progress_on_stall": true
+    },
+    "status_values": [
+      "todo",
+      "in_progress",
+      "blocked",
+      "done"
+    ],
+    "wip_limit": 1,
+    "task_creep_guard": true
+  },
+  "tasks": [
+    {
+      "id": "200",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Domain: arbitrary_mask（任意形状mask）",
+      "path": "work/tasks_p1/200_domain_arbitrary_mask.md",
+      "skills": [
+        "S44_domain_adapter"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md"
+      ],
+      "depends_on": [
+        "030"
+      ],
+      "unblocks": [
+        "210"
+      ]
+    },
+    {
+      "id": "210",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Decomposer: Fourier–Bessel（円板）",
+      "path": "work/tasks_p1/210_decompose_fourier_bessel.md",
+      "skills": [
+        "S42_decomposer_plugin"
+      ],
+      "contracts": [
+        "docs/11_PLUGIN_REGISTRY.md"
+      ],
+      "depends_on": [
+        "200"
+      ],
+      "unblocks": [
+        "220"
+      ]
+    },
+    {
+      "id": "220",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Decomposer: POD/SVD（train-only fit）",
+      "path": "work/tasks_p1/220_decompose_pod_svd.md",
+      "skills": [
+        "S53_data_driven_decomposition"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md"
+      ],
+      "depends_on": [
+        "200"
+      ],
+      "unblocks": [
+        "230"
+      ]
+    },
+    {
+      "id": "230",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Model: GPR（cond→latent推奨）",
+      "path": "work/tasks_p1/230_model_gpr.md",
+      "skills": [
+        "S52_regression_models"
+      ],
+      "contracts": [
+        "docs/09_EVALUATION_PROTOCOL.md"
+      ],
+      "depends_on": [
+        "060"
+      ],
+      "unblocks": [
+        "240"
+      ]
+    },
+    {
+      "id": "240",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Benchmark拡張（multirun sweep）",
+      "path": "work/tasks_p1/240_benchmark_sweeps.md",
+      "skills": [
+        "S96_benchmark_reports"
+      ],
+      "contracts": [
+        "docs/04_ARTIFACTS_AND_VERSIONING.md"
+      ],
+      "depends_on": [
+        "110"
+      ],
+      "unblocks": []
+    }
+  ],
+  "updated_at": "2025-12-28T12:57:07Z"
+}

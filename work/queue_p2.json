@@ -1,0 +1,58 @@
+{
+  "policy": {
+    "auto_set_in_progress_on_next": true,
+    "blocked_policy": {
+      "stop_when_only_blocked": true,
+      "max_same_task_attempts": 3,
+      "max_no_change_attempts": 2,
+      "force_progress_on_stall": true
+    },
+    "status_values": [
+      "todo",
+      "in_progress",
+      "blocked",
+      "done"
+    ],
+    "wip_limit": 1,
+    "task_creep_guard": true
+  },
+  "tasks": [
+    {
+      "id": "300",
+      "priority": "P2",
+      "status": "todo",
+      "title": "Decomposer: Graph Laplacian eigenbasis（任意mask）",
+      "path": "work/tasks_p2/300_decompose_graph_laplacian.md",
+      "skills": [
+        "S54_geometric_decomposition"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md"
+      ],
+      "depends_on": [
+        "200"
+      ],
+      "unblocks": [
+        "310"
+      ]
+    },
+    {
+      "id": "310",
+      "priority": "P2",
+      "status": "todo",
+      "title": "Mesh + Laplace–Beltrami（曲面）",
+      "path": "work/tasks_p2/310_decompose_laplace_beltrami.md",
+      "skills": [
+        "S54_geometric_decomposition"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md"
+      ],
+      "depends_on": [
+        "300"
+      ],
+      "unblocks": []
+    }
+  ],
+  "updated_at": "2025-12-28T12:57:07Z"
+}
