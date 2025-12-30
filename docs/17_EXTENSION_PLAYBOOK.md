@@ -43,7 +43,7 @@
 - 可視化の拡充:
   - viz process で追加（artifactに残す）
 - ClearML対応:
-  - まず `tracking hooks` の抽象点を用意（docs/12, work/tasks/120）
+  - まず `tracking hooks` の抽象点を用意（docs/12 を参照し、必要ならタスク化）
 - アーキテクトなリファクタ:
   - RFC/ADR を起票し、段階的に移行（work/templates）
 

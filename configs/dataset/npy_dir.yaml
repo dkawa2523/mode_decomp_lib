@@ -1,0 +1,6 @@
+name: npy_dir
+root: data
+cond_file: cond.npy
+field_file: field.npy
+mask_file: mask.npy
+mask_policy: allow_none

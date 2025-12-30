@@ -1,0 +1,250 @@
+{
+  "policy": {
+    "auto_set_in_progress_on_next": true,
+    "blocked_policy": {
+      "stop_when_only_blocked": true,
+      "max_same_task_attempts": 3,
+      "max_no_change_attempts": 2,
+      "force_progress_on_stall": true
+    },
+    "status_values": [
+      "todo",
+      "in_progress",
+      "blocked",
+      "done"
+    ],
+    "wip_limit": 1,
+    "task_creep_guard": true
+  },
+  "tasks": [
+    {
+      "id": "299",
+      "priority": "P2",
+      "status": "todo",
+      "title": "P2 Preflight（依存/計算コスト/範囲合意）",
+      "path": "work/tasks_p2_v2/299_p2_preflight.md",
+      "skills": [
+        "S00_repo_onboarding"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/03_CONFIG_CONVENTIONS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/10_PROCESS_CATALOG.md",
+        "docs/11_PLUGIN_REGISTRY.md",
+        "docs/13_TASK_FLOW.md",
+        "docs/14_COMPACT_CODE_POLICY.md",
+        "docs/15_REVIEWER_GUIDE.md",
+        "docs/16_DELETION_AND_PRUNING.md",
+        "docs/18_SCOPE_LOCK.md"
+      ],
+      "depends_on": [],
+      "unblocks": [
+        "300"
+      ]
+    },
+    {
+      "id": "300",
+      "priority": "P2",
+      "status": "todo",
+      "title": "Decomposer: Graph Laplacian eigenbasis（任意mask）",
+      "path": "work/tasks_p2_v2/300_decompose_graph_laplacian.md",
+      "skills": [
+        "S54_geometric_decomposition"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/03_CONFIG_CONVENTIONS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/10_PROCESS_CATALOG.md",
+        "docs/11_PLUGIN_REGISTRY.md",
+        "docs/13_TASK_FLOW.md",
+        "docs/14_COMPACT_CODE_POLICY.md",
+        "docs/15_REVIEWER_GUIDE.md",
+        "docs/16_DELETION_AND_PRUNING.md",
+        "docs/18_SCOPE_LOCK.md"
+      ],
+      "depends_on": [
+        "299"
+      ],
+      "unblocks": [
+        "310"
+      ]
+    },
+    {
+      "id": "310",
+      "priority": "P2",
+      "status": "todo",
+      "title": "Domain+Decomposer: Mesh + Laplace–Beltrami（曲面）",
+      "path": "work/tasks_p2_v2/310_decompose_laplace_beltrami.md",
+      "skills": [
+        "S54_geometric_decomposition"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/03_CONFIG_CONVENTIONS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/10_PROCESS_CATALOG.md",
+        "docs/11_PLUGIN_REGISTRY.md",
+        "docs/13_TASK_FLOW.md",
+        "docs/14_COMPACT_CODE_POLICY.md",
+        "docs/15_REVIEWER_GUIDE.md",
+        "docs/16_DELETION_AND_PRUNING.md",
+        "docs/18_SCOPE_LOCK.md"
+      ],
+      "depends_on": [
+        "300"
+      ],
+      "unblocks": [
+        "320"
+      ]
+    },
+    {
+      "id": "320",
+      "priority": "P2",
+      "status": "todo",
+      "title": "Decomposer: Autoencoder/VAE（Torch）",
+      "path": "work/tasks_p2_v2/320_decompose_autoencoder.md",
+      "skills": [
+        "S55_deep_decomposition"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/03_CONFIG_CONVENTIONS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/10_PROCESS_CATALOG.md",
+        "docs/11_PLUGIN_REGISTRY.md",
+        "docs/13_TASK_FLOW.md",
+        "docs/14_COMPACT_CODE_POLICY.md",
+        "docs/15_REVIEWER_GUIDE.md",
+        "docs/16_DELETION_AND_PRUNING.md",
+        "docs/18_SCOPE_LOCK.md"
+      ],
+      "depends_on": [
+        "310"
+      ],
+      "unblocks": [
+        "330"
+      ]
+    },
+    {
+      "id": "330",
+      "priority": "P2",
+      "status": "todo",
+      "title": "Decomposer/CoeffPost: Dictionary Learning（疎表現）",
+      "path": "work/tasks_p2_v2/330_decompose_dict_learning.md",
+      "skills": [
+        "S53_data_driven_decomposition"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/03_CONFIG_CONVENTIONS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/10_PROCESS_CATALOG.md",
+        "docs/11_PLUGIN_REGISTRY.md",
+        "docs/13_TASK_FLOW.md",
+        "docs/14_COMPACT_CODE_POLICY.md",
+        "docs/15_REVIEWER_GUIDE.md",
+        "docs/16_DELETION_AND_PRUNING.md",
+        "docs/18_SCOPE_LOCK.md"
+      ],
+      "depends_on": [
+        "320"
+      ],
+      "unblocks": [
+        "340"
+      ]
+    },
+    {
+      "id": "340",
+      "priority": "P2",
+      "status": "todo",
+      "title": "Vector Field: Helmholtz (div/curl) 分解",
+      "path": "work/tasks_p2_v2/340_vector_helmholtz.md",
+      "skills": [
+        "S56_vector_fields"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/03_CONFIG_CONVENTIONS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/10_PROCESS_CATALOG.md",
+        "docs/11_PLUGIN_REGISTRY.md",
+        "docs/13_TASK_FLOW.md",
+        "docs/14_COMPACT_CODE_POLICY.md",
+        "docs/15_REVIEWER_GUIDE.md",
+        "docs/16_DELETION_AND_PRUNING.md",
+        "docs/18_SCOPE_LOCK.md"
+      ],
+      "depends_on": [
+        "330"
+      ],
+      "unblocks": [
+        "350"
+      ]
+    },
+    {
+      "id": "350",
+      "priority": "P2",
+      "status": "todo",
+      "title": "Tracking: ClearML統合（準備/最小）",
+      "path": "work/tasks_p2_v2/350_tracking_clearml.md",
+      "skills": [
+        "S57_tracking_clearml"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/03_CONFIG_CONVENTIONS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/10_PROCESS_CATALOG.md",
+        "docs/11_PLUGIN_REGISTRY.md",
+        "docs/13_TASK_FLOW.md",
+        "docs/14_COMPACT_CODE_POLICY.md",
+        "docs/15_REVIEWER_GUIDE.md",
+        "docs/16_DELETION_AND_PRUNING.md",
+        "docs/18_SCOPE_LOCK.md"
+      ],
+      "depends_on": [
+        "340"
+      ],
+      "unblocks": [
+        "390"
+      ]
+    },
+    {
+      "id": "390",
+      "priority": "P2",
+      "status": "todo",
+      "title": "P2 Cleanup（整理・docs整合・実行例）",
+      "path": "work/tasks_p2_v2/390_cleanup_p2.md",
+      "skills": [
+        "S98_refactor_cleanup"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/03_CONFIG_CONVENTIONS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/10_PROCESS_CATALOG.md",
+        "docs/11_PLUGIN_REGISTRY.md",
+        "docs/13_TASK_FLOW.md",
+        "docs/14_COMPACT_CODE_POLICY.md",
+        "docs/15_REVIEWER_GUIDE.md",
+        "docs/16_DELETION_AND_PRUNING.md",
+        "docs/18_SCOPE_LOCK.md"
+      ],
+      "depends_on": [
+        "350"
+      ],
+      "unblocks": []
+    }
+  ],
+  "updated_at": "2025-12-29T03:31:39Z"
+}

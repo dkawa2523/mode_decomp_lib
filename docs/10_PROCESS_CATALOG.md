@@ -4,6 +4,12 @@
 
 ---
 
+## Data Schema (P0)
+- cond: shape [D]
+- field: shape [H, W, C] (scalar: C=1, vector: C=2)
+- mask: shape [H, W] (optional; mask外は評価対象外)
+- meta: dict（domain種、スケールなど）
+
 ## P0で必須のProcess
 ### 1) preprocess
 - In: raw field + mask + domain
@@ -49,4 +55,6 @@
 
 ## P1以降のProcess
 - multirun benchmark（method sweep）
+  - 例: `python -m mode_decomp_ml.cli.run -m task=benchmark task.decompose_list=fft2,zernike task.coeff_post_list=none,pca`
+  - 各runは `outputs/benchmark/<date>/<time>_<tag>_<jobnum>/` に保存
 - domain変換（points/mesh）

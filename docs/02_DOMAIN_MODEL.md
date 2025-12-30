@@ -13,7 +13,7 @@
 - `mask`: ndarray shape (H, W) bool / {0,1}
   - True=有効領域、False=欠損/領域外
 - `domain`: DomainSpec（座標系・境界）
-- `condition`: dict / vector
+- `cond` (condition): dict / vector
   - 学習の入力（温度、圧力、設計パラメータなど）。**時間ではない**。
 - `meta`: dict（任意）
 

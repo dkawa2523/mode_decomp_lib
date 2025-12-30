@@ -1,3 +1,4 @@
+# CONTRACT: Keep in sync with pyproject.toml [project].dependencies.
 numpy
 scipy
 scikit-learn

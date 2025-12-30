@@ -1,1 +1,9 @@
 name: graph_fourier
+n_modes: 32
+connectivity: 4
+laplacian_type: combinatorial
+mask_policy: require_mask
+solver: auto
+dense_threshold: 512
+eigsh_tol: 1.0e-6
+eigsh_maxiter: 10000

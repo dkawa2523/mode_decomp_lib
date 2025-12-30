@@ -1,1 +1,9 @@
 name: ridge
+target_space: a
+alpha: 1.0
+fit_intercept: true
+solver: auto
+max_iter: null
+tol: 1.0e-4
+cond_scaler: standardize
+seed: ${seed}

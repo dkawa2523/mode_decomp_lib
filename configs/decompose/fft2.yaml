@@ -1,1 +1,2 @@
 name: fft2
+disk_policy: error

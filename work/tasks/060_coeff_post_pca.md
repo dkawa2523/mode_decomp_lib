@@ -2,7 +2,7 @@
 
 **ID:** 060  
 **Priority:** P0  
-**Status:** todo  
+**Status:** done  
 **Depends on:** 040, 050  
 **Unblocks:** 070  
 
@@ -26,9 +26,17 @@ P0では以下:
 - reconstruct/eval のため inverse_transform を必ず提供
 
 ## Acceptance Criteria
-- [ ] standardize が fit/transform/inverse を持つ
-- [ ] PCA が fit/transform/inverse を持つ
-- [ ] train-only fit であることが保証される（ログ/コード）
+- [x] standardize が fit/transform/inverse を持つ
+- [x] PCA が fit/transform/inverse を持つ
+- [x] train-only fit であることが保証される（ログ/コード）
 
 ## Verification
-- [ ] PCA適用時に latent_dim が記録され、inverse で a_hat に戻せる
+- [x] PCA適用時に latent_dim が記録され、inverse で a_hat に戻せる
+
+## Review Map（必須）
+- 変更ファイル一覧（追加/変更/削除）: `src/mode_decomp_ml/coeff_post/__init__.py`（更新）, `configs/coeff_post/standardize.yaml`（追加）, `configs/coeff_post/pca.yaml`（更新）, `tests/test_coeff_post.py`（追加）
+- 重要な関数/クラス: `BaseCoeffPost`, `NoOpCoeffPost`, `StandardizeCoeffPost`, `PCACoeffPost`, `build_coeff_post`
+- 設計判断: train/serve skew防止のため`fit(split="train")`を必須化し、PCAは`energy_threshold`か`n_components`のみ許可。stateは`state.pkl`にpickle保存できる形で保持し、latent_dimはfit結果から記録。
+- リスク/注意点: PCAの逆変換は情報損失があるため完全再構成ではない。`n_components`と`energy_threshold`の同時指定はエラーになる。
+- 検証コマンドと結果: `pytest -q tests/test_coeff_post.py`（pass）
+- 削除一覧: なし

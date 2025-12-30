@@ -1,0 +1,10 @@
+work/.autopilot/
+__pycache__/
+*.pyc
+outputs/
+work/_logs/
+.pytest_cache/
+.DS_Store
+.venv/
+.venv_release/
+.venv_release_copy/

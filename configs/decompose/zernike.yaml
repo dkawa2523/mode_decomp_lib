@@ -1,1 +1,5 @@
 name: zernike
+n_max: 6
+ordering: n_then_m
+normalization: orthonormal
+boundary_condition: unit_disk

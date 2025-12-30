@@ -8,7 +8,7 @@
 
 ## 代表的な run dir 構造（例）
 ```
-outputs/<process>/<date>/<time>_<tag>/
+outputs/<process>/<date>/<time>_<tag>_<jobnum>/
   hydra/                    # Hydraが保存する設定
   meta.json                 # 実行環境、git hash、dataset hash等
   artifacts/

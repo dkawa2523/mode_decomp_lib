@@ -1,0 +1,11 @@
+name: dict_learning
+n_components: 16
+alpha: 1.0
+max_iter: 200
+tol: 1.0e-6
+fit_algorithm: lars
+transform_algorithm: omp
+transform_n_nonzero_coefs: 4
+positive_code: false
+positive_dict: false
+seed: 0

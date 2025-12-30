@@ -2,7 +2,7 @@
 
 **ID:** 080  
 **Priority:** P0  
-**Status:** todo  
+**Status:** done  
 **Depends on:** 070  
 **Unblocks:** 090  
 
@@ -33,9 +33,17 @@ artifact（docs/04）:
 - model（pickle/pt）
 
 ## Acceptance Criteria
-- [ ] `task=train` → `task=predict` → `task=reconstruct` → `task=eval` が一連で動く
-- [ ] outputs に artifact が契約どおり保存される
-- [ ] 再構成ができる（field_hatが生成される）
+- [x] `task=train` → `task=predict` → `task=reconstruct` → `task=eval` が一連で動く
+- [x] outputs に artifact が契約どおり保存される
+- [x] 再構成ができる（field_hatが生成される）
 
 ## Verification
-- [ ] synthetic dataset で一連を実行し、outputs配下に成果物が揃う
+- [x] synthetic dataset で一連を実行し、outputs配下に成果物が揃う
+
+## Review Map
+- 変更ファイル一覧: `src/mode_decomp_ml/pipeline/utils.py`, `src/mode_decomp_ml/pipeline/__init__.py`, `src/mode_decomp_ml/evaluate/__init__.py`, `src/mode_decomp_ml/decompose/__init__.py`, `src/processes/train.py`, `src/processes/predict.py`, `src/processes/reconstruct.py`, `src/processes/eval.py`, `configs/config.yaml`, `configs/split/all.yaml`, `configs/task/predict.yaml`, `configs/task/reconstruct.yaml`, `configs/task/eval.yaml`, `tests/test_processes_e2e.py`
+- 重要な関数/クラス: `src/processes/train.py` の `main`, `src/processes/predict.py` の `main`, `src/processes/reconstruct.py` の `main`, `src/processes/eval.py` の `main`, `src/mode_decomp_ml/pipeline/utils.py` の `build_dataset_meta`/`build_meta`, `src/mode_decomp_ml/evaluate/__init__.py` の `compute_metrics`
+- 設計判断: split は最小の `all` だけを実装し、run dir 受け渡しは task config に明示。decomposer/coeff_post/model は pickle state を artifact に保存し、reconstruct/eval で同一状態を再利用する。
+- リスク/注意点: 予測/評価は dataset 全件をロードするため大規模データでメモリ負荷あり。`model.target_space=a` と `coeff_post!=none` は禁止。run dir を誤指定すると復元・評価に失敗する。
+- 検証コマンドと結果: `pytest tests/test_processes_e2e.py`（PASS）
+- 削除一覧: なし

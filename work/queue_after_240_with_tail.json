@@ -1,0 +1,142 @@
+{
+  "policy": {
+    "auto_set_in_progress_on_next": true,
+    "blocked_policy": {
+      "stop_when_only_blocked": true,
+      "max_same_task_attempts": 3,
+      "max_no_change_attempts": 2,
+      "force_progress_on_stall": true
+    },
+    "status_values": [
+      "todo",
+      "in_progress",
+      "blocked",
+      "done"
+    ],
+    "wip_limit": 1,
+    "task_creep_guard": true
+  },
+  "tasks": [
+    {
+      "id": "250",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Uncertainty（係数→場）伝播と可視化（GPR）",
+      "path": "work/tasks_p1_tail/250_uncertainty_viz.md",
+      "skills": [
+        "S60_evaluation",
+        "S96_benchmark_reports",
+        "S72_numerical_stability"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/03_CONFIG_CONVENTIONS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/10_PROCESS_CATALOG.md",
+        "docs/11_PLUGIN_REGISTRY.md",
+        "docs/13_TASK_FLOW.md",
+        "docs/14_COMPACT_CODE_POLICY.md",
+        "docs/15_REVIEWER_GUIDE.md",
+        "docs/16_DELETION_AND_PRUNING.md",
+        "docs/18_SCOPE_LOCK.md"
+      ],
+      "depends_on": [
+        "240"
+      ],
+      "unblocks": [
+        "260",
+        "270"
+      ]
+    },
+    {
+      "id": "260",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Model拡張: ElasticNet / MultiTask（比較用）",
+      "path": "work/tasks_p1_tail/260_models_elasticnet_multitask.md",
+      "skills": [
+        "S52_regression_models"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/03_CONFIG_CONVENTIONS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/10_PROCESS_CATALOG.md",
+        "docs/11_PLUGIN_REGISTRY.md",
+        "docs/13_TASK_FLOW.md",
+        "docs/14_COMPACT_CODE_POLICY.md",
+        "docs/15_REVIEWER_GUIDE.md",
+        "docs/16_DELETION_AND_PRUNING.md",
+        "docs/18_SCOPE_LOCK.md"
+      ],
+      "depends_on": [
+        "240",
+        "250"
+      ],
+      "unblocks": [
+        "270"
+      ]
+    },
+    {
+      "id": "270",
+      "priority": "P1",
+      "status": "todo",
+      "title": "Docs/Examples更新（P1 tail反映）",
+      "path": "work/tasks_p1_tail/270_docs_update_p1_tail.md",
+      "skills": [
+        "S10_docs_update"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/03_CONFIG_CONVENTIONS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/10_PROCESS_CATALOG.md",
+        "docs/11_PLUGIN_REGISTRY.md",
+        "docs/13_TASK_FLOW.md",
+        "docs/14_COMPACT_CODE_POLICY.md",
+        "docs/15_REVIEWER_GUIDE.md",
+        "docs/16_DELETION_AND_PRUNING.md",
+        "docs/18_SCOPE_LOCK.md"
+      ],
+      "depends_on": [
+        "250",
+        "260"
+      ],
+      "unblocks": [
+        "290"
+      ]
+    },
+    {
+      "id": "290",
+      "priority": "P1",
+      "status": "todo",
+      "title": "P1 Cleanup（不要コード削除・docs整合・再現性確認）",
+      "path": "work/tasks_p1_tail/290_cleanup_p1_tail.md",
+      "skills": [
+        "S98_refactor_cleanup",
+        "S95_tests_ci"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/03_CONFIG_CONVENTIONS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/10_PROCESS_CATALOG.md",
+        "docs/11_PLUGIN_REGISTRY.md",
+        "docs/13_TASK_FLOW.md",
+        "docs/14_COMPACT_CODE_POLICY.md",
+        "docs/15_REVIEWER_GUIDE.md",
+        "docs/16_DELETION_AND_PRUNING.md",
+        "docs/18_SCOPE_LOCK.md"
+      ],
+      "depends_on": [
+        "270"
+      ],
+      "unblocks": []
+    }
+  ],
+  "updated_at": "2025-12-29T03:31:39Z"
+}

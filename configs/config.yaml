@@ -1,19 +1,28 @@
 # Hydra main config (skeleton)
 defaults:
   - task: doctor
-  - dataset: placeholder
+  - dataset: synthetic
+  - split: all
   - domain: rectangle
   - preprocess: basic
   - decompose: fft2
   - coeff_post: none
   - model: ridge
+  - eval: basic
+  - viz: basic
+  - uncertainty: gpr_mc
+  - clearml: basic
   - _self_
 
 seed: 123
+output_dir: outputs
+tag: ""
+# CONTRACT: Append job num to prevent multirun collisions in run_dir.
+run_dir: ${output_dir}/${task.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}${tag}_${hydra:job.num}
 
 hydra:
   run:
-    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: ${run_dir}
   sweep:
-    dir: outputs/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
-    subdir: ${hydra.job.num}
+    dir: ${output_dir}/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra:job.num}

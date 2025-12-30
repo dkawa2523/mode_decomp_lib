@@ -2,7 +2,7 @@
 
 **ID:** 030  
 **Priority:** P0  
-**Status:** todo  
+**Status:** done  
 **Depends on:** 020  
 **Unblocks:** 040, 050  
 
@@ -27,9 +27,16 @@ P0 domain:
 - FFT/DCT は rectangle を推奨（diskなら “mask外0埋め” か “エラー” を選べる）
 
 ## Acceptance Criteria
-- [ ] rectangle/disk の両方で coords が生成される（xy/rt）
-- [ ] decomposer互換チェックがあり、誤適用が起きない
-- [ ] disk は r の最大が1になる
+- [x] rectangle/disk の両方で coords が生成される（xy/rt）
+- [x] decomposer互換チェックがあり、誤適用が起きない
+- [x] disk は r の最大が1になる
 
 ## Verification
-- [ ] 合成データを disk domain に投げ、r,theta のshapeと範囲が確認できる
+- [x] 合成データを disk domain に投げ、r,theta のshapeと範囲が確認できる
+
+## Review Map（必須）
+- 変更ファイル一覧（追加/変更/削除）: `src/mode_decomp_ml/domain/__init__.py`（追加）, `tests/test_domain.py`（追加）, `configs/domain/rectangle.yaml`, `configs/domain/disk.yaml`, `configs/decompose/fft2.yaml`, `configs/decompose/dct2.yaml`
+- 重要な関数/クラス: `DomainSpec`, `build_domain_spec`, `validate_decomposer_compatibility`
+- 設計判断: domainの座標生成はx/yを共通化し、diskはr/thetaと境界maskを生成してr<=1を保証。FFT/DCTのdisk適用は明示policyで遮断し、configを真実にする。
+- リスク/注意点: diskの重みはrを含める近似であり、厳密な積分スキームは将来調整が必要。`x_range`/`y_range`はconfig必須。
+- 検証コマンドと結果: `pytest tests/test_domain.py`（pass）

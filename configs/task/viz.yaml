@@ -1,0 +1,4 @@
+name: viz
+train_run_dir: ""
+predict_run_dir: ""
+reconstruct_run_dir: ""

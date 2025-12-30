@@ -1,0 +1,4 @@
+name: basic
+sample_index: 0
+k_list: [1, 2, 4, 8, 16]
+spectrum_scale: log

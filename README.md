@@ -18,9 +18,15 @@ VSCode + Codex CLI で `autopilot.sh` を回し、`work/queue.json` のP0タス�
 2) 依存をインストール（どちらでも）
    - `pip install -r requirements.txt`
    - もしくは `pip install -e .`
-3) （推奨）git repo化
+3) 最短実行例（`pip install -e .` を使わない場合は `PYTHONPATH=src` を付ける）
+   - `PYTHONPATH=src python -m mode_decomp_ml.cli.run task=doctor`
+   - `PYTHONPATH=src python -m mode_decomp_ml.cli.run task=benchmark`
+4) examples（2件に絞ってあります）
+   - `PYTHONPATH=src python -m mode_decomp_ml.cli.run --config-name examples/pod_ridge`
+   - `PYTHONPATH=src python -m mode_decomp_ml.cli.run --config-name examples/pod_gpr_uncertainty`
+5) （推奨）git repo化
    - `git init && git add -A && git commit -m "init"`
-4) 実行
+6) Autopilot実行
    - `chmod +x autopilot.sh doctor.sh tools/autopilot.sh`
    - `LIVE_TEE=1 PYTHON_BIN=/usr/bin/python3 ./doctor.sh`
    - `LIVE_TEE=1 PYTHON_BIN=/usr/bin/python3 ./autopilot.sh 30`

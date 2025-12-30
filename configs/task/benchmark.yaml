@@ -1,1 +1,4 @@
 name: benchmark
+decompose_list: [fft2, zernike]
+coeff_post_list: [none, pca]
+domain: disk

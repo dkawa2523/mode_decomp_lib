@@ -2,7 +2,7 @@
 
 **ID:** 050  
 **Priority:** P0  
-**Status:** todo  
+**Status:** done  
 **Depends on:** 030  
 **Unblocks:** 060  
 
@@ -28,9 +28,16 @@ disk 領域向けの主力分解として Zernike を実装する。
 - coeff_meta: (n,m) など次数情報、正規化、mask扱い
 
 ## Acceptance Criteria
-- [ ] disk domain で Zernike transform/inverse が動作する
-- [ ] 係数次元が設定で決められる（n_max 等）
-- [ ] coeff_meta に (n,m) の対応が残る
+- [x] disk domain で Zernike transform/inverse が動作する
+- [x] 係数次元が設定で決められる（n_max 等）
+- [x] coeff_meta に (n,m) の対応が残る
 
 ## Verification
-- [ ] 低次モードのみでの逐次再構成が可視化できる（k=1,2,4...）
+- [x] 低次モードのみでの逐次再構成が可視化できる（k=1,2,4...）
+
+## Review Map（必須）
+- 変更ファイル一覧（追加/変更/削除）: `src/mode_decomp_ml/decompose/zernike.py`（追加）, `src/mode_decomp_ml/decompose/__init__.py`（更新）, `configs/decompose/zernike.yaml`（更新）, `tests/test_decompose_zernike.py`（追加）
+- 重要な関数/クラス: `ZernikeDecomposer.transform`, `ZernikeDecomposer.inverse_transform`, `_build_nm_list`, `_zernike_mode`
+- 設計判断: disk専用のZernike基底を `n_max` で固定し、`n_then_m` 順で係数化。離散格子の非直交性を考慮し、mask+weightsを使った最小二乗で係数推定する。正規化は `orthonormal` とし、`boundary_condition` を coeff_meta に記録。
+- リスク/注意点: `n_max` が大きい場合は最小二乗が重く、valid点数が少ないとrank不足でエラー。coeffの並びは `nm_list` に依存するため比較時は必ず参照する。
+- 検証コマンドと結果: `python -m pytest tests/test_decompose_zernike.py`（失敗: pytest未導入）, `python - <<'PY' ...`（tests内の関数を直接実行: ok）

@@ -2,7 +2,7 @@
 
 **ID:** 000  
 **Priority:** P0  
-**Status:** todo  
+**Status:** done  
 **Depends on:** None  
 **Unblocks:** 010  
 
@@ -27,9 +27,17 @@
 - ここでは機能実装はしない。**開発が終わらない問題を先に潰す**
 
 ## Acceptance Criteria
-- [ ] `LIVE_TEE=1 PYTHON_BIN=/usr/bin/python3 ./doctor.sh` が no issue で完了する
-- [ ] `work/queue.json` の P0 scope が docs と一致している（P0で不要に広げない）
-- [ ] `README.md` の手順で `autopilot.sh` が起動できる（Codex実行直前まで）
+- [x] `LIVE_TEE=1 PYTHON_BIN=/usr/bin/python3 ./doctor.sh` が no issue で完了する
+- [x] `work/queue.json` の P0 scope が docs と一致している（P0で不要に広げない）
+- [x] `README.md` の手順で `autopilot.sh` が起動できる（Codex実行直前まで）
 
 ## Verification
-- [ ] doctorログ（work/.autopilot/.../doctor_initial.txt）に no issue が記録される
+- [x] doctorログ（work/.autopilot/.../doctor_initial.txt）に no issue が記録される
+
+## Review Map
+- 変更ファイル一覧: `work/tasks/000_greenfield_setup.md`, `work/queue.json`, `work/.autopilot/20251228T132235Z/doctor_initial.txt`, `work/.autopilot/20251228T132401Z/doctor_initial.txt`, `work/.autopilot/20251228T132401Z/_meta.txt`, `work/.autopilot/20251228T132401Z/codex_help.txt`, `work/.autopilot/20251228T132401Z/codex_exec_help.txt`, `work/.autopilot/20251228T132401Z/codex_version.txt`
+- 重要な関数/クラス: `tools/codex_prompt.py`（doctor実行で整合性確認）, `tools/autopilot.sh`（preflight/doctorログ生成）
+- 設計判断: doctorログは作業証跡として残し、P0スコープはdocsに合わせて変更しない方針で固定
+- リスク/注意点: `work/.autopilot/` は検証ログのため残置（機密がある場合は運用で除外）
+- 検証コマンドと結果: `LIVE_TEE=1 PYTHON_BIN=/usr/bin/python3 ./doctor.sh` → `no issues found`; `MAX_ITERS=0 LIVE_TEE=1 PYTHON_BIN=/usr/bin/python3 ./autopilot.sh 0` → preflight/doctorログ生成
+- 削除一覧: なし

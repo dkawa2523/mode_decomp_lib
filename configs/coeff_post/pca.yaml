@@ -1,1 +1,4 @@
 name: pca
+n_components: null
+energy_threshold: null
+whiten: false

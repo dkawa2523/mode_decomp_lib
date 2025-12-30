@@ -16,7 +16,8 @@
 - SSIM（画像として比較したい場合）
 
 ### Coeff-space
-- 係数RMSE（必要なら低次だけ）
+- 係数RMSE（a / z）
+- energy_cumsum（累積エネルギー比）
 - エネルギー捕捉率（上位Kで何%説明できるか）
 - 回転不変化を使う場合：不変量の誤差
 
@@ -39,3 +40,10 @@
 - “何もしない” baseline（平均場、最近傍条件など）
 - 分解 + 線形回帰 baseline
 - 分解 + PCA + 線形回帰 baseline
+
+---
+
+## 6. Uncertainty（任意）
+- uncertainty 出力（coeff_std / field_std）は任意で、比較/leaderboardには含めない
+- 比較は mean 予測の field-space metric を使い、std/区間は別レポートとする
+- GPR など coeff_std を返せるモデルでのみ有効（MC近似は可視化目的）

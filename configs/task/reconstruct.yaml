@@ -1,1 +1,3 @@
 name: reconstruct
+train_run_dir: ""
+predict_run_dir: ""

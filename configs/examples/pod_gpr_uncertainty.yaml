@@ -1,0 +1,42 @@
+# @package _global_
+defaults:
+  - /task: benchmark
+  - /dataset: synthetic
+  - /split: all
+  - /domain: rectangle
+  - /preprocess: basic
+  - /decompose: pod_svd
+  - /coeff_post: none
+  - /model: gpr
+  - /eval: basic
+  - /viz: basic
+  - /uncertainty: gpr_mc
+  - _self_
+
+seed: 123
+output_dir: outputs
+tag: "_ex_pod_gpr_uncertainty"
+run_dir: ${output_dir}/${task.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}${tag}_${hydra:job.num}
+
+dataset:
+  num_samples: 6
+  height: 16
+  width: 16
+
+task:
+  name: benchmark
+  decompose_list: [pod_svd]
+  coeff_post_list: [none]
+  domain: rectangle
+
+uncertainty:
+  enabled: true
+  num_mc_samples: 16
+  num_cases: 2
+
+hydra:
+  run:
+    dir: ${run_dir}
+  sweep:
+    dir: ${output_dir}/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra:job.num}

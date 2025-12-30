@@ -1,0 +1,9 @@
+name: synthetic
+num_samples: 2
+cond_dim: 3
+height: 32
+width: 32
+channels: 1
+mask_policy: require
+mask_mode: full
+mask_radius: 0.45

@@ -1,1 +1,16 @@
 name: gpr
+target_space: z
+cond_scaler: standardize
+kernel: rbf
+kernel_constant: 1.0
+kernel_constant_bounds: [1.0e-3, 1.0e3]
+length_scale: 1.0
+length_scale_bounds: [1.0e-2, 1.0e2]
+white_noise: true
+noise_level: 1.0e-6
+noise_level_bounds: [1.0e-8, 1.0e1]
+alpha: 1.0e-6
+normalize_y: true
+optimizer: fmin_l_bfgs_b
+n_restarts_optimizer: 0
+seed: ${seed}

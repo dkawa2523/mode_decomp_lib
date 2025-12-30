@@ -1,1 +1,2 @@
 name: pod_svd
+mask_policy: ignore_masked_points

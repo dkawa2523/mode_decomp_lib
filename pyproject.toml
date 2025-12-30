@@ -1,9 +1,12 @@
-# This file is intentionally named `pyproject.devkit.toml` to avoid clobbering an existing pyproject.toml.
-# If your repo has no packaging yet and you want to install the new code as a package, rename to pyproject.toml.
+# CONTRACT: Runtime deps are defined here and mirrored in requirements.txt.
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "mode-decomp-ml"
-version = "0.0.0"
+version = "0.1.0"
 requires-python = ">=3.9"
 dependencies = [
   "numpy",
@@ -13,6 +16,12 @@ dependencies = [
   "hydra-core",
   "omegaconf",
 ]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

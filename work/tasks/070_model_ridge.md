@@ -2,7 +2,7 @@
 
 **ID:** 070  
 **Priority:** P0  
-**Status:** todo  
+**Status:** done  
 **Depends on:** 060  
 **Unblocks:** 080  
 
@@ -26,9 +26,16 @@
 - cond_scaler（standardize等、最小）
 
 ## Acceptance Criteria
-- [ ] Ridge が cond→target の多出力回帰として動く
-- [ ] target_space を設定で切替できる
-- [ ] seed固定で再現できる
+- [x] Ridge が cond→target の多出力回帰として動く
+- [x] target_space を設定で切替できる
+- [x] seed固定で再現できる
 
 ## Verification
-- [ ] 合成データで train→predict が通り、shapeが一致する
+- [x] 合成データで train→predict が通り、shapeが一致する
+
+## Review Map
+- 変更ファイル一覧: `src/mode_decomp_ml/models/__init__.py`, `configs/model/ridge.yaml`, `tests/test_models_ridge.py`
+- 重要な関数/クラス: `src/mode_decomp_ml/models/__init__.py` の `RidgeRegressor`, `build_regressor`
+- 設計判断: Ridge本体とcond標準化を最小構成で実装し、`target_space` を明示設定にして比較可能性を維持。保存は既存artifact契約に合わせて `model.pkl` に統一。
+- リスク/注意点: `target_space` はモデルのメタ情報であり、誤設定すると downstream の解釈がズレる。
+- 検証コマンドと結果: `pytest tests/test_models_ridge.py`（PASS）

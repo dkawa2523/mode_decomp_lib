@@ -1,1 +1,4 @@
 name: arbitrary_mask
+mask_source: dataset
+x_range: [-1.0, 1.0]
+y_range: [-1.0, 1.0]
