@@ -1,2 +1,6 @@
-name: fft2
-disk_policy: error
+# Auto-generated shim for Hydra compatibility.
+# Source: configs/decompose/analytic/fft2.yaml
+
+defaults:
+  - /decompose/analytic/fft2
+  - _self_

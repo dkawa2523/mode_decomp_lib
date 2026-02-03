@@ -1,0 +1,24 @@
+dataset: data/mode_decomp_eval_dataset_v1/scalar_rect
+task: viz
+pipeline:
+  decomposer: pswf2d_tensor
+  codec: tensor_pack_v1
+  coeff_post: none
+  model: ridge
+params:
+  decompose:
+    name: pswf2d_tensor
+    c_x: 3.0
+    c_y: 3.0
+    n_x: 12
+    n_y: 12
+    mask_policy: error
+output:
+  root: runs
+  tag: scalar_rect_pswf2d
+  project: scalar_rect_pswf2d
+seed: 123
+task_params:
+  train_run_dir: /Volumes/SP PX10/Main_code/mode_decomp/mode_decomp_greenfield_devkit_v1/runs/scalar_rect_pswf2d/train
+  predict_run_dir: /Volumes/SP PX10/Main_code/mode_decomp/mode_decomp_greenfield_devkit_v1/runs/scalar_rect_pswf2d/predict
+  reconstruct_run_dir: /Volumes/SP PX10/Main_code/mode_decomp/mode_decomp_greenfield_devkit_v1/runs/scalar_rect_pswf2d/reconstruct

@@ -6,7 +6,7 @@ import pytest
 pytest.importorskip("torch")
 
 from mode_decomp_ml.data import build_dataset
-from mode_decomp_ml.decompose import build_decomposer
+from mode_decomp_ml.plugins.decomposers import build_decomposer
 from mode_decomp_ml.domain import build_domain_spec
 
 

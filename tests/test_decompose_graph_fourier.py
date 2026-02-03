@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from mode_decomp_ml.data.datasets import FieldSample
-from mode_decomp_ml.decompose import build_decomposer
+from mode_decomp_ml.plugins.decomposers import build_decomposer
 from mode_decomp_ml.domain import build_domain_spec
 
 
@@ -62,3 +62,31 @@ def test_graph_fourier_roundtrip_masked() -> None:
     eigenvalues = np.asarray(meta["eigenvalues"], dtype=np.float64)
     assert eigenvalues.shape[0] == int(mask.sum())
     assert np.all(np.diff(eigenvalues) >= -1e-10)
+
+
+def test_graph_fourier_auto_n_modes() -> None:
+    height, width = 4, 4
+    rng = np.random.default_rng(1)
+    field = rng.normal(size=(height, width, 1)).astype(np.float32)
+    domain = _rectangle_domain(height, width)
+    cfg = {
+        "name": "graph_fourier",
+        "n_modes": "auto",
+        "connectivity": 4,
+        "laplacian_type": "combinatorial",
+        "mask_policy": "allow_full",
+        "solver": "auto",
+        "dense_threshold": 512,
+        "eigsh_tol": 1.0e-6,
+        "eigsh_maxiter": 10000,
+    }
+    decomposer = build_decomposer(cfg)
+    decomposer.fit(domain_spec=domain)
+
+    coeff = decomposer.transform(field, mask=None, domain_spec=domain)
+    field_hat = decomposer.inverse_transform(coeff, domain_spec=domain)
+
+    assert field_hat.shape == field.shape
+    meta = decomposer.coeff_meta()
+    assert meta["n_modes"] == height * width
+    assert meta["n_modes_config"] == "auto"

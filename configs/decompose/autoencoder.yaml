@@ -1,10 +1,4 @@
-name: autoencoder
-latent_dim: 16
-hidden_channels: [8, 16]
-activation: relu
-epochs: 25
-batch_size: 16
-lr: 1.0e-3
-weight_decay: 0.0
-mask_policy: error
-device: cpu
+# Source: configs/decompose/data_driven/autoencoder.yaml
+
+defaults:
+  - /decompose/data_driven/autoencoder

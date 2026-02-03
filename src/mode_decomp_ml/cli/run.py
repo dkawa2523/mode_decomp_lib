@@ -1,9 +1,9 @@
 """Unified Hydra entrypoint for process tasks."""
 from __future__ import annotations
 
-import datetime as dt
 import importlib
 import inspect
+import logging
 import os
 import re
 import sys
@@ -23,7 +23,12 @@ except Exception:  # pragma: no cover - fallback when OmegaConf is missing
 
 import yaml
 
-CONFIG_DIR = Path(__file__).resolve().parents[3] / "configs"
+from mode_decomp_ml.config import cfg_get
+from mode_decomp_ml.pipeline import RunDirManager
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+CONFIG_DIR = PROJECT_ROOT / "configs"
+SRC_ROOT = PROJECT_ROOT / "src"
 
 
 def _task_name(cfg: Mapping[str, Any]) -> str:
@@ -41,10 +46,16 @@ def _task_name(cfg: Mapping[str, Any]) -> str:
 
 
 def _load_task_module(task_name: str):
+    for path in (str(SRC_ROOT), str(PROJECT_ROOT)):
+        if path and path not in sys.path:
+            sys.path.insert(0, path)
     try:
         return importlib.import_module(f"processes.{task_name}")
     except ModuleNotFoundError as exc:
-        raise ModuleNotFoundError(f"Unknown task module: processes.{task_name}") from exc
+        raise ModuleNotFoundError(
+            f"Unknown task module: processes.{task_name}. "
+            f"Ensure the repo root or src is on PYTHONPATH."
+        ) from exc
 
 
 def _call_main(main_fn: Callable[..., int], cfg: Mapping[str, Any]) -> int:
@@ -67,6 +78,19 @@ def _load_yaml(path: Path) -> MutableMapping[str, Any]:
     with path.open("r", encoding="utf-8") as fh:
         data = yaml.safe_load(fh)
     return data or {}
+
+
+def _resolve_group_config_path(group: str, name: str) -> Path:
+    root = CONFIG_DIR / group
+    candidate = root / f"{name}.yaml"
+    if candidate.exists():
+        return candidate
+    if group == "decompose":
+        for subdir in ("analytic", "data_driven"):
+            fallback = root / subdir / f"{name}.yaml"
+            if fallback.exists():
+                return fallback
+    raise FileNotFoundError(f"Config not found: {candidate}")
 
 
 _SIMPLE_INTERP_RE = re.compile(r"^\$\{([A-Za-z0-9_.]+)\}$")
@@ -114,10 +138,14 @@ def _resolve_interpolations(cfg: MutableMapping[str, Any]) -> MutableMapping[str
     hydra_cfg = cfg_copy.pop("hydra", None)
     run_dir_value = cfg_copy.get("run_dir")
     remove_run_dir = isinstance(run_dir_value, str) and (
-        "${hydra:" in run_dir_value or "${now:" in run_dir_value
+        "${hydra:" in run_dir_value or "${now:" in run_dir_value or "${run_id" in run_dir_value
     )
     if remove_run_dir:
         run_dir_value = cfg_copy.pop("run_dir", None)
+    run_id_value = cfg_copy.get("run_id")
+    remove_run_id = isinstance(run_id_value, str) and ("${hydra:" in run_id_value or "${now:" in run_id_value)
+    if remove_run_id:
+        run_id_value = cfg_copy.pop("run_id", None)
     resolved = OmegaConf.to_container(OmegaConf.create(cfg_copy), resolve=True)
     if not isinstance(resolved, MutableMapping):
         return _resolve_simple_interpolations(cfg)
@@ -125,6 +153,8 @@ def _resolve_interpolations(cfg: MutableMapping[str, Any]) -> MutableMapping[str
         resolved["hydra"] = hydra_cfg
     if remove_run_dir and run_dir_value is not None:
         resolved["run_dir"] = run_dir_value
+    if remove_run_id and run_id_value is not None:
+        resolved["run_id"] = run_id_value
     return _resolve_simple_interpolations(resolved)
 
 
@@ -172,7 +202,7 @@ def _apply_overrides(
             continue
         key, value = raw.split("=", 1)
         if key in group_set:
-            cfg[key] = _load_yaml(CONFIG_DIR / key / f"{value}.yaml")
+            cfg[key] = _load_yaml(_resolve_group_config_path(key, value))
             continue
         _set_dotted(cfg, key, _parse_value(value))
 
@@ -184,24 +214,13 @@ def _compose_config(overrides: Sequence[str]) -> MutableMapping[str, Any]:
     group_names = []
     for group, name in _parse_defaults(defaults):
         group_names.append(group)
-        cfg[group] = _load_yaml(CONFIG_DIR / group / f"{name}.yaml")
+        cfg[group] = _load_yaml(_resolve_group_config_path(group, name))
     _apply_overrides(cfg, overrides, group_names)
     return _resolve_interpolations(cfg)
 
 
 def _materialize_run_dir(cfg: MutableMapping[str, Any]) -> Path:
-    output_dir = str(cfg.get("output_dir", "outputs"))
-    tag = str(cfg.get("tag", ""))
-    task = _task_name(cfg)
-    timestamp = dt.datetime.now().strftime("%Y-%m-%d/%H-%M-%S")
-    run_dir = f"{output_dir}/{task}/{timestamp}{tag}"
-    cfg["run_dir"] = run_dir
-    hydra_cfg = cfg.get("hydra")
-    if isinstance(hydra_cfg, MutableMapping):
-        hydra_cfg.setdefault("run", {})
-        if isinstance(hydra_cfg.get("run"), MutableMapping):
-            hydra_cfg["run"]["dir"] = run_dir
-    return Path(run_dir)
+    return RunDirManager(cfg).ensure()
 
 
 def _write_hydra_snapshot(run_dir: Path, cfg: Mapping[str, Any]) -> None:
@@ -224,10 +243,25 @@ def _run_fallback(argv: Sequence[str]) -> int:
     return int(_call_main(module.main, cfg))
 
 
+def _ensure_logging(cfg: Mapping[str, Any] | None = None) -> None:
+    if logging.getLogger().handlers:
+        return
+    level = logging.INFO
+    fmt = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+    logging_cfg = cfg_get(cfg, "logging", None)
+    if isinstance(logging_cfg, Mapping):
+        level_name = str(logging_cfg.get("level", "")).upper()
+        if level_name:
+            level = getattr(logging, level_name, level)
+        fmt = str(logging_cfg.get("format", fmt)) or fmt
+    logging.basicConfig(level=level, format=fmt)
+
+
 if _HYDRA_AVAILABLE:
     # CONTRACT: Hydra config is the single source of truth and defines task routing.
     @hydra.main(version_base=None, config_path=str(CONFIG_DIR), config_name="config")
     def main(cfg: Mapping[str, Any]) -> int:
+        _ensure_logging(cfg)
         task_name = _task_name(cfg)
         module = _load_task_module(task_name)
         if not hasattr(module, "main"):
@@ -235,6 +269,7 @@ if _HYDRA_AVAILABLE:
         return int(_call_main(module.main, cfg))
 else:
     def main(cfg: Mapping[str, Any] | None = None) -> int:
+        _ensure_logging(cfg)
         if cfg is not None:
             task_name = _task_name(cfg)
             module = _load_task_module(task_name)

@@ -1,0 +1,6 @@
+# Auto-generated shim for Hydra compatibility.
+# Source: configs/decompose/analytic/spherical_harmonics.yaml
+
+defaults:
+  - /decompose/analytic/spherical_harmonics
+  - _self_

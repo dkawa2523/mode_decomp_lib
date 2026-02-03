@@ -1,0 +1,6 @@
+# Auto-generated shim for Hydra compatibility.
+# Source: configs/decompose/analytic/annular_zernike.yaml
+
+defaults:
+  - /decompose/analytic/annular_zernike
+  - _self_

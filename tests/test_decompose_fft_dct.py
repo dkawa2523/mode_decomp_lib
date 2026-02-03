@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from mode_decomp_ml.decompose import build_decomposer
+from mode_decomp_ml.plugins.decomposers import build_decomposer
 from mode_decomp_ml.domain import build_domain_spec
 
 
@@ -56,4 +56,4 @@ def test_coeff_meta_saved(tmp_path: Path) -> None:
     assert meta_path.exists()
     payload = json.loads(meta_path.read_text(encoding="utf-8"))
     assert payload["method"] == "fft2"
-    assert payload["coeff_shape"] == [1, 4, 5, 2]
+    assert payload["coeff_shape"] == [1, 4, 5]

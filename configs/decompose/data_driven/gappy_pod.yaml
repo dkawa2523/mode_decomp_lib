@@ -1,0 +1,7 @@
+name: gappy_pod
+mask_policy: require
+backend: sklearn
+solver: direct
+inner_product: euclidean
+reg_lambda: 1.0e-6
+seed: ${seed}

@@ -1,0 +1,19 @@
+dataset: data/mode_decomp_eval_dataset_v1/scalar_rect
+task: train
+pipeline:
+  decomposer: wavelet2d
+  codec: wavelet_pack_v1
+  coeff_post: none
+  model: ridge
+params:
+  decompose:
+    name: wavelet2d
+    wavelet: db2
+    level: 2
+    mode: symmetric
+    mask_policy: error
+output:
+  root: runs
+  tag: scalar_rect_wavelet2d
+  project: scalar_rect_wavelet2d
+seed: 123

@@ -18,12 +18,18 @@ VSCode + Codex CLI で `autopilot.sh` を回し、`work/queue.json` のP0タス�
 2) 依存をインストール（どちらでも）
    - `pip install -r requirements.txt`
    - もしくは `pip install -e .`
+2.1) Optional dependencies（必要な場合のみ）
+   - Wavelet2D: `pip install pywt`
+   - Autoencoder / deep models: `pip install torch torchvision`
+   - Spherical harmonics (sphere_grid): `pip install pyshtools`
+   - GBDT models (xgb/lgbm/catboost): `pip install xgboost lightgbm catboost`
 3) 最短実行例（`pip install -e .` を使わない場合は `PYTHONPATH=src` を付ける）
    - `PYTHONPATH=src python -m mode_decomp_ml.cli.run task=doctor`
    - `PYTHONPATH=src python -m mode_decomp_ml.cli.run task=benchmark`
-4) examples（2件に絞ってあります）
-   - `PYTHONPATH=src python -m mode_decomp_ml.cli.run --config-name examples/pod_ridge`
-   - `PYTHONPATH=src python -m mode_decomp_ml.cli.run --config-name examples/pod_gpr_uncertainty`
+4) examples（run.yaml）
+   - `PYTHONPATH=src python -m mode_decomp_ml.run --config examples/run_scalar_rect_fft2_ridge.yaml`
+   - `PYTHONPATH=src python -m mode_decomp_ml.run --config examples/run_scalar_disk_zernike.yaml`
+   - `PYTHONPATH=src python -m mode_decomp_ml.run --config examples/run_scalar_mask_pod_ridge.yaml`
 5) （推奨）git repo化
    - `git init && git add -A && git commit -m "init"`
 6) Autopilot実行

@@ -1,0 +1,43 @@
+dataset:
+  name: synthetic
+  num_samples: 4
+  cond_dim: 3
+  height: 33
+  width: 33
+  channels: 1
+  mask_policy: allow_none
+  mask_mode: none
+task: predict
+pipeline:
+  decomposer: annular_zernike
+  codec: zernike_pack_v1
+  coeff_post: none
+  model: ridge
+output:
+  root: runs
+  tag: scalar_annulus_annular_zernike
+  project: scalar_annulus_annular_zernike
+seed: 123
+params:
+  decompose:
+    name: annular_zernike
+    n_max: 6
+    m_max: 6
+    ordering: n_then_m
+    normalization: orthonormal
+    boundary_condition: unit_annulus
+  domain:
+    name: annulus
+    center:
+    - 0.0
+    - 0.0
+    r_inner: 0.35
+    r_outer: 1.0
+    x_range:
+    - -1.0
+    - 1.0
+    y_range:
+    - -1.0
+    - 1.0
+task_params:
+  train_run_dir: /Volumes/SP PX10/Main_code/mode_decomp/mode_decomp_greenfield_devkit_v1/runs/scalar_annulus_annular_zernike/train

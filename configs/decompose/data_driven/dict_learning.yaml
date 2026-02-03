@@ -1,0 +1,5 @@
+name: dict_learning
+mask_policy: error
+n_components: 64
+alpha: 1.0
+transform_algorithm: lasso_cd

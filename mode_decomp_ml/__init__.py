@@ -1,4 +1,8 @@
-"""Shim package to make src/ importable without installation."""
+"""Shim package to make src/ importable without installation.
+
+This keeps `import mode_decomp_ml` working without editable installs by
+extending the package path to `src/mode_decomp_ml`.
+"""
 from __future__ import annotations
 
 from pathlib import Path

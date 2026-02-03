@@ -8,44 +8,44 @@
 
 ## 代表的な run dir 構造（例）
 ```
-outputs/<process>/<date>/<time>_<tag>_<jobnum>/
-  hydra/                    # Hydraが保存する設定
-  meta.json                 # 実行環境、git hash、dataset hash等
-  artifacts/
-    dataset_meta.json
+runs/<tag>/<run_id>/
+  run.yaml
+  manifest_run.json
+  metrics.json
+  preds.npz
+  model/
+    model.pkl or model.pth
+  states/
     decomposer/
       state.pkl             # basis/indices 等（必要な場合）
       coeff_meta.json       # 係数のindex対応
     coeff_post/
       state.pkl             # PCA等
-    model/
-      model.pkl or model.pth
-  metrics/
-    metrics.json
-  preds/
-    coeff.npy               # a_hat もしくは z_hat
-    field.npy               # field_hat
-  viz/
+    preprocess/
+      state.pkl
+  figures/
     recon.png
     error_map.png
     coeff_spectrum.png
+  tables/
+  logs.txt                  # 任意
 ```
 
 ---
 
 ## 必須artifact（最低限）
-- `hydra/config.yaml`（自動）
-- `meta.json`（seed、git、lib versions、dataset hash）
-- `metrics/metrics.json`（評価指標）
-- `preds/`（必要な場合のみ：predict/reconstruct）
-- `artifacts/decomposer`（transformの再現に必要なstateがある場合）
-- `artifacts/coeff_post`（PCA等のstateは必須）
-- `artifacts/model`（学習モデル）
+- `run.yaml`（入力設定の保存）
+- `manifest_run.json`（seed、git、dataset hash、dataset_meta、upstream_artifacts 等）
+- `metrics.json`（評価指標。evalのみ）
+- `preds.npz`（predict/reconstructのみ）
+- `states/decomposer`（transform再現に必要なstateがある場合）
+- `states/coeff_post`（PCA等のstateは必須）
+- `model/`（学習モデル）
 
 ---
 
 ## dataset versioning
-- 生データのハッシュ（ファイルhashまたはサンプルID一覧hash）を `dataset_meta.json` に保存
+- 生データのハッシュ（ファイルhashまたはサンプルID一覧hash）を `manifest_run.json` 内 `dataset_meta` に保存
 - split方式とseedも保存（比較可能性の根拠）
 
 ---

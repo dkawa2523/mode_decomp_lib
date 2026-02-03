@@ -7,6 +7,8 @@ from typing import Any, Dict, Mapping
 
 import numpy as np
 
+from mode_decomp_ml.config import cfg_get
+
 _DISK_POLICIES = {"error", "mask_zero_fill"}
 _MASK_SOURCES = {"dataset", "file", "inline"}
 
@@ -18,6 +20,7 @@ class DomainSpec:
     mask: np.ndarray | None
     weights: np.ndarray | None
     meta: Dict[str, Any]
+    _mass_matrix: np.ndarray | None = None
 
     @property
     def grid_shape(self) -> tuple[int, int]:
@@ -39,16 +42,22 @@ class DomainSpec:
             raise ValueError(f"coords must be 2D for grid domains, got shape {sample.shape}")
         return int(sample.shape[0]), int(sample.shape[1])
 
+    def integration_weights(self) -> np.ndarray | None:
+        if self.weights is None:
+            return None
+        weights = np.asarray(self.weights)
+        if self.mask is None:
+            return weights
+        mask = np.asarray(self.mask)
+        if mask.shape != weights.shape:
+            if mask.ndim == 2 and weights.ndim == 1 and mask.shape[1] == 1:
+                mask = mask[:, 0]
+            else:
+                raise ValueError(f"mask shape {mask.shape} does not match weights {weights.shape}")
+        return np.where(mask, weights, 0.0)
 
-def _cfg_get(cfg: Mapping[str, Any] | None, key: str, default: Any = None) -> Any:
-    if cfg is None:
-        return default
-    if hasattr(cfg, "get"):
-        try:
-            return cfg.get(key, default)
-        except TypeError:
-            pass
-    return getattr(cfg, key, default)
+    def mass_matrix(self) -> np.ndarray | None:
+        return self._mass_matrix
 
 
 def _normalize_field_shape(field_shape: tuple[int, ...]) -> tuple[int, int]:
@@ -68,8 +77,8 @@ def _parse_range(value: Any, name: str) -> tuple[float, float]:
 
 
 def _build_grid(domain_cfg: Mapping[str, Any], height: int, width: int) -> tuple[np.ndarray, np.ndarray]:
-    x_min, x_max = _parse_range(_cfg_get(domain_cfg, "x_range"), "x_range")
-    y_min, y_max = _parse_range(_cfg_get(domain_cfg, "y_range"), "y_range")
+    x_min, x_max = _parse_range(cfg_get(domain_cfg, "x_range"), "x_range")
+    y_min, y_max = _parse_range(cfg_get(domain_cfg, "y_range"), "y_range")
     x = np.linspace(x_min, x_max, width, dtype=np.float32)
     y = np.linspace(y_min, y_max, height, dtype=np.float32)
     xx, yy = np.meshgrid(x, y, indexing="xy")
@@ -102,14 +111,14 @@ def build_domain_spec(
 ) -> DomainSpec:
     if domain_cfg is None:
         raise ValueError("domain_cfg is required")
-    name = str(_cfg_get(domain_cfg, "name", "")).strip()
+    name = str(cfg_get(domain_cfg, "name", "")).strip()
     if not name:
         raise ValueError("domain.name is required")
 
     height, width = _normalize_field_shape(field_shape)
 
     if name == "mesh":
-        from .mesh import load_mesh_inputs
+        from .mesh import compute_vertex_areas, load_mesh_inputs
 
         vertices, faces, mask, mesh_meta = load_mesh_inputs(domain_cfg)
         if width != 1:
@@ -126,13 +135,99 @@ def build_domain_spec(
                 "vertex_dim": int(vertices.shape[1]),
             }
         )
-        boundary_condition = _cfg_get(domain_cfg, "boundary_condition", None)
+        boundary_condition = cfg_get(domain_cfg, "boundary_condition", None)
         if boundary_condition is not None:
             meta["boundary_condition"] = str(boundary_condition)
         if mask is not None:
             meta["mask_shape"] = (int(mask.shape[0]),)
         coords = {"vertices": vertices, "faces": faces}
-        return DomainSpec(name=name, coords=coords, mask=mask, weights=None, meta=meta)
+        weights = compute_vertex_areas(vertices, faces)
+        meta["weight_source"] = "vertex_area"
+        mass_matrix_cfg = cfg_get(domain_cfg, "mass_matrix", False)
+        mass_matrix = None
+        if isinstance(mass_matrix_cfg, str):
+            mass_matrix_cfg = mass_matrix_cfg.strip().lower()
+        if mass_matrix_cfg in {True, "diag", "diagonal"}:
+            mass_matrix = np.diag(weights.astype(np.float64, copy=False))
+            meta["mass_matrix"] = "diag"
+        return DomainSpec(
+            name=name,
+            coords=coords,
+            mask=mask,
+            weights=weights,
+            meta=meta,
+            _mass_matrix=mass_matrix,
+        )
+
+    if name == "sphere_grid":
+        lat_range = cfg_get(domain_cfg, "lat_range", None)
+        lon_range = cfg_get(domain_cfg, "lon_range", None)
+        if lat_range is None:
+            lat_range = cfg_get(domain_cfg, "y_range", None)
+        if lon_range is None:
+            lon_range = cfg_get(domain_cfg, "x_range", None)
+        lat_min, lat_max = _parse_range(lat_range, "lat_range")
+        lon_min, lon_max = _parse_range(lon_range, "lon_range")
+        angle_unit = str(cfg_get(domain_cfg, "angle_unit", "deg")).strip().lower() or "deg"
+        if angle_unit not in {"deg", "degree", "degrees", "rad", "radian", "radians"}:
+            raise ValueError(
+                "domain.angle_unit must be deg/degree/degrees or rad/radian/radians for sphere_grid"
+            )
+        n_lat = cfg_get(domain_cfg, "n_lat", None)
+        n_lon = cfg_get(domain_cfg, "n_lon", None)
+        if n_lat is not None and int(n_lat) != height:
+            raise ValueError(f"domain.n_lat {n_lat} does not match field height {height}")
+        if n_lon is not None and int(n_lon) != width:
+            raise ValueError(f"domain.n_lon {n_lon} does not match field width {width}")
+        if height < 2 or width < 2:
+            raise ValueError("sphere_grid requires field_shape with height/width >= 2")
+        radius = float(cfg_get(domain_cfg, "radius", 1.0))
+        if radius <= 0.0:
+            raise ValueError("domain.radius must be > 0 for sphere_grid")
+
+        lat_vals = np.linspace(lat_min, lat_max, height, dtype=np.float32)
+        lon_vals = np.linspace(lon_min, lon_max, width, dtype=np.float32)
+        lon_grid, lat_grid = np.meshgrid(lon_vals, lat_vals, indexing="xy")
+        if angle_unit in {"deg", "degree", "degrees"}:
+            lat_rad = np.deg2rad(lat_grid.astype(np.float64))
+            lon_rad = np.deg2rad(lon_grid.astype(np.float64))
+            lat_deg = lat_grid
+            lon_deg = lon_grid
+            lat_vals_rad = np.deg2rad(lat_vals.astype(np.float64))
+            lon_vals_rad = np.deg2rad(lon_vals.astype(np.float64))
+            angle_unit_norm = "deg"
+        else:
+            lat_rad = lat_grid.astype(np.float64)
+            lon_rad = lon_grid.astype(np.float64)
+            lat_deg = np.rad2deg(lat_grid.astype(np.float64)).astype(np.float32)
+            lon_deg = np.rad2deg(lon_grid.astype(np.float64)).astype(np.float32)
+            lat_vals_rad = lat_vals.astype(np.float64)
+            lon_vals_rad = lon_vals.astype(np.float64)
+            angle_unit_norm = "rad"
+
+        theta = lon_rad.astype(np.float64)
+        phi = (0.5 * np.pi - lat_rad).astype(np.float64)
+        dlat = float(np.abs(lat_vals_rad[1] - lat_vals_rad[0]))
+        dlon = float(np.abs(lon_vals_rad[1] - lon_vals_rad[0]))
+        weights = (np.sin(phi) * dlat * dlon).astype(np.float64)
+
+        coords = {
+            "lat": lat_rad.astype(np.float64),
+            "lon": lon_rad.astype(np.float64),
+            "theta": theta,
+            "phi": phi,
+            "lat_deg": lat_deg.astype(np.float32),
+            "lon_deg": lon_deg.astype(np.float32),
+        }
+        meta = {
+            "lat_range": (float(lat_min), float(lat_max)),
+            "lon_range": (float(lon_min), float(lon_max)),
+            "angle_unit": angle_unit_norm,
+            "radius": radius,
+            "n_lat": int(height),
+            "n_lon": int(width),
+        }
+        return DomainSpec(name=name, coords=coords, mask=None, weights=weights, meta=meta)
 
     xx, yy = _build_grid(domain_cfg, height, width)
     dx = float((xx[0, -1] - xx[0, 0]) / (max(width - 1, 1)))
@@ -148,11 +243,11 @@ def build_domain_spec(
         return DomainSpec(name=name, coords=coords, mask=None, weights=weights, meta=meta)
 
     if name == "disk":
-        center = _cfg_get(domain_cfg, "center", None)
+        center = cfg_get(domain_cfg, "center", None)
         if center is None or not hasattr(center, "__len__") or len(center) != 2:
             raise ValueError("domain.center must be a pair for disk")
         cx, cy = float(center[0]), float(center[1])
-        radius = float(_cfg_get(domain_cfg, "radius", 0.0))
+        radius = float(cfg_get(domain_cfg, "radius", 0.0))
         if radius <= 0:
             raise ValueError("domain.radius must be > 0 for disk")
         radius_f = np.float32(radius)
@@ -178,10 +273,51 @@ def build_domain_spec(
                 raise ValueError(f"disk r must be <= 1, got max {r_max}")
         return DomainSpec(name=name, coords=coords, mask=mask, weights=weights, meta=meta)
 
+    if name == "annulus":
+        center = cfg_get(domain_cfg, "center", None)
+        if center is None or not hasattr(center, "__len__") or len(center) != 2:
+            raise ValueError("domain.center must be a pair for annulus")
+        cx, cy = float(center[0]), float(center[1])
+        r_inner = float(cfg_get(domain_cfg, "r_inner", 0.0))
+        r_outer = float(cfg_get(domain_cfg, "r_outer", 0.0))
+        if r_outer <= 0:
+            raise ValueError("domain.r_outer must be > 0 for annulus")
+        if r_inner < 0:
+            raise ValueError("domain.r_inner must be >= 0 for annulus")
+        if r_inner >= r_outer:
+            raise ValueError("domain.r_inner must be < r_outer for annulus")
+
+        x_shift = xx - cx
+        y_shift = yy - cy
+        r = np.sqrt(x_shift**2 + y_shift**2).astype(np.float32) / np.float32(r_outer)
+        theta = np.arctan2(y_shift, x_shift).astype(np.float32)
+        r_inner_norm = r_inner / r_outer
+        mask = (r >= r_inner_norm) & (r <= 1.0)
+        # CONTRACT: annulus weights include radial factor for polar inner-products.
+        weights = (r * dx * dy).astype(np.float32)
+        weights[~mask] = 0.0
+        coords = {"x": xx, "y": yy, "r": r.astype(np.float32), "theta": theta}
+        meta = {
+            "center": (cx, cy),
+            "r_inner": r_inner,
+            "r_outer": r_outer,
+            "r_inner_norm": r_inner_norm,
+            "x_range": (float(xx[0, 0]), float(xx[0, -1])),
+            "y_range": (float(yy[0, 0]), float(yy[-1, 0])),
+        }
+        if mask.any():
+            r_max = float(r[mask].max())
+            if r_max > 1.0 + 1e-6:
+                raise ValueError(f"annulus r must be <= 1, got max {r_max}")
+            r_min = float(r[mask].min())
+            if r_min < r_inner_norm - 1e-6:
+                raise ValueError(f"annulus r must be >= r_inner_norm, got min {r_min}")
+        return DomainSpec(name=name, coords=coords, mask=mask, weights=weights, meta=meta)
+
     if name in {"arbitrary_mask", "mask"}:
-        mask_source = str(_cfg_get(domain_cfg, "mask_source", "")).strip()
-        mask_inline = _cfg_get(domain_cfg, "mask", None)
-        mask_path = _cfg_get(domain_cfg, "mask_path", None)
+        mask_source = str(cfg_get(domain_cfg, "mask_source", "")).strip()
+        mask_inline = cfg_get(domain_cfg, "mask", None)
+        mask_path = cfg_get(domain_cfg, "mask_path", None)
 
         if mask_source:
             if mask_source not in _MASK_SOURCES:
@@ -235,18 +371,21 @@ def validate_decomposer_compatibility(
 ) -> None:
     if decomposer_cfg is None:
         raise ValueError("decomposer_cfg is required")
-    method = str(_cfg_get(decomposer_cfg, "name", "")).strip()
+    method = str(cfg_get(decomposer_cfg, "name", "")).strip()
     if not method:
         raise ValueError("decompose.name is required")
 
     if method == "zernike" and domain_spec.name != "disk":
         raise ValueError("zernike requires disk domain")
 
+    if method == "annular_zernike" and domain_spec.name != "annulus":
+        raise ValueError("annular_zernike requires annulus domain")
+
     if method == "fourier_bessel" and domain_spec.name != "disk":
         raise ValueError("fourier_bessel requires disk domain")
 
     if method in {"fft2", "dct2"} and domain_spec.name == "disk":
-        policy = str(_cfg_get(decomposer_cfg, "disk_policy", "")).strip()
+        policy = str(cfg_get(decomposer_cfg, "disk_policy", "")).strip()
         if not policy:
             raise ValueError("decompose.disk_policy is required for disk domain")
         if policy not in _DISK_POLICIES:
@@ -259,3 +398,15 @@ def validate_decomposer_compatibility(
 
     if method == "helmholtz" and domain_spec.name not in {"rectangle", "arbitrary_mask", "mask"}:
         raise ValueError("helmholtz requires rectangle or mask domain")
+
+    if method == "wavelet2d" and domain_spec.name not in {"rectangle", "disk", "arbitrary_mask", "mask"}:
+        raise ValueError("wavelet2d requires rectangle or mask-compatible domain")
+
+    if method == "pswf2d_tensor" and domain_spec.name != "rectangle":
+        raise ValueError("pswf2d_tensor requires rectangle domain")
+
+    if method == "spherical_harmonics" and domain_spec.name != "sphere_grid":
+        raise ValueError("spherical_harmonics requires sphere_grid domain")
+
+    if method == "spherical_slepian" and domain_spec.name != "sphere_grid":
+        raise ValueError("spherical_slepian requires sphere_grid domain")

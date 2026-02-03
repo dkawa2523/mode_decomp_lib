@@ -4,7 +4,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping
 
-from mode_decomp_ml.pipeline import build_meta, cfg_get, ensure_dir, require_cfg_keys, resolve_run_dir, write_json
+from mode_decomp_ml.pipeline import (
+    ArtifactWriter,
+    StepRecorder,
+    artifact_ref,
+    build_meta,
+    cfg_get,
+    require_cfg_keys,
+    resolve_run_dir,
+)
 from mode_decomp_ml.tracking.leaderboard import collect_rows, write_leaderboard
 
 
@@ -27,37 +35,55 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
     task_cfg = _require_task_config(cfg_get(cfg, "task", None))
 
     run_dir = resolve_run_dir(cfg)
-    ensure_dir(run_dir)
+    writer = ArtifactWriter(run_dir)
+    steps = StepRecorder(run_dir=run_dir)
+    with steps.step(
+        "init_run",
+        outputs=[artifact_ref("run.yaml", kind="config")],
+    ):
+        writer.ensure_layout()
+        writer.write_run_yaml(cfg)
 
     patterns = cfg_get(task_cfg, "runs", None)
     if patterns is None:
-        patterns = ["outputs/**/eval"]
+        patterns = ["runs/**/metrics.json"]
     if isinstance(patterns, str):
         patterns = [patterns]
 
-    output_csv = _resolve_output_path(run_dir, cfg_get(task_cfg, "output_csv", None), "leaderboard.csv")
+    output_csv = _resolve_output_path(
+        writer.tables_dir,
+        cfg_get(task_cfg, "output_csv", None),
+        "leaderboard.csv",
+    )
     output_md = cfg_get(task_cfg, "output_md", "leaderboard.md")
     output_md_path = (
-        _resolve_output_path(run_dir, output_md, "leaderboard.md") if output_md is not None else None
+        _resolve_output_path(writer.tables_dir, output_md, "leaderboard.md") if output_md is not None else None
     )
 
     sort_by = cfg_get(task_cfg, "sort_by", None)
     descending = bool(cfg_get(task_cfg, "descending", False))
 
-    rows = collect_rows(patterns)
-    if not rows:
-        raise ValueError("leaderboard found no runs with metrics")
-    # CONTRACT: leaderboard aggregates metrics.json into CSV/Markdown tables.
-    write_leaderboard(
-        rows,
-        output_csv=output_csv,
-        output_md=output_md_path,
-        sort_by=sort_by,
-        descending=descending,
-    )
+    output_artifacts = [artifact_ref(output_csv, kind="table")]
+    if output_md_path is not None:
+        output_artifacts.append(artifact_ref(output_md_path, kind="table"))
+    with steps.step(
+        "collect_rows",
+        outputs=output_artifacts,
+    ):
+        rows = collect_rows(patterns)
+        if not rows:
+            raise ValueError("leaderboard found no runs with metrics")
+        # CONTRACT: leaderboard aggregates metrics.json into CSV/Markdown tables.
+        write_leaderboard(
+            rows,
+            output_csv=output_csv,
+            output_md=output_md_path,
+            sort_by=sort_by,
+            descending=descending,
+        )
 
     meta = build_meta(cfg)
-    write_json(run_dir / "meta.json", meta)
+    writer.write_manifest(meta=meta, steps=steps.to_list())
     return 0
 
 

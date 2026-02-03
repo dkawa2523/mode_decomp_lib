@@ -1,0 +1,7 @@
+name: sphere_grid
+x_range: [0.0, 360.0]
+y_range: [-90.0, 90.0]
+lat_range: [-90.0, 90.0]
+lon_range: [0.0, 360.0]
+angle_unit: deg
+radius: 1.0

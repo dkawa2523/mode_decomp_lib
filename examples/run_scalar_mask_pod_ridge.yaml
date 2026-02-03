@@ -1,0 +1,20 @@
+dataset: data/mode_decomp_eval_dataset_v1/scalar_mask
+task: train
+pipeline:
+  decomposer: pod_svd
+  coeff_post: none
+  model: ridge
+output:
+  root: runs
+  tag: scalar_mask_pod
+  project: scalar_mask_pod
+seed: 123
+params:
+  decompose:
+    name: pod_svd
+    mask_policy: ignore_masked_points
+  domain:
+    name: arbitrary_mask
+    mask_source: dataset
+    x_range: [-1.0, 1.0]
+    y_range: [-1.0, 1.0]

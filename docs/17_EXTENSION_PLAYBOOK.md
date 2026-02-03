@@ -40,6 +40,8 @@
   - torch（MLP/CNN）
 - 異なるデータ入出力:
   - dataset adapters を追加し、下流I/Oは不変に
+  - sphere_grid を扱うデータ生成では `mode_decomp_ml.domain.sphere_grid` のユーティリティを使用する（range の再実装禁止）
+  - dataset テンプレは `docs/addons/35_DATASET_TEMPLATE_SAMPLES.md` を参照
 - 可視化の拡充:
   - viz process で追加（artifactに残す）
 - ClearML対応:

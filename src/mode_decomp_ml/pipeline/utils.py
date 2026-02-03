@@ -7,9 +7,13 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, MutableMapping
 
 import numpy as np
+
+from mode_decomp_ml.config import cfg_get
+from mode_decomp_ml.data.manifest import load_manifest, manifest_domain_cfg
+from mode_decomp_ml.domain.sphere_grid import fill_sphere_grid_ranges
 
 try:  # optional at runtime; used for config conversion
     from omegaconf import OmegaConf
@@ -17,17 +21,6 @@ except Exception:  # pragma: no cover - fallback when OmegaConf is missing
     OmegaConf = None
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-
-
-def cfg_get(cfg: Mapping[str, Any] | None, key: str, default: Any = None) -> Any:
-    if cfg is None:
-        return default
-    if hasattr(cfg, "get"):
-        try:
-            return cfg.get(key, default)
-        except TypeError:
-            pass
-    return getattr(cfg, key, default)
 
 
 def task_name(cfg: Mapping[str, Any]) -> str:
@@ -48,6 +41,20 @@ def require_cfg_keys(cfg: Mapping[str, Any], keys: Iterable[str]) -> None:
         raise KeyError(f"Missing required config keys: {', '.join(missing)}")
 
 
+def resolve_domain_cfg(
+    dataset_cfg: Mapping[str, Any],
+    domain_cfg: Mapping[str, Any] | None,
+) -> tuple[Mapping[str, Any], Mapping[str, Any] | None]:
+    root = cfg_get(dataset_cfg, "root", None)
+    if root is not None:
+        manifest = load_manifest(Path(str(root)))
+        if manifest is not None:
+            return manifest_domain_cfg(manifest, root), manifest
+    if domain_cfg is None:
+        raise ValueError("domain config is required when manifest.json is missing")
+    return fill_sphere_grid_ranges(domain_cfg), None
+
+
 def resolve_path(path_value: str | Path) -> Path:
     path = Path(str(path_value))
     if path.is_absolute():
@@ -57,7 +64,13 @@ def resolve_path(path_value: str | Path) -> Path:
 
 def resolve_run_dir(cfg: Mapping[str, Any]) -> Path:
     run_dir = cfg_get(cfg, "run_dir", None)
-    if run_dir is None or str(run_dir).strip() == "":
+    if (
+        run_dir is None
+        or str(run_dir).strip() == ""
+        or _has_interpolation(run_dir)
+    ):
+        if isinstance(cfg, MutableMapping):
+            return RunDirManager(cfg).ensure()
         raise ValueError("run_dir is required in config")
     return resolve_path(str(run_dir))
 
@@ -91,6 +104,20 @@ def write_json(path: str | Path, payload: Mapping[str, Any]) -> Path:
 def read_json(path: str | Path) -> dict[str, Any]:
     with Path(path).open("r", encoding="utf-8") as fh:
         return json.load(fh)
+
+
+def load_coeff_meta(run_dir: str | Path) -> dict[str, Any]:
+    run_root = resolve_path(str(run_dir))
+    candidates = (
+        run_root / "states" / "coeff_meta.json",
+        run_root / "states" / "coeff_codec" / "coeff_meta.json",
+        run_root / "states" / "decomposer" / "coeff_meta.json",
+        run_root / "artifacts" / "decomposer" / "coeff_meta.json",
+    )
+    for path in candidates:
+        if path.exists():
+            return read_json(path)
+    raise FileNotFoundError(f"coeff_meta.json not found under {run_root}")
 
 
 def dataset_to_arrays(
@@ -190,6 +217,89 @@ def _to_container(cfg: Mapping[str, Any] | None) -> Mapping[str, Any]:
     return {}
 
 
+def _short_hash(payload: Mapping[str, Any]) -> str:
+    data = json.dumps(_to_container(payload), sort_keys=True, default=_json_fallback).encode("utf-8")
+    return hashlib.sha1(data).hexdigest()[:6]
+
+
+def make_run_id(cfg: Mapping[str, Any]) -> str:
+    timestamp = dt.datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+    return f"{timestamp}-{_short_hash(cfg)}"
+
+
+def _has_interpolation(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    return "${" in value and "}" in value
+
+
+def _sanitize_run_id_cfg(cfg: Mapping[str, Any]) -> Mapping[str, Any]:
+    filtered = {k: v for k, v in cfg.items() if k not in {"run_id", "run_dir"}}
+    return filtered
+
+
+class RunDirManager:
+    """Resolve run_dir from output_dir/tag/run_id with stable defaults."""
+
+    def __init__(self, cfg: MutableMapping[str, Any]) -> None:
+        self._cfg = cfg
+
+    def _task_name(self) -> str:
+        task_cfg = cfg_get(self._cfg, "task", None)
+        if isinstance(task_cfg, str):
+            name = task_cfg
+        elif isinstance(task_cfg, Mapping):
+            name = task_cfg.get("name", None)
+        else:
+            name = None
+        return str(name).strip() if name else "task"
+
+    def ensure(self) -> Path:
+        run_dir_value = cfg_get(self._cfg, "run_dir", None)
+        if (
+            run_dir_value is not None
+            and str(run_dir_value).strip() != ""
+            and not _has_interpolation(run_dir_value)
+        ):
+            return resolve_path(str(run_dir_value))
+
+        project_dir = cfg_get(self._cfg, "project_dir", None)
+        if project_dir is not None and str(project_dir).strip() != "" and not _has_interpolation(project_dir):
+            project_path = Path(str(project_dir))
+            task_name = self._task_name()
+            run_dir = project_path / task_name
+            self._cfg["run_dir"] = run_dir.as_posix()
+            hydra_cfg = self._cfg.get("hydra")
+            if isinstance(hydra_cfg, MutableMapping):
+                hydra_cfg = dict(hydra_cfg)
+                hydra_cfg.setdefault("run", {})
+                if isinstance(hydra_cfg.get("run"), MutableMapping):
+                    hydra_cfg["run"] = dict(hydra_cfg["run"])
+                    hydra_cfg["run"]["dir"] = run_dir.as_posix()
+                self._cfg["hydra"] = hydra_cfg
+            return resolve_path(run_dir)
+
+        output_dir = str(cfg_get(self._cfg, "output_dir", "runs")).strip() or "runs"
+        tag = str(cfg_get(self._cfg, "tag", "default")).strip() or "default"
+        run_id = str(cfg_get(self._cfg, "run_id", "")).strip()
+        if not run_id or _has_interpolation(run_id):
+            run_id = make_run_id(_sanitize_run_id_cfg(self._cfg))
+            self._cfg["run_id"] = run_id
+        run_dir = Path(output_dir) / tag / run_id
+        self._cfg["output_dir"] = output_dir
+        self._cfg["tag"] = tag
+        self._cfg["run_dir"] = run_dir.as_posix()
+        hydra_cfg = self._cfg.get("hydra")
+        if isinstance(hydra_cfg, MutableMapping):
+            hydra_cfg = dict(hydra_cfg)
+            hydra_cfg.setdefault("run", {})
+            if isinstance(hydra_cfg.get("run"), MutableMapping):
+                hydra_cfg["run"] = dict(hydra_cfg["run"])
+                hydra_cfg["run"]["dir"] = run_dir.as_posix()
+            self._cfg["hydra"] = hydra_cfg
+        return resolve_path(run_dir)
+
+
 def build_dataset_meta(
     dataset: Any,
     dataset_cfg: Mapping[str, Any],
@@ -204,7 +314,7 @@ def build_dataset_meta(
     digest.update(json.dumps({"sample_ids": sample_ids}, sort_keys=True).encode("utf-8"))
     dataset_hash = digest.hexdigest()
     # CONTRACT: dataset hash uses sample IDs for versioning.
-    return {
+    meta = {
         "name": getattr(dataset, "name", "unknown"),
         "num_samples": int(len(dataset)),
         "sample_ids": sample_ids,
@@ -213,6 +323,19 @@ def build_dataset_meta(
         "dataset_cfg": _to_container(dataset_cfg),
         "domain_cfg": _to_container(domain_cfg),
     }
+    manifest = getattr(dataset, "manifest", None)
+    if manifest:
+        meta["manifest"] = manifest
+    field_kind = getattr(dataset, "field_kind", None)
+    if field_kind:
+        meta["field_kind"] = field_kind
+    grid = getattr(dataset, "grid", None)
+    if grid:
+        meta["grid"] = grid
+    mask_generated = getattr(dataset, "mask_generated", None)
+    if mask_generated is not None:
+        meta["mask_generated"] = bool(mask_generated)
+    return meta
 
 
 def _git_cmd(args: Iterable[str]) -> str | None:
@@ -268,6 +391,8 @@ def build_meta(cfg: Mapping[str, Any], dataset_hash: str | None = None) -> dict[
     meta = {
         "task": task_name(cfg),
         "run_dir": str(resolve_run_dir(cfg)),
+        "run_id": cfg_get(cfg, "run_id", None),
+        "tag": cfg_get(cfg, "tag", None),
         "output_dir": cfg_get(cfg, "output_dir", None),
         "seed": cfg_get(cfg, "seed", None),
         "timestamp": dt.datetime.utcnow().isoformat() + "Z",

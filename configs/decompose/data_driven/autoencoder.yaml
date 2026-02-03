@@ -1,0 +1,8 @@
+name: autoencoder
+mask_policy: zero_fill
+latent_dim: 64
+hidden_channels: [16, 32]
+device: cpu
+epochs: 25
+batch_size: 16
+lr: 1.0e-3

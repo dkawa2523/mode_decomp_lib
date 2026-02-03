@@ -9,3 +9,4 @@ omegaconf
 # Optional (P2 / deep learning):
 # torch
 # torchvision
+# modred

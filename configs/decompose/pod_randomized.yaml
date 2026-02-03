@@ -1,0 +1,6 @@
+# Auto-generated shim for Hydra compatibility.
+# Source: configs/decompose/data_driven/pod_randomized.yaml
+
+defaults:
+  - /decompose/data_driven/pod_randomized
+  - _self_

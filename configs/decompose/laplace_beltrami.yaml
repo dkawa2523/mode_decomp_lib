@@ -1,10 +1,4 @@
-name: laplace_beltrami
-n_modes: 32
-laplacian_type: cotangent
-mass_type: lumped
-boundary_condition: neumann
-mask_policy: allow
-solver: auto
-dense_threshold: 512
-eigsh_tol: 1.0e-6
-eigsh_maxiter: 10000
+# Source: configs/decompose/analytic/laplace_beltrami.yaml
+
+defaults:
+  - /decompose/analytic/laplace_beltrami

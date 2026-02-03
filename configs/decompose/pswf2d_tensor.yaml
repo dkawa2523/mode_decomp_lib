@@ -1,0 +1,6 @@
+# Auto-generated shim for Hydra compatibility.
+# Source: configs/decompose/analytic/pswf2d_tensor.yaml
+
+defaults:
+  - /decompose/analytic/pswf2d_tensor
+  - _self_

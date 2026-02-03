@@ -1,2 +1,6 @@
-name: pod_svd
-mask_policy: ignore_masked_points
+# Auto-generated shim for Hydra compatibility.
+# Source: configs/decompose/data_driven/pod_svd.yaml
+
+defaults:
+  - /decompose/data_driven/pod_svd
+  - _self_

@@ -1,0 +1,17 @@
+dataset: data/mode_decomp_eval_dataset_v1/scalar_rect
+task: train
+pipeline:
+  decomposer: pod_svd
+  coeff_post: pca
+  model: ridge
+output:
+  root: runs
+  tag: scalar_rect_pod_pca
+  project: scalar_rect_pod_pca
+seed: 123
+params:
+  decompose:
+    name: pod_svd
+    mask_policy: ignore_masked_points
+  model:
+    target_space: z

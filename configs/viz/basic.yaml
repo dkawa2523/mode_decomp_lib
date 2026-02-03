@@ -2,3 +2,12 @@ name: basic
 sample_index: 0
 k_list: [1, 2, 4, 8, 16]
 spectrum_scale: log
+coeff_diag:
+  enabled: true
+  hist_bins: 60
+  hist_scale: log
+  top_k: 10
+  fft_magnitude: true
+  wavelet_band_energy: true
+  sh_l_energy: true
+  slepian_concentration: true

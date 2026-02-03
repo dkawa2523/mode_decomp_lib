@@ -1,0 +1,2 @@
+name: tensor_pack_v1
+dtype_policy: float32

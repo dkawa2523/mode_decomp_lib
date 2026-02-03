@@ -6,16 +6,27 @@ from typing import Any, Mapping
 
 import numpy as np
 
+from mode_decomp_ml.config import cfg_get
 
-def _cfg_get(cfg: Mapping[str, Any] | None, key: str, default: Any = None) -> Any:
-    if cfg is None:
-        return default
-    if hasattr(cfg, "get"):
-        try:
-            return cfg.get(key, default)
-        except TypeError:
-            pass
-    return getattr(cfg, key, default)
+def compute_vertex_areas(vertices: np.ndarray, faces: np.ndarray) -> np.ndarray:
+    verts = _normalize_vertices(vertices)
+    face_arr = _normalize_faces(faces, verts.shape[0])
+    v0 = verts[face_arr[:, 0]]
+    v1 = verts[face_arr[:, 1]]
+    v2 = verts[face_arr[:, 2]]
+    if verts.shape[1] == 2:
+        a = v1 - v0
+        b = v2 - v0
+        cross = a[:, 0] * b[:, 1] - a[:, 1] * b[:, 0]
+        area = 0.5 * np.abs(cross)
+    else:
+        cross = np.cross(v1 - v0, v2 - v0)
+        area = 0.5 * np.linalg.norm(cross, axis=1)
+    weights = np.zeros(verts.shape[0], dtype=np.float64)
+    share = area / 3.0
+    for idx in range(3):
+        np.add.at(weights, face_arr[:, idx], share)
+    return weights
 
 
 def _normalize_vertices(vertices: Any) -> np.ndarray:
@@ -66,9 +77,9 @@ def _load_mesh_npz(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray | Non
 def load_mesh_inputs(
     domain_cfg: Mapping[str, Any],
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, dict[str, Any]]:
-    mesh_path = _cfg_get(domain_cfg, "mesh_path", None)
-    vertices_inline = _cfg_get(domain_cfg, "vertices", None)
-    faces_inline = _cfg_get(domain_cfg, "faces", None)
+    mesh_path = cfg_get(domain_cfg, "mesh_path", None)
+    vertices_inline = cfg_get(domain_cfg, "vertices", None)
+    faces_inline = cfg_get(domain_cfg, "faces", None)
     if mesh_path is not None and (vertices_inline is not None or faces_inline is not None):
         raise ValueError("mesh_path cannot be combined with vertices/faces")
     if mesh_path is None and (vertices_inline is None or faces_inline is None):
@@ -89,12 +100,12 @@ def load_mesh_inputs(
     vertices = _normalize_vertices(vertices)
     faces = _normalize_faces(faces, vertices.shape[0])
 
-    mask_inline = _cfg_get(domain_cfg, "vertex_mask", None)
+    mask_inline = cfg_get(domain_cfg, "vertex_mask", None)
     if mask_inline is None:
-        mask_inline = _cfg_get(domain_cfg, "mask", None)
-    mask_path = _cfg_get(domain_cfg, "vertex_mask_path", None)
+        mask_inline = cfg_get(domain_cfg, "mask", None)
+    mask_path = cfg_get(domain_cfg, "vertex_mask_path", None)
     if mask_path is None:
-        mask_path = _cfg_get(domain_cfg, "mask_path", None)
+        mask_path = cfg_get(domain_cfg, "mask_path", None)
 
     if mask_inline is not None and mask_path is not None:
         raise ValueError("Provide only one of vertex_mask/mask or vertex_mask_path/mask_path")

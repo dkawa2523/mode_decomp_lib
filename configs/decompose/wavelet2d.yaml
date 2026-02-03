@@ -1,0 +1,6 @@
+# Auto-generated shim for Hydra compatibility.
+# Source: configs/decompose/analytic/wavelet2d.yaml
+
+defaults:
+  - /decompose/analytic/wavelet2d
+  - _self_

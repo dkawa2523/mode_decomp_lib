@@ -1,0 +1,31 @@
+{
+  "field_kind": "scalar",
+  "grid": {
+    "H": 36,
+    "W": 72,
+    "x_range": [
+      -1.0,
+      1.0
+    ],
+    "y_range": [
+      -1.0,
+      1.0
+    ]
+  },
+  "domain": {
+    "type": "sphere_grid",
+    "name": "sphere_grid",
+    "radius": 1.0,
+    "lat_range": [
+      -90.0,
+      90.0
+    ],
+    "lon_range": [
+      -180.0,
+      175.0
+    ],
+    "angle_unit": "deg",
+    "n_lat": 36,
+    "n_lon": 72
+  }
+}

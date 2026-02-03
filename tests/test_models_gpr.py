@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mode_decomp_ml.models import build_regressor
+from mode_decomp_ml.plugins.models import build_regressor
 
 
 def _base_gpr_cfg() -> dict[str, object]:

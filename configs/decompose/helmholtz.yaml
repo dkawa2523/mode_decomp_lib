@@ -1,3 +1,4 @@
-name: helmholtz
-boundary_condition: periodic
-mask_policy: error
+# Source: configs/decompose/analytic/helmholtz.yaml
+
+defaults:
+  - /decompose/analytic/helmholtz

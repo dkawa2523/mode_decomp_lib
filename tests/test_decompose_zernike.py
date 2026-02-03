@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from mode_decomp_ml.decompose import build_decomposer
+from mode_decomp_ml.plugins.decomposers import build_decomposer
 from mode_decomp_ml.domain import build_domain_spec
 
 
@@ -55,6 +55,10 @@ def test_zernike_coeff_meta_and_truncation() -> None:
     assert meta["ordering"] == "n_then_m"
     assert meta["boundary_condition"] == "unit_disk"
 
-    coeff_low = coeff[: expected_modes // 2]
+    coeff_low = np.asarray(coeff)
+    if coeff_low.ndim == 1:
+        coeff_low = coeff_low[: expected_modes // 2]
+    else:
+        coeff_low = coeff_low[:, : expected_modes // 2]
     field_low = decomposer.inverse_transform(coeff_low, domain_spec=domain)
     assert field_low.shape == field.shape

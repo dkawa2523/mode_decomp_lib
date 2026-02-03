@@ -1,0 +1,30 @@
+{
+  "version": "v1",
+  "created_utc": "2025-12-31",
+  "grid": {
+    "H": 64,
+    "W": 64
+  },
+  "N_per_subset": 200,
+  "subsets": [
+    "scalar_rect",
+    "scalar_disk",
+    "scalar_mask",
+    "vector_rect",
+    "vector_disk",
+    "vector_mask"
+  ],
+  "formats": {
+    "cond": "float32 .npy",
+    "field": "float32 .npy",
+    "mask": "uint8 .npy (0/1)"
+  },
+  "cond_design": {
+    "scalar": "8 coefficients for fixed spatial patterns (domain-specific)",
+    "vector": "16 coefficients = 8 for vx + 8 for vy (same patterns)"
+  },
+  "notes": {
+    "mask": "mask outside domain; field values are zeroed outside mask",
+    "coords": "rectangle patterns use periodic grid in [0,1); disk/mask patterns use x,y in [-1,1]"
+  }
+}

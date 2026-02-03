@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from mode_decomp_ml.decompose import build_decomposer
+from mode_decomp_ml.plugins.decomposers import build_decomposer
 from mode_decomp_ml.domain import build_domain_spec
 
 
@@ -53,3 +53,33 @@ def test_laplace_beltrami_roundtrip() -> None:
     eigenvalues = np.asarray(meta["eigenvalues"], dtype=np.float64)
     assert eigenvalues.shape[0] == n_vertices
     assert np.all(np.diff(eigenvalues) >= -1e-10)
+
+
+def test_laplace_beltrami_auto_n_modes() -> None:
+    n_vertices = 4
+    n_channels = 1
+    rng = np.random.default_rng(2)
+    field = rng.normal(size=(n_vertices, 1, n_channels)).astype(np.float64)
+    domain = _mesh_domain(n_vertices, n_channels)
+    cfg = {
+        "name": "laplace_beltrami",
+        "n_modes": "auto",
+        "laplacian_type": "cotangent",
+        "mass_type": "lumped",
+        "boundary_condition": "neumann",
+        "mask_policy": "allow",
+        "solver": "auto",
+        "dense_threshold": 128,
+        "eigsh_tol": 1.0e-6,
+        "eigsh_maxiter": 10000,
+    }
+    decomposer = build_decomposer(cfg)
+
+    decomposer.fit(domain_spec=domain)
+    coeff = decomposer.transform(field, mask=None, domain_spec=domain)
+    field_hat = decomposer.inverse_transform(coeff, domain_spec=domain)
+
+    assert field_hat.shape == field.shape
+    meta = decomposer.coeff_meta()
+    assert meta["n_modes"] == n_vertices
+    assert meta["n_modes_config"] == "auto"

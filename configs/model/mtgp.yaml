@@ -1,0 +1,8 @@
+name: mtgp
+target_space: z
+cond_scaler: standardize
+kernel: rbf
+rank: 1
+training_iter: 50
+learning_rate: 0.1
+seed: ${seed}

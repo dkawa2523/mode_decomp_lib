@@ -1,0 +1,5 @@
+name: spherical_harmonics
+l_max: 3
+real_form: true
+norm: ortho
+backend: pyshtools

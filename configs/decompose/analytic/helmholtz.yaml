@@ -1,0 +1,3 @@
+name: helmholtz
+boundary_condition: periodic
+mask_policy: error

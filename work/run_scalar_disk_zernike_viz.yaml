@@ -1,0 +1,34 @@
+dataset: data/mode_decomp_eval_dataset_v1/scalar_disk
+task: viz
+pipeline:
+  decomposer: zernike
+  coeff_post: none
+  model: ridge
+output:
+  root: runs
+  tag: scalar_disk_zernike
+  project: scalar_disk_zernike
+seed: 123
+params:
+  domain:
+    name: disk
+    center:
+    - 0.0
+    - 0.0
+    radius: 1.0
+    x_range:
+    - -1.0
+    - 1.0
+    y_range:
+    - -1.0
+    - 1.0
+  decompose:
+    name: zernike
+    n_max: 6
+    ordering: n_then_m
+    normalization: orthonormal
+    boundary_condition: unit_disk
+task_params:
+  train_run_dir: /Volumes/SP PX10/Main_code/mode_decomp/mode_decomp_greenfield_devkit_v1/runs/scalar_disk_zernike/train
+  predict_run_dir: /Volumes/SP PX10/Main_code/mode_decomp/mode_decomp_greenfield_devkit_v1/runs/scalar_disk_zernike/predict
+  reconstruct_run_dir: /Volumes/SP PX10/Main_code/mode_decomp/mode_decomp_greenfield_devkit_v1/runs/scalar_disk_zernike/reconstruct

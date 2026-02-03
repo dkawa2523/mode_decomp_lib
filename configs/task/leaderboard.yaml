@@ -1,6 +1,6 @@
 name: leaderboard
 runs:
-  - outputs/**/eval
+  - runs/**/metrics.json
 output_csv: leaderboard.csv
 output_md: leaderboard.md
 sort_by: field_rmse

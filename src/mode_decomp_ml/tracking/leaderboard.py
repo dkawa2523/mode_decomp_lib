@@ -62,7 +62,9 @@ def _collect_run_dir(path: Path) -> Path | None:
     if path.is_dir():
         return path
     if path.is_file() and path.name == "metrics.json":
-        return path.parent.parent
+        if path.parent.name == "metrics":
+            return path.parent.parent
+        return path.parent
     return None
 
 
@@ -89,21 +91,52 @@ def collect_run_dirs(patterns: Sequence[str]) -> list[Path]:
     return run_dirs
 
 
+def _read_manifest(run_dir: Path) -> dict[str, Any]:
+    manifest_path = run_dir / "manifest_run.json"
+    if manifest_path.exists():
+        return _read_json(manifest_path)
+    legacy_meta = run_dir / "meta.json"
+    if legacy_meta.exists():
+        return _read_json(legacy_meta)
+    return {}
+
+
+def _manifest_meta(manifest: Mapping[str, Any]) -> dict[str, Any]:
+    meta = manifest.get("meta") if isinstance(manifest, Mapping) else None
+    return dict(meta) if isinstance(meta, Mapping) else dict(manifest)
+
+
+def _manifest_dataset_meta(manifest: Mapping[str, Any], run_dir: Path) -> dict[str, Any]:
+    dataset_meta = manifest.get("dataset_meta") if isinstance(manifest, Mapping) else None
+    if isinstance(dataset_meta, Mapping):
+        return dict(dataset_meta)
+    return _read_json(run_dir / "artifacts" / "dataset_meta.json")
+
+
+def _load_config(run_dir: Path) -> dict[str, Any]:
+    for cfg_path in (
+        run_dir / "run.yaml",
+        run_dir / ".hydra" / "config.yaml",
+        run_dir / "hydra" / "config.yaml",
+    ):
+        if cfg_path.exists():
+            return _read_yaml(cfg_path)
+    return {}
+
+
 def load_run_row(run_dir: Path) -> dict[str, Any] | None:
-    # CONTRACT: leaderboard reads metrics from metrics/metrics.json.
-    metrics_path = run_dir / "metrics" / "metrics.json"
+    # CONTRACT: leaderboard reads metrics from metrics.json.
+    metrics_path = run_dir / "metrics.json"
+    if not metrics_path.exists():
+        metrics_path = run_dir / "metrics" / "metrics.json"
     if not metrics_path.exists():
         return None
 
     metrics = _read_json(metrics_path)
-    meta = _read_json(run_dir / "meta.json")
-    dataset_meta = _read_json(run_dir / "artifacts" / "dataset_meta.json")
-
-    config = {}
-    for cfg_path in (run_dir / ".hydra" / "config.yaml", run_dir / "hydra" / "config.yaml"):
-        if cfg_path.exists():
-            config = _read_yaml(cfg_path)
-            break
+    manifest = _read_manifest(run_dir)
+    meta = _manifest_meta(manifest)
+    dataset_meta = _manifest_dataset_meta(manifest, run_dir)
+    config = _load_config(run_dir)
 
     row: dict[str, Any] = {
         "run_dir": str(run_dir),

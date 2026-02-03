@@ -161,13 +161,17 @@ def _coeff_energy_vector(
             if expected == coeff.shape[1]:
                 flatten_order = str(coeff_meta.get("flatten_order", "C"))
                 reshaped = coeff.reshape((coeff.shape[0], *coeff_shape), order=flatten_order)
-                energy = np.mean(reshaped**2, axis=0)
-                if (
-                    str(coeff_meta.get("complex_format", "")) == "real_imag"
-                    and len(coeff_shape) >= 1
-                    and coeff_shape[-1] == 2
-                ):
-                    energy = energy.sum(axis=-1)
+                complex_format = str(coeff_meta.get("complex_format", "")).strip().lower()
+                if complex_format in {"real_imag", "mag_phase", "logmag_phase"} and coeff_shape[-1] == 2:
+                    if complex_format == "real_imag":
+                        energy = np.mean(reshaped**2, axis=0).sum(axis=-1)
+                    else:
+                        mag = reshaped[..., 0]
+                        if complex_format == "logmag_phase":
+                            mag = np.exp(mag)
+                        energy = np.mean(mag**2, axis=0)
+                else:
+                    energy = np.mean(reshaped**2, axis=0)
                 return energy.reshape(-1, order=flatten_order)
     return np.mean(coeff**2, axis=0)
 

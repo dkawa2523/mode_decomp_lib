@@ -17,6 +17,11 @@ dependencies = [
   "omegaconf",
 ]
 
+[project.optional-dependencies]
+pod = [
+  "modred",
+]
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 

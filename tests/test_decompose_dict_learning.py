@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from mode_decomp_ml.data.datasets import FieldSample
-from mode_decomp_ml.decompose import build_decomposer
+from mode_decomp_ml.plugins.decomposers import build_decomposer
 from mode_decomp_ml.domain import build_domain_spec
 
 
@@ -55,6 +55,8 @@ def test_dict_learning_sparse_coeffs() -> None:
     meta = decomposer.coeff_meta()
     assert meta["method"] == "dict_learning"
     coeff_shape = tuple(meta["coeff_shape"])
-    coeff_tensor = coeff.reshape(coeff_shape, order="C")
+    coeff_tensor = np.asarray(coeff)
+    if coeff_tensor.shape != coeff_shape:
+        coeff_tensor = coeff_tensor.reshape(coeff_shape, order="C")
     nonzero = np.count_nonzero(np.abs(coeff_tensor) > 1.0e-8)
     assert nonzero <= coeff_tensor.shape[0] * 2

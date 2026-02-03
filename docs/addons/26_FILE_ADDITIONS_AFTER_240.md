@@ -24,10 +24,10 @@
 - update: docs整合
 
 ## P2（概要）
-- add: `src/mode_decomp_ml/decompose/graph_fourier.py`
-- add: `src/mode_decomp_ml/decompose/laplace_beltrami.py`, `src/mode_decomp_ml/domain/mesh.py`
-- add: `src/mode_decomp_ml/decompose/autoencoder.py`（torch）
-- add: `src/mode_decomp_ml/decompose/dict_learning.py`（疎表現）
+- add: `src/mode_decomp_ml/plugins/decomposers/graph_fourier.py`
+- add: `src/mode_decomp_ml/plugins/decomposers/laplace_beltrami.py`, `src/mode_decomp_ml/domain/mesh.py`
+- add: `src/mode_decomp_ml/plugins/decomposers/autoencoder.py`（torch）
+- add: `src/mode_decomp_ml/plugins/decomposers/dict_learning.py`（疎表現）
 - update: `src/mode_decomp_ml/coeff_post/__init__.py`（dict_learningのCoeffPost追加）
-- add: `src/mode_decomp_ml/decompose/helmholtz.py`（div/curl）
+- add: `src/mode_decomp_ml/plugins/decomposers/helmholtz.py`（div/curl）
 - add: `src/mode_decomp_ml/tracking/clearml.py`

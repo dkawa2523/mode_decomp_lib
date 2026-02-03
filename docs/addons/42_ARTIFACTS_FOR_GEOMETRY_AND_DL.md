@@ -16,7 +16,7 @@ docs/04（artifact契約）を崩さず、P2の手法で増える保存対象を
 - mesh自体（V,F）はデータ側にある想定。
   - ただし再現性が重要なら、toy mesh は outputs にコピーして良い（サイズに注意）
 
-## Autoencoder/VAE decomposer
+## Autoencoder decomposer (VAE TBD)
 - model/decomposer_state/:
   - torch weights（.pt）
   - architecture params（json）

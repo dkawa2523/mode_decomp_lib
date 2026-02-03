@@ -1,0 +1,37 @@
+# Dataset template: docs/addons/35_DATASET_TEMPLATE_SAMPLES.md
+dataset:
+  name: synthetic
+  num_samples: 2
+  height: 18
+  width: 36
+  channels: 1
+  mask_policy: allow_none
+  mask_mode: none
+task: train
+pipeline:
+  decomposer: spherical_slepian
+  codec: slepian_pack_v1
+  coeff_post: none
+  model: ridge
+params:
+  domain:
+    name: sphere_grid
+    n_lat: 18
+    n_lon: 36
+    angle_unit: deg
+    radius: 1.0
+  decompose:
+    name: spherical_slepian
+    l_max: 3
+    k: 8
+    backend: scipy
+    region_cap:
+      lat: 0.0
+      lon: 0.0
+      radius: 60.0
+      angle_unit: deg
+output:
+  root: runs
+  tag: sphere_slepian_ridge
+  project: sphere_slepian_ridge
+seed: 123

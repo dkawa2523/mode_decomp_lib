@@ -1,0 +1,10 @@
+name: laplace_beltrami
+n_modes: 64
+laplacian_type: cotangent
+mass_type: lumped
+boundary_condition: neumann
+mask_policy: allow
+solver: auto
+dense_threshold: 2048
+eigsh_tol: 1.0e-6
+eigsh_maxiter: 2000

@@ -1,2 +1,8 @@
 name: basic
 ops: []
+
+# Example:
+# ops:
+#   - name: field_standardize
+#     per_channel: true
+#     eps: 1e-8

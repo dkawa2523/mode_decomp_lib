@@ -1,7 +1,4 @@
-name: fourier_bessel
-m_max: 4
-n_max: 4
-ordering: m_then_n
-normalization: orthonormal
-boundary_condition: dirichlet
-mask_policy: ignore_masked_points
+# Source: configs/decompose/analytic/fourier_bessel.yaml
+
+defaults:
+  - /decompose/analytic/fourier_bessel

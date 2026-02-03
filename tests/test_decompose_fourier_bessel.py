@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 from scipy.special import jn_zeros, jv
 
-from mode_decomp_ml.decompose import build_decomposer
+from mode_decomp_ml.plugins.decomposers import build_decomposer
 from mode_decomp_ml.domain import build_domain_spec
 
 

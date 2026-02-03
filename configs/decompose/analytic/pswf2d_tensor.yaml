@@ -1,0 +1,6 @@
+name: pswf2d_tensor
+c_x: 3.0
+c_y: 3.0
+n_x: 8
+n_y: 8
+mask_policy: error

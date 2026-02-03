@@ -1,0 +1,6 @@
+name: fft_complex_codec_v1
+mode: real_imag
+phase_unwrap: false
+phase_clip: null
+log_epsilon: 1e-12
+dtype_policy: float32

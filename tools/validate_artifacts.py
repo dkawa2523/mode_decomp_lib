@@ -13,6 +13,7 @@ except Exception:  # pragma: no cover - optional dependency through hydra
     yaml = None
 
 CONFIG_CANDIDATES = (
+    Path("run.yaml"),
     Path(".hydra/config.yaml"),
     Path("hydra/config.yaml"),
 )
@@ -61,31 +62,53 @@ def _resolve_path(project_root: Path, value: Any) -> Path:
     return project_root / path
 
 
-def _check_meta(meta_path: Path, errors: list[str]) -> None:
-    if not meta_path.exists():
-        errors.append(f"meta.json missing ({meta_path})")
+def _load_manifest(run_dir: Path) -> dict[str, Any]:
+    path = run_dir / "manifest_run.json"
+    if path.exists():
+        try:
+            with path.open("r", encoding="utf-8") as fh:
+                return json.load(fh)
+        except Exception:
+            return {}
+    legacy = run_dir / "meta.json"
+    if legacy.exists():
+        try:
+            with legacy.open("r", encoding="utf-8") as fh:
+                return json.load(fh)
+        except Exception:
+            return {}
+    return {}
+
+
+def _check_meta(run_dir: Path, errors: list[str]) -> None:
+    manifest = _load_manifest(run_dir)
+    if not manifest:
+        errors.append("manifest_run.json missing (or unreadable)")
         return
-    try:
-        with meta_path.open("r", encoding="utf-8") as fh:
-            meta = json.load(fh)
-    except Exception as exc:
-        errors.append(f"meta.json unreadable ({meta_path}): {exc}")
-        return
+    meta = manifest.get("meta") if isinstance(manifest, Mapping) else None
+    if not isinstance(meta, Mapping):
+        meta = manifest
     seed = meta.get("seed")
     git = meta.get("git") if isinstance(meta, Mapping) else None
     commit = git.get("commit") if isinstance(git, Mapping) else None
     if seed is None:
-        errors.append("meta.json missing seed")
+        errors.append("manifest meta missing seed")
     if not commit:
-        errors.append("meta.json missing git.commit")
+        errors.append("manifest meta missing git.commit")
 
 
-def _check_metrics(metrics_path: Path, errors: list[str]) -> None:
+def _check_metrics(run_dir: Path, errors: list[str]) -> None:
+    metrics_path = run_dir / "metrics.json"
+    if not metrics_path.exists():
+        metrics_path = run_dir / "metrics" / "metrics.json"
     if not metrics_path.exists():
         errors.append(f"metrics.json missing ({metrics_path})")
 
 
-def _check_model_dir(model_dir: Path, errors: list[str], label: str) -> None:
+def _check_model_dir(run_dir: Path, errors: list[str], label: str) -> None:
+    model_dir = run_dir / "model"
+    if not model_dir.exists():
+        model_dir = run_dir / "artifacts" / "model"
     if not model_dir.exists():
         errors.append(f"{label}: model dir missing ({model_dir})")
         return
@@ -94,11 +117,15 @@ def _check_model_dir(model_dir: Path, errors: list[str], label: str) -> None:
 
 
 def _check_pred_files(
-    preds_dir: Path,
+    run_dir: Path,
     names: Sequence[str],
     errors: list[str],
     label: str,
 ) -> None:
+    preds_npz = run_dir / "preds.npz"
+    if preds_npz.exists():
+        return
+    preds_dir = run_dir / "preds"
     if not preds_dir.exists():
         errors.append(f"{label}: preds dir missing ({preds_dir})")
         return
@@ -131,36 +158,36 @@ def main(argv: Sequence[str] | None = None) -> int:
             cfg = {}
 
     # CONTRACT: config + meta are required to keep runs reproducible.
-    _check_meta(run_dir / "meta.json", errors)
+    _check_meta(run_dir, errors)
 
     task_name = _task_name(cfg) if cfg else "unknown"
     task_cfg = _task_cfg(cfg) if cfg else {}
     project_root = _project_root()
 
     if task_name == "eval":
-        _check_metrics(run_dir / "metrics" / "metrics.json", errors)
+        _check_metrics(run_dir, errors)
 
     if task_name == "train":
-        _check_model_dir(run_dir / "artifacts" / "model", errors, "train")
+        _check_model_dir(run_dir, errors, "train")
     elif task_name == "predict":
-        _check_pred_files(run_dir / "preds", ("coeff.npy", "coeff_mean.npy"), errors, "predict")
+        _check_pred_files(run_dir, ("coeff.npy", "coeff_mean.npy"), errors, "predict")
     elif task_name == "reconstruct":
-        _check_pred_files(run_dir / "preds", ("field.npy",), errors, "reconstruct")
+        _check_pred_files(run_dir, ("field.npy",), errors, "reconstruct")
 
     train_run_dir = task_cfg.get("train_run_dir")
     if train_run_dir:
         train_dir = _resolve_path(project_root, train_run_dir)
-        _check_model_dir(train_dir / "artifacts" / "model", errors, "train_run_dir")
+        _check_model_dir(train_dir, errors, "train_run_dir")
 
     predict_run_dir = task_cfg.get("predict_run_dir")
     if predict_run_dir:
         pred_dir = _resolve_path(project_root, predict_run_dir)
-        _check_pred_files(pred_dir / "preds", ("coeff.npy", "coeff_mean.npy"), errors, "predict_run_dir")
+        _check_pred_files(pred_dir, ("coeff.npy", "coeff_mean.npy"), errors, "predict_run_dir")
 
     reconstruct_run_dir = task_cfg.get("reconstruct_run_dir")
     if reconstruct_run_dir:
         recon_dir = _resolve_path(project_root, reconstruct_run_dir)
-        _check_pred_files(recon_dir / "preds", ("field.npy",), errors, "reconstruct_run_dir")
+        _check_pred_files(recon_dir, ("field.npy",), errors, "reconstruct_run_dir")
 
     if errors:
         print("[FAIL] Artifact validation failed:")

@@ -7,6 +7,8 @@ from typing import Any, Callable, Dict, Mapping
 
 import numpy as np
 
+from .manifest import load_manifest, resolve_root, validate_field_against_manifest
+from mode_decomp_ml.config import cfg_get
 
 @dataclass(frozen=True)
 class FieldSample:
@@ -34,17 +36,6 @@ _DATASET_REGISTRY: Dict[str, Callable[..., BaseDataset]] = {}
 _VALID_MASK_POLICIES = {"require", "allow_none", "forbid"}
 
 
-def _cfg_get(cfg: Mapping[str, Any] | None, key: str, default: Any = None) -> Any:
-    if cfg is None:
-        return default
-    if hasattr(cfg, "get"):
-        try:
-            return cfg.get(key, default)
-        except TypeError:
-            pass
-    return getattr(cfg, key, default)
-
-
 def _normalize_index(index: int, size: int) -> int:
     if isinstance(index, np.integer):
         index = int(index)
@@ -56,7 +47,7 @@ def _normalize_index(index: int, size: int) -> int:
 
 
 def _validate_mask_policy(cfg: Mapping[str, Any] | None) -> str:
-    policy = _cfg_get(cfg, "mask_policy", None)
+    policy = cfg_get(cfg, "mask_policy", None)
     if policy is None:
         raise ValueError("mask_policy is required in dataset config")
     policy = str(policy)
@@ -133,7 +124,11 @@ def build_dataset(
     domain_cfg: Mapping[str, Any] | None = None,
     seed: int | None = None,
 ) -> BaseDataset:
-    name = str(_cfg_get(cfg, "name", ""))
+    name = str(cfg_get(cfg, "name", "")).strip()
+    root = cfg_get(cfg, "root", None)
+    if (not name or name == "synthetic") and root is not None:
+        if load_manifest(Path(str(root))) is not None:
+            name = "npy_dir"
     if not name:
         raise ValueError("dataset.name is required")
     cls = _DATASET_REGISTRY.get(name)
@@ -154,15 +149,15 @@ class SyntheticDataset(BaseDataset):
         seed: int | None = None,
     ) -> None:
         self.name = "synthetic"
-        self.domain_name = str(_cfg_get(domain_cfg, "name", "unknown"))
-        self.num_samples = int(_cfg_get(cfg, "num_samples", 1))
-        self.cond_dim = int(_cfg_get(cfg, "cond_dim", 3))
-        self.height = int(_cfg_get(cfg, "height", 32))
-        self.width = int(_cfg_get(cfg, "width", 32))
-        self.channels = int(_cfg_get(cfg, "channels", 1))
+        self.domain_name = str(cfg_get(domain_cfg, "name", "unknown"))
+        self.num_samples = int(cfg_get(cfg, "num_samples", 1))
+        self.cond_dim = int(cfg_get(cfg, "cond_dim", 3))
+        self.height = int(cfg_get(cfg, "height", 32))
+        self.width = int(cfg_get(cfg, "width", 32))
+        self.channels = int(cfg_get(cfg, "channels", 1))
         self.mask_policy = _validate_mask_policy(cfg)
-        self.mask_mode = str(_cfg_get(cfg, "mask_mode", "none"))
-        self.mask_radius = float(_cfg_get(cfg, "mask_radius", 0.45))
+        self.mask_mode = str(cfg_get(cfg, "mask_mode", "none"))
+        self.mask_radius = float(cfg_get(cfg, "mask_radius", 0.45))
 
         if self.num_samples <= 0:
             raise ValueError("num_samples must be > 0")
@@ -235,13 +230,17 @@ class NpyDirDataset(BaseDataset):
         seed: int | None = None,
     ) -> None:
         self.name = "npy_dir"
-        self.domain_name = str(_cfg_get(domain_cfg, "name", "unknown"))
+        self.domain_name = str(cfg_get(domain_cfg, "name", "unknown"))
         self.mask_policy = _validate_mask_policy(cfg)
+        self.manifest: Dict[str, Any] | None = None
+        self.field_kind: str | None = None
+        self.grid: Dict[str, Any] | None = None
+        self.mask_generated = False
 
-        root = Path(str(_cfg_get(cfg, "root", "data")))
-        cond_path = root / str(_cfg_get(cfg, "cond_file", "cond.npy"))
-        field_path = root / str(_cfg_get(cfg, "field_file", "field.npy"))
-        mask_path = root / str(_cfg_get(cfg, "mask_file", "mask.npy"))
+        root = resolve_root(cfg_get(cfg, "root", "data"))
+        cond_path = root / str(cfg_get(cfg, "cond_file", "cond.npy"))
+        field_path = root / str(cfg_get(cfg, "field_file", "field.npy"))
+        mask_path = root / str(cfg_get(cfg, "mask_file", "mask.npy"))
 
         if not cond_path.exists():
             raise FileNotFoundError(f"cond file not found: {cond_path}")
@@ -258,9 +257,22 @@ class NpyDirDataset(BaseDataset):
         elif self.mask_policy == "require":
             raise FileNotFoundError("mask_policy=require but mask.npy not found")
 
+        manifest = load_manifest(root)
+        if manifest is not None:
+            validate_field_against_manifest(field, mask, manifest)
+            self.manifest = dict(manifest)
+            self.field_kind = str(manifest.get("field_kind"))
+            grid = manifest.get("grid")
+            if isinstance(grid, Mapping):
+                self.grid = dict(grid)
+            if mask is None and self.mask_policy != "forbid":
+                self.mask_generated = True
+
         # REVIEW: normalize to batch-first arrays to keep the schema fixed.
         cond = _ensure_cond_batch(cond)
         field = _ensure_field_batch(field)
+        if mask is None and self.mask_generated:
+            mask = np.ones(field.shape[:3], dtype=bool)
         mask = _ensure_mask_batch(mask, field.shape[:3])
 
         if cond.shape[0] != field.shape[0]:

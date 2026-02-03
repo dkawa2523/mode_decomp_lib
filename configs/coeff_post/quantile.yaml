@@ -1,0 +1,7 @@
+name: quantile
+n_quantiles: 1000
+output_distribution: uniform
+subsample: 10000
+random_state: null
+copy: true
+ignore_implicit_zeros: false

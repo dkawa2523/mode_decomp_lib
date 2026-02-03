@@ -1,0 +1,35 @@
+dataset:
+  name: synthetic
+  num_samples: 2
+  height: 18
+  width: 36
+  channels: 1
+  mask_policy: allow_none
+  mask_mode: none
+task: reconstruct
+pipeline:
+  decomposer: spherical_harmonics
+  codec: sh_pack_v1
+  coeff_post: none
+  model: ridge
+params:
+  domain:
+    name: sphere_grid
+    n_lat: 18
+    n_lon: 36
+    angle_unit: deg
+    radius: 1.0
+  decompose:
+    name: spherical_harmonics
+    l_max: 3
+    real_form: true
+    norm: ortho
+    backend: scipy
+output:
+  root: runs
+  tag: sphere_sh_ridge
+  project: sphere_sh_ridge
+seed: 123
+task_params:
+  train_run_dir: /Volumes/SP PX10/Main_code/mode_decomp/mode_decomp_greenfield_devkit_v1/runs/sphere_sh_ridge/train
+  predict_run_dir: /Volumes/SP PX10/Main_code/mode_decomp/mode_decomp_greenfield_devkit_v1/runs/sphere_sh_ridge/predict

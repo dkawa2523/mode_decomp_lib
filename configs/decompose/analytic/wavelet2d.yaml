@@ -1,0 +1,5 @@
+name: wavelet2d
+wavelet: db2
+level: 2
+mode: symmetric
+mask_policy: error

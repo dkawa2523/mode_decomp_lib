@@ -1,0 +1,130 @@
+# Benchmark sweep matrix (domains x decomposers x models/coeff_post).
+# - Profiles select a subset (quick/full).
+# - Optional entries are skipped when configs or dependencies are missing.
+# - Codec is fixed per benchmark run (benchmark currently supports one codec).
+version: 1
+
+description: >-
+  Domain-compatible benchmark sweep matrix with quick/full profiles.
+  Optional methods are included but skipped when configs or dependencies are missing.
+
+profiles:
+  quick:
+    tag: bench_quick
+    domains: [rectangle, disk, arbitrary_mask]
+    models: [ridge]
+    leaderboard: true
+  full:
+    tag: bench_full
+    domains: [rectangle, disk, annulus, arbitrary_mask, sphere_grid, mesh]
+    models: [ridge, multitask_lasso, gpr, mtgp, xgb, lgbm, catboost]
+    leaderboard: true
+
+domains:
+  rectangle:
+    config: rectangle
+    decomposers:
+      - name: fft2
+        codec: fft_complex_codec_v1
+        profiles: [quick, full]
+      - name: pod_svd
+        codec: none
+        profiles: [quick, full]
+      - name: pod_randomized
+        codec: none
+        profiles: [quick]
+      - name: wavelet2d
+        codec: wavelet_pack_v1
+        optional: true
+        requires: [pywt]
+        profiles: [full]
+      - name: pswf2d_tensor
+        codec: tensor_pack_v1
+        optional: true
+        requires: [scipy]
+        profiles: [full]
+  disk:
+    config: disk
+    decomposers:
+      - name: zernike
+        codec: zernike_pack_v1
+        profiles: [quick, full]
+      - name: fft2
+        codec: fft_complex_codec_v1
+        profiles: [full]
+      - name: fourier_bessel
+        codec: none
+        optional: true
+        profiles: [full]
+  annulus:
+    config: annulus
+    decomposers:
+      - name: annular_zernike
+        codec: zernike_pack_v1
+        profiles: [full]
+  arbitrary_mask:
+    config: arbitrary_mask
+    dataset_overrides:
+      # Ensure a non-trivial mask for mask-domain baselines.
+      mask_mode: disk
+    decomposers:
+      - name: pod_svd
+        codec: none
+        profiles: [quick, full]
+      - name: graph_fourier
+        codec: none
+        optional: true
+        profiles: [full]
+  sphere_grid:
+    config: sphere_grid
+    decomposers:
+      - name: spherical_harmonics
+        codec: sh_pack_v1
+        optional: true
+        requires: [pyshtools]
+        profiles: [full]
+      - name: spherical_slepian
+        codec: sh_pack_v1
+        optional: true
+        requires: [pyshtools]
+        profiles: [full]
+  mesh:
+    config: mesh
+    optional: true
+    decomposers:
+      - name: laplace_beltrami
+        codec: none
+        optional: true
+        profiles: [full]
+
+models:
+  ridge:
+    coeff_posts: [none, pca, quantile, power_yeojohnson]
+    coeff_posts_quick: [none, pca]
+  multitask_lasso:
+    coeff_posts: [none, pca]
+    profiles: [full]
+  gpr:
+    optional: true
+    coeff_posts: [pca]
+    profiles: [full]
+  mtgp:
+    optional: true
+    requires: [gpytorch, torch]
+    coeff_posts: [pca]
+    profiles: [full]
+  xgb:
+    optional: true
+    requires: [xgboost]
+    coeff_posts: [pca]
+    profiles: [full]
+  lgbm:
+    optional: true
+    requires: [lightgbm]
+    coeff_posts: [pca]
+    profiles: [full]
+  catboost:
+    optional: true
+    requires: [catboost]
+    coeff_posts: [pca]
+    profiles: [full]

@@ -1,0 +1,12 @@
+# Example overrides for Hydra (参考)
+# 実行時にコマンドラインで上書きする想定です。
+# 実際のキーはプロジェクト側の configs/ に合わせて調整してください。
+
+dataset:
+  name: npy_dir
+  root: data/mode_decomp_eval_dataset_v1/scalar_rect
+  # mask_policy がある場合は require を推奨
+  mask_policy: require
+
+domain:
+  name: rectangle

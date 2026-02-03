@@ -47,3 +47,16 @@
 - uncertainty 出力（coeff_std / field_std）は任意で、比較/leaderboardには含めない
 - 比較は mean 予測の field-space metric を使い、std/区間は別レポートとする
 - GPR など coeff_std を返せるモデルでのみ有効（MC近似は可視化目的）
+
+---
+
+## 7. 可視化の読み方（簡易）
+以下は **figures/** に出力される診断図のうち、非DS向けに見るポイントをまとめたものです。
+対象の分解/係数表現を使わない場合は出力されません。
+
+- `coeff_hist.png`: 係数の大きさ分布。極端な裾や外れ値は前処理/尺度の歪みを示唆。
+- `coeff_topk_energy.png`: 上位モードのエネルギー比。少数モードに偏り過ぎると表現力不足の可能性。
+- `fft_magnitude_spectrum.png`: FFTの周波数分布。低周波優位か高周波優位かを確認。
+- `wavelet_band_energy.png`: Waveletのlevel別エネルギー。粗い構造/細かい構造のどちらが強いか。
+- `sh_l_energy.png`: Spherical Harmonicsのl別エネルギー。角周波数成分の偏りを確認。
+- `slepian_concentration.png`: Slepianの集中度。ROI内にどれだけ局在しているか。

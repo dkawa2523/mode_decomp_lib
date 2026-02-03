@@ -1,0 +1,6 @@
+name: annular_zernike
+n_max: 6
+m_max: 6
+ordering: n_then_m
+normalization: orthonormal
+boundary_condition: unit_annulus

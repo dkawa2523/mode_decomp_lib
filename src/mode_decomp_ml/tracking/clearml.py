@@ -47,7 +47,9 @@ def _upload_json(task: Any, name: str, path: Path) -> None:
 
 
 def _upload_config_yaml(task: Any, run_dir: Path) -> None:
-    config_path = run_dir / ".hydra" / "config.yaml"
+    config_path = run_dir / "run.yaml"
+    if not config_path.exists():
+        config_path = run_dir / ".hydra" / "config.yaml"
     if not config_path.exists():
         config_path = run_dir / "hydra" / "config.yaml"
     if not config_path.exists():
@@ -57,9 +59,11 @@ def _upload_config_yaml(task: Any, run_dir: Path) -> None:
 
 
 def _upload_model(task: Any, run_dir: Path) -> None:
-    model_dir = run_dir / "artifacts" / "model"
+    model_dir = run_dir / "model"
     if not model_dir.exists():
-        return
+        model_dir = run_dir / "artifacts" / "model"
+        if not model_dir.exists():
+            return
     for filename in ("model.pkl", "model.pth", "model.pt"):
         path = model_dir / filename
         if path.exists():
@@ -68,9 +72,11 @@ def _upload_model(task: Any, run_dir: Path) -> None:
 
 
 def _upload_plots(task: Any, run_dir: Path) -> None:
-    viz_dir = run_dir / "viz"
+    viz_dir = run_dir / "figures"
     if not viz_dir.exists():
-        return
+        viz_dir = run_dir / "viz"
+        if not viz_dir.exists():
+            return
     for path in sorted(viz_dir.rglob("*.png")):
         rel = str(path.relative_to(run_dir)).replace("/", "_")
         task.upload_artifact(f"plot_{rel}", artifact_object=str(path))
@@ -100,7 +106,10 @@ def maybe_log_run(cfg: Mapping[str, Any], run_dir: str | Path) -> None:
 
     task.connect(_to_container(cfg), name="config")
     _upload_config_yaml(task, run_dir_path)
-    _upload_json(task, "metrics", run_dir_path / "metrics" / "metrics.json")
-    _upload_json(task, "meta", run_dir_path / "meta.json")
+    metrics_path = run_dir_path / "metrics.json"
+    if not metrics_path.exists():
+        metrics_path = run_dir_path / "metrics" / "metrics.json"
+    _upload_json(task, "metrics", metrics_path)
+    _upload_json(task, "manifest_run", run_dir_path / "manifest_run.json")
     _upload_model(task, run_dir_path)
     _upload_plots(task, run_dir_path)

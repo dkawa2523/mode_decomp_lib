@@ -1,4 +1,5 @@
 name: synthetic
+root: null
 num_samples: 2
 cond_dim: 3
 height: 32

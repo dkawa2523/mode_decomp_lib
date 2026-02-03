@@ -10,12 +10,15 @@ import yaml
 
 from mode_decomp_ml.data import build_dataset
 from mode_decomp_ml.pipeline import (
+    ArtifactWriter,
     PROJECT_ROOT,
+    StepRecorder,
+    artifact_ref,
     build_dataset_meta,
     build_meta,
     cfg_get,
-    ensure_dir,
     require_cfg_keys,
+    resolve_domain_cfg,
     resolve_run_dir,
     split_indices,
     write_json,
@@ -74,12 +77,16 @@ def _normalize_list(value: Any, default: Sequence[str]) -> list[str]:
 def _resolve_domain_cfg(cfg: Mapping[str, Any], task_cfg: Mapping[str, Any]) -> dict[str, Any]:
     override = cfg_get(task_cfg, "domain", None)
     if override is None:
-        return _to_container(cfg_get(cfg, "domain", {}))
+        domain_cfg = _to_container(cfg_get(cfg, "domain", None))
     if isinstance(override, str):
-        return _load_group_cfg("domain", override)
+        domain_cfg = _load_group_cfg("domain", override)
     if isinstance(override, Mapping):
-        return _to_container(override)
-    raise ValueError("task.domain must be a string or mapping")
+        domain_cfg = _to_container(override)
+    if override is not None and not isinstance(override, (str, Mapping)):
+        raise ValueError("task.domain must be a string or mapping")
+    dataset_cfg = cfg_get(cfg, "dataset")
+    domain_cfg, _ = resolve_domain_cfg(dataset_cfg, domain_cfg)
+    return _to_container(domain_cfg)
 
 
 def _prepare_decompose_cfg(decompose_cfg: Mapping[str, Any], domain_cfg: Mapping[str, Any]) -> dict[str, Any]:
@@ -88,6 +95,8 @@ def _prepare_decompose_cfg(decompose_cfg: Mapping[str, Any], domain_cfg: Mapping
     domain_name = str(cfg_get(domain_cfg, "name", "")).strip()
     if method == "zernike" and domain_name != "disk":
         raise ValueError("benchmark requires disk domain for zernike")
+    if method == "annular_zernike" and domain_name != "annulus":
+        raise ValueError("benchmark requires annulus domain for annular_zernike")
     if domain_name == "disk" and method in {"fft2", "dct2"}:
         # REVIEW: disk domain requires zero-fill policy for FFT/DCT.
         cfg_out["disk_policy"] = "mask_zero_fill"
@@ -99,13 +108,6 @@ def _prepare_model_cfg(model_cfg: Mapping[str, Any], coeff_post_cfg: Mapping[str
     coeff_name = str(cfg_get(coeff_post_cfg, "name", "")).strip().lower()
     cfg_out["target_space"] = "z" if coeff_name and coeff_name != "none" else "a"
     return cfg_out
-
-
-def _write_config_snapshot(run_dir: Path, cfg: Mapping[str, Any]) -> None:
-    hydra_dir = ensure_dir(run_dir / ".hydra")
-    # CONTRACT: benchmark writes config snapshots for leaderboard traceability.
-    with (hydra_dir / "config.yaml").open("w", encoding="utf-8") as fh:
-        yaml.safe_dump(_to_container(cfg), fh, sort_keys=False)
 
 
 def _build_process_cfg(
@@ -131,11 +133,18 @@ def _build_process_cfg(
 def main(cfg: Mapping[str, Any] | None = None) -> int:
     if cfg is None:
         raise ValueError("benchmark requires config from the Hydra entrypoint")
-    require_cfg_keys(cfg, ["seed", "run_dir", "output_dir", "dataset", "split", "domain", "model", "eval"])
+    require_cfg_keys(cfg, ["seed", "run_dir", "output_dir", "dataset", "split", "model", "eval"])
     task_cfg = _require_task_config(cfg_get(cfg, "task", None))
 
     run_dir = resolve_run_dir(cfg)
-    ensure_dir(run_dir)
+    writer = ArtifactWriter(run_dir)
+    steps = StepRecorder(run_dir=run_dir)
+    with steps.step(
+        "init_run",
+        outputs=[artifact_ref("run.yaml", kind="config")],
+    ):
+        writer.ensure_layout()
+        writer.write_run_yaml(cfg)
 
     base_cfg = _to_container(cfg)
     decompose_list = _normalize_list(cfg_get(task_cfg, "decompose_list", None), ["fft2", "zernike"])
@@ -144,91 +153,95 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
     model_cfg_base = _to_container(cfg_get(cfg, "model", {}))
 
     runs: list[dict[str, Any]] = []
-    for idx, (decompose_name, coeff_post_name) in enumerate(
-        itertools.product(decompose_list, coeff_post_list)
+    with steps.step(
+        "run_sweep",
+        outputs=[artifact_ref("tables/benchmark_manifest.json", kind="table")],
     ):
-        combo_name = f"run_{idx:03d}__{decompose_name}__{coeff_post_name}"
-        combo_dir = run_dir / combo_name
-        train_dir = combo_dir / "train"
-        predict_dir = combo_dir / "predict"
-        reconstruct_dir = combo_dir / "reconstruct"
-        eval_dir = combo_dir / "eval"
+        for idx, (decompose_name, coeff_post_name) in enumerate(
+            itertools.product(decompose_list, coeff_post_list)
+        ):
+            combo_name = f"run_{idx:03d}__{decompose_name}__{coeff_post_name}"
+            combo_dir = run_dir / combo_name
+            train_dir = combo_dir / "train"
+            predict_dir = combo_dir / "predict"
+            reconstruct_dir = combo_dir / "reconstruct"
+            eval_dir = combo_dir / "eval"
 
-        decompose_cfg = _prepare_decompose_cfg(
-            _load_group_cfg("decompose", decompose_name),
-            domain_cfg,
-        )
-        coeff_post_cfg = _load_group_cfg("coeff_post", coeff_post_name)
-        model_cfg = _prepare_model_cfg(model_cfg_base, coeff_post_cfg)
+            decompose_cfg = _prepare_decompose_cfg(
+                _load_group_cfg("decompose", decompose_name),
+                domain_cfg,
+            )
+            coeff_post_cfg = _load_group_cfg("coeff_post", coeff_post_name)
+            model_cfg = _prepare_model_cfg(model_cfg_base, coeff_post_cfg)
 
-        train_cfg = _build_process_cfg(
-            base_cfg,
-            task_cfg={"name": "train"},
-            run_dir=train_dir,
-            domain_cfg=domain_cfg,
-            decompose_cfg=decompose_cfg,
-            coeff_post_cfg=coeff_post_cfg,
-            model_cfg=model_cfg,
-        )
-        train_process.main(train_cfg)
+            train_cfg = _build_process_cfg(
+                base_cfg,
+                task_cfg={"name": "train"},
+                run_dir=train_dir,
+                domain_cfg=domain_cfg,
+                decompose_cfg=decompose_cfg,
+                coeff_post_cfg=coeff_post_cfg,
+                model_cfg=model_cfg,
+            )
+            train_process.main(train_cfg)
 
-        predict_cfg = _build_process_cfg(
-            base_cfg,
-            task_cfg={"name": "predict", "train_run_dir": str(train_dir)},
-            run_dir=predict_dir,
-            domain_cfg=domain_cfg,
-            decompose_cfg=decompose_cfg,
-            coeff_post_cfg=coeff_post_cfg,
-            model_cfg=model_cfg,
-        )
-        predict_process.main(predict_cfg)
+            predict_cfg = _build_process_cfg(
+                base_cfg,
+                task_cfg={"name": "predict", "train_run_dir": str(train_dir)},
+                run_dir=predict_dir,
+                domain_cfg=domain_cfg,
+                decompose_cfg=decompose_cfg,
+                coeff_post_cfg=coeff_post_cfg,
+                model_cfg=model_cfg,
+            )
+            predict_process.main(predict_cfg)
 
-        reconstruct_cfg = _build_process_cfg(
-            base_cfg,
-            task_cfg={
-                "name": "reconstruct",
-                "train_run_dir": str(train_dir),
-                "predict_run_dir": str(predict_dir),
-            },
-            run_dir=reconstruct_dir,
-            domain_cfg=domain_cfg,
-            decompose_cfg=decompose_cfg,
-            coeff_post_cfg=coeff_post_cfg,
-            model_cfg=model_cfg,
-        )
-        reconstruct_process.main(reconstruct_cfg)
+            reconstruct_cfg = _build_process_cfg(
+                base_cfg,
+                task_cfg={
+                    "name": "reconstruct",
+                    "train_run_dir": str(train_dir),
+                    "predict_run_dir": str(predict_dir),
+                },
+                run_dir=reconstruct_dir,
+                domain_cfg=domain_cfg,
+                decompose_cfg=decompose_cfg,
+                coeff_post_cfg=coeff_post_cfg,
+                model_cfg=model_cfg,
+            )
+            reconstruct_process.main(reconstruct_cfg)
 
-        eval_cfg = _build_process_cfg(
-            base_cfg,
-            task_cfg={
-                "name": "eval",
-                "train_run_dir": str(train_dir),
-                "predict_run_dir": str(predict_dir),
-                "reconstruct_run_dir": str(reconstruct_dir),
-            },
-            run_dir=eval_dir,
-            domain_cfg=domain_cfg,
-            decompose_cfg=decompose_cfg,
-            coeff_post_cfg=coeff_post_cfg,
-            model_cfg=model_cfg,
-        )
-        eval_process.main(eval_cfg)
-        _write_config_snapshot(eval_dir, eval_cfg)
+            eval_cfg = _build_process_cfg(
+                base_cfg,
+                task_cfg={
+                    "name": "eval",
+                    "train_run_dir": str(train_dir),
+                    "predict_run_dir": str(predict_dir),
+                    "reconstruct_run_dir": str(reconstruct_dir),
+                },
+                run_dir=eval_dir,
+                domain_cfg=domain_cfg,
+                decompose_cfg=decompose_cfg,
+                coeff_post_cfg=coeff_post_cfg,
+                model_cfg=model_cfg,
+            )
+            eval_process.main(eval_cfg)
 
-        runs.append(
-            {
-                "name": combo_name,
-                "decompose": decompose_name,
-                "coeff_post": coeff_post_name,
-                "train_run_dir": str(train_dir),
-                "predict_run_dir": str(predict_dir),
-                "reconstruct_run_dir": str(reconstruct_dir),
-                "eval_run_dir": str(eval_dir),
-            }
-        )
+            runs.append(
+                {
+                    "name": combo_name,
+                    "decompose": decompose_name,
+                    "coeff_post": coeff_post_name,
+                    "train_run_dir": str(train_dir),
+                    "predict_run_dir": str(predict_dir),
+                    "reconstruct_run_dir": str(reconstruct_dir),
+                    "eval_run_dir": str(eval_dir),
+                }
+            )
 
     # CONTRACT: benchmark records run directories for leaderboard collection.
-    write_json(run_dir / "benchmark_manifest.json", {"runs": runs})
+    writer.tables_dir.mkdir(parents=True, exist_ok=True)
+    write_json(writer.tables_dir / "benchmark_manifest.json", {"runs": runs})
 
     seed = cfg_get(cfg, "seed", None)
     dataset_cfg = cfg_get(cfg, "dataset")
@@ -236,10 +249,9 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
     dataset = build_dataset(dataset_cfg, domain_cfg=domain_cfg, seed=seed)
     split_meta = split_indices(split_cfg, len(dataset), seed)
     dataset_meta = build_dataset_meta(dataset, dataset_cfg, split_meta, domain_cfg)
-    write_json(run_dir / "artifacts" / "dataset_meta.json", dataset_meta)
 
     meta = build_meta(cfg, dataset_hash=dataset_meta["dataset_hash"])
-    write_json(run_dir / "meta.json", meta)
+    writer.write_manifest(meta=meta, dataset_meta=dataset_meta, steps=steps.to_list())
     return 0
 
 

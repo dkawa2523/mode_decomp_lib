@@ -1,0 +1,20 @@
+dataset: data/mode_decomp_eval_dataset_v1/scalar_rect
+task: viz
+pipeline:
+  decomposer: fft2
+  codec: fft_complex_codec_v1
+  coeff_post: none
+  model: ridge
+output:
+  root: runs
+  tag: scalar_rect_fft2
+  project: scalar_rect_fft2
+seed: 123
+params:
+  decompose:
+    name: fft2
+    disk_policy: error
+task_params:
+  train_run_dir: /Volumes/SP PX10/Main_code/mode_decomp/mode_decomp_greenfield_devkit_v1/runs/scalar_rect_fft2/train
+  predict_run_dir: /Volumes/SP PX10/Main_code/mode_decomp/mode_decomp_greenfield_devkit_v1/runs/scalar_rect_fft2/predict
+  reconstruct_run_dir: /Volumes/SP PX10/Main_code/mode_decomp/mode_decomp_greenfield_devkit_v1/runs/scalar_rect_fft2/reconstruct

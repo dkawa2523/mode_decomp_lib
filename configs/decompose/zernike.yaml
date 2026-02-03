@@ -1,5 +1,6 @@
-name: zernike
-n_max: 6
-ordering: n_then_m
-normalization: orthonormal
-boundary_condition: unit_disk
+# Auto-generated shim for Hydra compatibility.
+# Source: configs/decompose/analytic/zernike.yaml
+
+defaults:
+  - /decompose/analytic/zernike
+  - _self_

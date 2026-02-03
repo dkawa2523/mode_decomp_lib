@@ -1,0 +1,6 @@
+name: pod
+mask_policy: ignore_masked_points
+backend: sklearn
+solver: direct
+inner_product: euclidean
+seed: ${seed}

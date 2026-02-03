@@ -18,10 +18,13 @@
 - `meta`: dict（任意）
 
 ### DomainSpec
-- `type`: {rect, disk, mask, points, mesh}
+- `type`: {rect, disk, mask, points, mesh, sphere_grid}
 - `coords`: 座標情報
   - rect: x,y grid
   - disk: r,theta grid / または x,y + disk mask
+  - sphere_grid: lat/lon grid（theta/phi も保持）
+    - `n_lat/n_lon` 指定時は `lat_range/lon_range` を自動補完（range の手書きは不要）
+    - 設定例は `docs/03_CONFIG_CONVENTIONS.md` の sphere_grid セクションを参照
   - points: (N,2)
   - mesh: vertices, faces
 - `boundary_condition`: optional

@@ -315,7 +315,1189 @@
       "started_at": "2025-12-30T00:21:30.972048Z",
       "last_presented_at": "2025-12-30T00:21:30.972048Z",
       "completed_at": "2025-12-30T00:21:30.972048Z"
+    },
+    {
+      "id": "399",
+      "priority": "P0",
+      "status": "done",
+      "title": "Implement: dataset manifest.json 読み取り + domain自動推定",
+      "path": "work/tasks/399_P3_dataset_manifest_domain_infer.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/20_CONFIG_OUTPUT_SIMPLIFICATION.md"
+      ],
+      "depends_on": [
+        "398"
+      ],
+      "unblocks": [
+        "400",
+        "401",
+        "402"
+      ],
+      "started_at": "2026-01-31T22:16:08.489573Z",
+      "last_presented_at": "2026-01-31T22:16:08.489828Z",
+      "completed_at": "2026-01-31T22:31:39.094745Z"
+    },
+    {
+      "id": "400",
+      "priority": "P0",
+      "status": "done",
+      "title": "Add: run.yaml 単一設定入口（CLI adapter + dry-run）",
+      "path": "work/tasks/400_P3_run_yaml_entrypoint.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/20_CONFIG_OUTPUT_SIMPLIFICATION.md"
+      ],
+      "depends_on": [
+        "398",
+        "399"
+      ],
+      "unblocks": [
+        "401",
+        "402"
+      ],
+      "started_at": "2026-01-31T22:46:53Z",
+      "last_presented_at": "2026-01-31T22:46:53Z",
+      "completed_at": "2026-01-31T22:46:53Z"
+    },
+    {
+      "id": "401",
+      "priority": "P0",
+      "status": "done",
+      "title": "Refactor: 出力フラット化（runs/<tag>/<run_id>/ 固定 + artifact統一）",
+      "path": "work/tasks/401_P3_output_flatten_artifacts.md",
+      "skills": [
+        "S40_REFACTOR",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/20_CONFIG_OUTPUT_SIMPLIFICATION.md"
+      ],
+      "depends_on": [
+        "398",
+        "399"
+      ],
+      "unblocks": [
+        "402",
+        "490"
+      ],
+      "started_at": "2026-01-31T22:47:27.561278Z",
+      "last_presented_at": "2026-01-31T22:47:27.561509Z"
+    },
+    {
+      "id": "402",
+      "priority": "P0",
+      "status": "done",
+      "title": "Refactor: configs/整理（yaml増殖停止、プリセット最小化、deprecated隔離）",
+      "path": "work/tasks/402_P3_config_cleanup_minimize.md",
+      "skills": [
+        "S40_REFACTOR",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/20_CONFIG_OUTPUT_SIMPLIFICATION.md"
+      ],
+      "depends_on": [
+        "398",
+        "400",
+        "401"
+      ],
+      "unblocks": [
+        "490"
+      ],
+      "started_at": "2026-01-31T23:29:21Z",
+      "last_presented_at": "2026-01-31T23:29:21Z",
+      "completed_at": "2026-01-31T23:29:21Z"
+    },
+    {
+      "id": "404",
+      "priority": "P1",
+      "status": "done",
+      "title": "Refactor: plugins/ディレクトリ構造を整理（移動+shim、迷子防止）",
+      "path": "work/tasks/404_P3_refactor_plugin_layout.md",
+      "skills": [
+        "S40_REFACTOR",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/22_PLUGIN_BASECLASS_REFACTOR.md"
+      ],
+      "depends_on": [
+        "398"
+      ],
+      "unblocks": [
+        "405",
+        "410"
+      ],
+      "started_at": "2026-01-31T23:31:57.040604Z",
+      "last_presented_at": "2026-01-31T23:31:57.040865Z"
+    },
+    {
+      "id": "405",
+      "priority": "P1",
+      "status": "done",
+      "title": "Core: Decomposer baseclasses + ChannelwiseAdapter（共通化で増殖停止）",
+      "path": "work/tasks/405_P3_decomposer_baseclasses_commonize.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/22_PLUGIN_BASECLASS_REFACTOR.md"
+      ],
+      "depends_on": [
+        "404"
+      ],
+      "unblocks": [
+        "411",
+        "414",
+        "416"
+      ],
+      "started_at": "2026-02-01T00:07:35Z",
+      "last_presented_at": "2026-02-01T00:07:35Z",
+      "completed_at": "2026-02-01T00:07:35Z"
+    },
+    {
+      "id": "410",
+      "priority": "P1",
+      "status": "done",
+      "title": "Core: CoeffCodec層導入（registry + pipeline wiring + meta保存）",
+      "path": "work/tasks/410_P3_codec_layer_core.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/21_CODEC_LAYER_SPEC.md",
+        "docs/23_METHODS_ADDON_SPEC.md"
+      ],
+      "depends_on": [
+        "404"
+      ],
+      "unblocks": [
+        "411",
+        "412",
+        "413",
+        "414",
+        "415",
+        "416",
+        "417",
+        "420",
+        "421",
+        "430"
+      ],
+      "started_at": "2026-02-01T00:08:51.712913Z",
+      "last_presented_at": "2026-02-01T00:08:51.713022Z",
+      "completed_at": "2026-02-01T00:26:25Z"
+    },
+    {
+      "id": "411",
+      "priority": "P1",
+      "status": "done",
+      "title": "Refactor: 既存DecomposerをCodec前提に統一（flatten/複素/順序の共通化）",
+      "path": "work/tasks/411_P3_refactor_existing_decomposers_for_codec.md",
+      "skills": [
+        "S40_REFACTOR",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/21_CODEC_LAYER_SPEC.md",
+        "docs/23_METHODS_ADDON_SPEC.md",
+        "docs/22_PLUGIN_BASECLASS_REFACTOR.md"
+      ],
+      "depends_on": [
+        "410"
+      ],
+      "unblocks": [
+        "412",
+        "413",
+        "414",
+        "415",
+        "440",
+        "490"
+      ],
+      "started_at": "2026-02-01T00:40:23Z",
+      "last_presented_at": "2026-02-01T00:40:23Z",
+      "completed_at": "2026-02-01T00:40:23Z"
+    },
+    {
+      "id": "412",
+      "priority": "P1",
+      "status": "done",
+      "title": "Add: FFT複素係数Codec（real/imag・mag/phase・logmag/phase）",
+      "path": "work/tasks/412_P3_fft_complex_codec.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/21_CODEC_LAYER_SPEC.md",
+        "docs/23_METHODS_ADDON_SPEC.md"
+      ],
+      "depends_on": [
+        "410",
+        "411"
+      ],
+      "unblocks": [
+        "440"
+      ],
+      "started_at": "2026-02-01T00:41:49.358596Z",
+      "last_presented_at": "2026-02-01T00:41:49.358733Z",
+      "completed_at": "2026-02-01T00:54:29.080074Z"
+    },
+    {
+      "id": "413",
+      "priority": "P1",
+      "status": "done",
+      "title": "Add: Decomposer Wavelet2D + Codec（PyWavelets, lossless pack/unpack）",
+      "path": "work/tasks/413_P3_wavelet2d_decomposer_codec.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/21_CODEC_LAYER_SPEC.md",
+        "docs/23_METHODS_ADDON_SPEC.md"
+      ],
+      "depends_on": [
+        "410"
+      ],
+      "unblocks": [
+        "440",
+        "490"
+      ],
+      "started_at": "2026-02-01T01:04:32.065907Z",
+      "last_presented_at": "2026-02-01T01:04:32.066024Z",
+      "completed_at": "2026-02-01T01:17:20Z"
+    },
+    {
+      "id": "414",
+      "priority": "P1",
+      "status": "done",
+      "title": "Add: Domain annulus + Decomposer Annular Zernike（Zernikeコード共有）",
+      "path": "work/tasks/414_P3_annulus_annular_zernike.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/21_CODEC_LAYER_SPEC.md",
+        "docs/23_METHODS_ADDON_SPEC.md",
+        "docs/22_PLUGIN_BASECLASS_REFACTOR.md"
+      ],
+      "depends_on": [
+        "410",
+        "399"
+      ],
+      "unblocks": [
+        "440",
+        "490"
+      ],
+      "started_at": "2026-02-01T01:32:32Z",
+      "last_presented_at": "2026-02-01T01:32:32Z",
+      "completed_at": "2026-02-01T01:32:32Z"
+    },
+    {
+      "id": "415",
+      "priority": "P2",
+      "status": "done",
+      "title": "Add: Domain sphere_grid + Decomposer Spherical Harmonics + Codec",
+      "path": "work/tasks/415_P3_sphere_grid_spherical_harmonics.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/21_CODEC_LAYER_SPEC.md",
+        "docs/23_METHODS_ADDON_SPEC.md"
+      ],
+      "depends_on": [
+        "410",
+        "398"
+      ],
+      "unblocks": [
+        "416",
+        "440"
+      ],
+      "started_at": "2026-02-01T01:59:57Z",
+      "last_presented_at": "2026-02-01T01:59:57Z",
+      "completed_at": "2026-02-01T01:59:57Z"
+    },
+    {
+      "id": "416",
+      "priority": "P2",
+      "status": "done",
+      "title": "Add: Decomposer Slepian（sphere_grid, state保存, ROI集中基底）",
+      "path": "work/tasks/416_P3_slepian_basis_sphere.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/21_CODEC_LAYER_SPEC.md",
+        "docs/23_METHODS_ADDON_SPEC.md",
+        "docs/22_PLUGIN_BASECLASS_REFACTOR.md"
+      ],
+      "depends_on": [
+        "410",
+        "415"
+      ],
+      "unblocks": [
+        "440",
+        "490"
+      ],
+      "started_at": "2026-02-01T03:33:34.995580Z",
+      "last_presented_at": "2026-02-01T03:33:34.995875Z",
+      "completed_at": "2026-02-01T03:55:37Z"
+    },
+    {
+      "id": "417",
+      "priority": "P2",
+      "status": "done",
+      "title": "Add: Decomposer PSWF（pswf2d_tensor, research track, optional dependency）",
+      "path": "work/tasks/417_P3_pswf2d_tensor.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/21_CODEC_LAYER_SPEC.md",
+        "docs/23_METHODS_ADDON_SPEC.md"
+      ],
+      "depends_on": [
+        "410",
+        "398"
+      ],
+      "unblocks": [
+        "440",
+        "490"
+      ],
+      "started_at": "2026-02-01T04:09:01.205543Z",
+      "last_presented_at": "2026-02-01T04:09:01.205646Z"
+    },
+    {
+      "id": "420",
+      "priority": "P1",
+      "status": "done",
+      "title": "Add: CoeffPost QuantileTransform（ロバスト化、train-only fit）",
+      "path": "work/tasks/420_P3_coeffpost_quantile.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md"
+      ],
+      "depends_on": [
+        "410"
+      ],
+      "unblocks": [
+        "440",
+        "490"
+      ],
+      "started_at": "2026-02-01T01:03:23Z",
+      "last_presented_at": "2026-02-01T01:03:23Z",
+      "completed_at": "2026-02-01T01:03:23Z"
+    },
+    {
+      "id": "421",
+      "priority": "P1",
+      "status": "done",
+      "title": "Add: CoeffPost PowerTransform（Yeo-Johnson）",
+      "path": "work/tasks/421_P3_coeffpost_power_yeojohnson.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md"
+      ],
+      "depends_on": [
+        "410"
+      ],
+      "unblocks": [
+        "440",
+        "490"
+      ],
+      "started_at": "2026-02-01T01:37:42.217765Z",
+      "last_presented_at": "2026-02-01T01:37:42.217883Z"
+    },
+    {
+      "id": "430",
+      "priority": "P1",
+      "status": "done",
+      "title": "Refactor: Model I/F 統一（常に多出力、wrapperで単一/複数を吸収）",
+      "path": "work/tasks/430_P3_model_interface_multioutput_unify.md",
+      "skills": [
+        "S40_REFACTOR",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md"
+      ],
+      "depends_on": [
+        "398"
+      ],
+      "unblocks": [
+        "431",
+        "432",
+        "433",
+        "440",
+        "490"
+      ],
+      "started_at": "2026-02-01T02:03:01.634709Z",
+      "last_presented_at": "2026-02-01T02:03:01.634832Z",
+      "completed_at": "2026-02-01T02:17:57Z"
+    },
+    {
+      "id": "431",
+      "priority": "P2",
+      "status": "done",
+      "title": "Add: Model GBDT（XGB/LGBM/CatBoost, optional, multioutput wrapper）",
+      "path": "work/tasks/431_P3_models_gbdt.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md"
+      ],
+      "depends_on": [
+        "430",
+        "410"
+      ],
+      "unblocks": [
+        "440",
+        "490"
+      ],
+      "completed_at": "2026-02-01T12:00:00Z"
+    },
+    {
+      "id": "432",
+      "priority": "P2",
+      "status": "done",
+      "title": "Add: Model MultiTaskLasso（native multi-output, sparsity）",
+      "path": "work/tasks/432_P3_model_multitask_lasso.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md"
+      ],
+      "depends_on": [
+        "430"
+      ],
+      "unblocks": [
+        "440",
+        "490"
+      ],
+      "started_at": "2026-02-01T02:26:20Z",
+      "last_presented_at": "2026-02-01T02:26:20Z",
+      "completed_at": "2026-02-01T02:26:20Z"
+    },
+    {
+      "id": "433",
+      "priority": "P2",
+      "status": "done",
+      "title": "Add: Model Multi-task GP（相関学習, optional dependency, P2枠）",
+      "path": "work/tasks/433_P3_model_multitask_gp.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md"
+      ],
+      "depends_on": [
+        "430",
+        "410"
+      ],
+      "unblocks": [
+        "440",
+        "490"
+      ],
+      "started_at": "2026-02-01T04:31:38Z",
+      "completed_at": "2026-02-01T04:31:38Z"
+    },
+    {
+      "id": "440",
+      "priority": "P1",
+      "status": "done",
+      "title": "Update: Benchmark sweep（domain整合・quick/full・optional依存スキップ）",
+      "path": "work/tasks/440_P3_benchmark_matrix_update.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S60_EVAL",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md"
+      ],
+      "depends_on": [
+        "401",
+        "410"
+      ],
+      "unblocks": [
+        "490"
+      ],
+      "started_at": "2026-02-01T02:27:59.296166Z",
+      "last_presented_at": "2026-02-01T02:27:59.296279Z",
+      "completed_at": "2026-02-01T02:48:32.740922Z"
+    },
+    {
+      "id": "441",
+      "priority": "P2",
+      "status": "done",
+      "title": "Enhance: 評価・可視化（新係数表現の診断、図を最小拡張）",
+      "path": "work/tasks/441_P3_eval_viz_for_new_coeffs.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md"
+      ],
+      "depends_on": [
+        "412",
+        "413",
+        "415"
+      ],
+      "unblocks": [
+        "490"
+      ],
+      "started_at": "2026-02-01T04:33:54.666402Z",
+      "last_presented_at": "2026-02-01T04:33:54.666537Z",
+      "completed_at": "2026-02-01T13:46:00Z"
+    },
+    {
+      "id": "450",
+      "priority": "P2",
+      "status": "done",
+      "title": "Design+Prep: ClearMLタスク化を見越した step 抽象（依存なし）",
+      "path": "work/tasks/450_P3_clearml_ready_step_abstraction.md",
+      "skills": [
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/12_INTEGRATIONS_READY.md"
+      ],
+      "depends_on": [
+        "401",
+        "400"
+      ],
+      "unblocks": [
+        "490"
+      ],
+      "started_at": "2026-02-01T04:20:00Z",
+      "last_presented_at": "2026-02-01T04:20:00Z",
+      "completed_at": "2026-02-01T04:35:00Z"
+    },
+    {
+      "id": "490",
+      "priority": "P0",
+      "status": "done",
+      "title": "Cleanup: YAML/出力/コードの整理（削除・共通化・docs整合）",
+      "path": "work/tasks/490_P3_cleanup_simplify_refactor.md",
+      "skills": [
+        "S70_DOCS",
+        "S40_REFACTOR",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/README.md",
+        "docs/11_PLUGIN_REGISTRY.md",
+        "docs/01_ARCHITECTURE.md"
+      ],
+      "depends_on": [
+        "402",
+        "440"
+      ],
+      "unblocks": [
+        "491"
+      ],
+      "started_at": "2026-02-01T03:02:24.738131Z",
+      "last_presented_at": "2026-02-01T03:02:24.738249Z",
+      "completed_at": "2026-02-01T03:21:16Z"
+    },
+    {
+      "id": "491",
+      "priority": "P1",
+      "status": "done",
+      "title": "Docs: アーキテクチャ/プラグインカタログ更新（第三者理解最優先）",
+      "path": "work/tasks/491_P3_docs_architecture_plugin_catalog_update.md",
+      "skills": [
+        "S70_DOCS"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/README.md",
+        "docs/11_PLUGIN_REGISTRY.md",
+        "docs/01_ARCHITECTURE.md"
+      ],
+      "depends_on": [
+        "490"
+      ],
+      "started_at": "2026-02-01T03:32:49Z",
+      "completed_at": "2026-02-01T03:32:49Z"
+    },
+    {
+      "id": "492",
+      "priority": "P2",
+      "status": "done",
+      "title": "Docs: VAE status consistency (Autoencoder only)",
+      "path": "work/tasks/492_docs_vae_status_consistency.md",
+      "skills": [
+        "S70_DOCS"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/01_ARCHITECTURE.md",
+        "docs/20_METHOD_CATALOG.md"
+      ],
+      "depends_on": [
+        "491"
+      ],
+      "unblocks": [],
+      "started_at": "2026-02-01T04:50:18.323323Z",
+      "last_presented_at": "2026-02-01T04:50:18.323323Z",
+      "completed_at": "2026-02-01T04:50:18.323323Z"
+    },
+    {
+      "id": "493",
+      "priority": "P2",
+      "status": "done",
+      "title": "POD拡張RFC（スコープ固定・既存構造確認・命名確定）",
+      "path": "work/tasks/493_POD_RFC_.md",
+      "skills": [
+        "S10_SPEC",
+        "S70_DOCS"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "492"
+      ],
+      "started_at": "2026-02-01T10:15:34.224045Z",
+      "last_presented_at": "2026-02-01T10:15:34.224150Z",
+      "completed_at": "2026-02-01T10:23:28.610958Z"
+    },
+    {
+      "id": "494",
+      "priority": "P2",
+      "status": "done",
+      "title": "decomposer配置整理（analytic vs data_driven の分離、互換alias維持）",
+      "path": "work/tasks/494_decomposer_analytic_vs_data_driven_alias_.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "493"
+      ],
+      "started_at": "2026-02-01T10:29:16Z",
+      "last_presented_at": "2026-02-01T10:29:16Z",
+      "completed_at": "2026-02-01T10:29:16Z"
+    },
+    {
+      "id": "495",
+      "priority": "P2",
+      "status": "done",
+      "title": "Domain: integration_weights/mass_matrix I/F導入（Weighted PODの土台）",
+      "path": "work/tasks/495_Domain_integration_weights_mass_matrix_I_F_Weighted_POD_.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "494"
+      ],
+      "started_at": "2026-02-01T10:31:18.800588Z",
+      "last_presented_at": "2026-02-01T10:31:18.800680Z",
+      "completed_at": "2026-02-01T10:41:46.558012Z"
+    },
+    {
+      "id": "496",
+      "priority": "P2",
+      "status": "done",
+      "title": "Decomposer: PODDecomposer骨格（backend/solver/inner_product切替、state仕様固定）",
+      "path": "work/tasks/496_Decomposer_PODDecomposer_backend_solver_inner_product_state_.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "495"
+      ],
+      "started_at": "2026-02-01T10:52:34.917720Z",
+      "last_presented_at": "2026-02-01T10:52:34.917720Z",
+      "completed_at": "2026-02-01T10:52:34.917720Z"
+    },
+    {
+      "id": "497",
+      "priority": "P2",
+      "status": "done",
+      "title": "POD backend=sklearn（direct/snapshots/randomizedの基礎実装）",
+      "path": "work/tasks/497_POD_backend_sklearn_direct_snapshots_randomized_.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "496"
+      ],
+      "started_at": "2026-02-01T10:53:46.473129Z",
+      "last_presented_at": "2026-02-01T10:53:46.473224Z",
+      "completed_at": "2026-02-01T10:58:42.518746Z"
+    },
+    {
+      "id": "498",
+      "priority": "P2",
+      "status": "done",
+      "title": "POD backend=modred（inner_product_weights対応、optional依存）",
+      "path": "work/tasks/498_POD_backend_modred_inner_product_weights_optional_.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "497"
+      ],
+      "started_at": "2026-02-01T11:04:10Z",
+      "last_presented_at": "2026-02-01T11:04:10Z",
+      "completed_at": "2026-02-01T11:04:10Z"
+    },
+    {
+      "id": "499",
+      "priority": "P2",
+      "status": "done",
+      "title": "Randomized POD（高速SVDの導入、seed再現性、sweep最小追加）",
+      "path": "work/tasks/499_Randomized_POD_SVD_seed_sweep_.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "498"
+      ],
+      "started_at": "2026-02-01T11:04:48.504949Z",
+      "last_presented_at": "2026-02-01T11:18:05Z",
+      "completed_at": "2026-02-01T11:18:05Z"
+    },
+    {
+      "id": "500",
+      "priority": "P2",
+      "status": "done",
+      "title": "Incremental POD（IncrementalPCA、out-of-core運用の足場）",
+      "path": "work/tasks/500_Incremental_POD_IncrementalPCA_out_of_core_.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "499"
+      ],
+      "started_at": "2026-02-01T11:30:37Z",
+      "completed_at": "2026-02-01T11:30:37Z"
+    },
+    {
+      "id": "501",
+      "priority": "P2",
+      "status": "todo",
+      "title": "Weighted POD（domain_weights運用、mask/diskでの安定化）",
+      "path": "work/tasks/501_Weighted_POD_domain_weights_mask_disk_.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "500"
+      ]
+    },
+    {
+      "id": "502",
+      "priority": "P2",
+      "status": "todo",
+      "title": "Decomposer: GappyPODDecomposer（欠損/部分観測→係数推定、正則化options）",
+      "path": "work/tasks/502_Decomposer_GappyPODDecomposer_options_.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "501"
+      ]
+    },
+    {
+      "id": "503",
+      "priority": "P2",
+      "status": "todo",
+      "title": "周辺技術: rank自動選択（energy閾値 + 任意CV、optionsでON/OFF）",
+      "path": "work/tasks/503__rank_energy_CV_options_ON_OFF_.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "502"
+      ]
+    },
+    {
+      "id": "504",
+      "priority": "P2",
+      "status": "todo",
+      "title": "周辺技術: 係数分布正規化（Quantile/Power、全decomposer共通、optionsでON/OFF）",
+      "path": "work/tasks/504__Quantile_Power_decomposer_options_ON_OFF_.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "503"
+      ]
+    },
+    {
+      "id": "505",
+      "priority": "P2",
+      "status": "todo",
+      "title": "周辺技術: モード重み付け（eigvalスケール、POD/PCA優先、optionsでON/OFF）",
+      "path": "work/tasks/505__eigval_POD_PCA_options_ON_OFF_.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "504"
+      ]
+    },
+    {
+      "id": "506",
+      "priority": "P2",
+      "status": "todo",
+      "title": "運用設計: run.yaml 1枚運用の維持（options切替、yaml増殖禁止）",
+      "path": "work/tasks/506__run_yaml_1_options_yaml_.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "505"
+      ]
+    },
+    {
+      "id": "507",
+      "priority": "P2",
+      "status": "todo",
+      "title": "運用設計: 出力・artifactの単純化維持（states/metrics/figures固定）",
+      "path": "work/tasks/507__artifact_states_metrics_figures_.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "506"
+      ]
+    },
+    {
+      "id": "508",
+      "priority": "P2",
+      "status": "todo",
+      "title": "可視化: POD標準図（scree/energy/recon/modes/coeff/cond_corr + gappy図）",
+      "path": "work/tasks/508__POD_scree_energy_recon_modes_coeff_cond_corr_gappy_.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "507"
+      ]
+    },
+    {
+      "id": "509",
+      "priority": "P2",
+      "status": "todo",
+      "title": "Benchmark: POD系を含む最小sweep追加（組合せ爆発回避、速度指標も保存）",
+      "path": "work/tasks/509_Benchmark_POD_sweep_.md",
+      "skills": [
+        "S20_IMPLEMENT",
+        "S50_TEST"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "508"
+      ]
+    },
+    {
+      "id": "510",
+      "priority": "P2",
+      "status": "todo",
+      "title": "テスト/doctor: POD系（weighted/gappy/randomized/incremental）を固める、optional依存整理",
+      "path": "work/tasks/510__doctor_POD_weighted_gappy_randomized_incremental_optional_.md",
+      "skills": [
+        "S50_TEST",
+        "S80_DOCTOR"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "509"
+      ]
+    },
+    {
+      "id": "511",
+      "priority": "P2",
+      "status": "todo",
+      "title": "Cleanup: 共通化・不要削除・deprecated整理（コード量を抑えレビュー容易化）",
+      "path": "work/tasks/511_Cleanup_deprecated_.md",
+      "skills": [
+        "S60_CLEANUP",
+        "S70_DOCS"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "510"
+      ]
+    },
+    {
+      "id": "512",
+      "priority": "P2",
+      "status": "todo",
+      "title": "設計メモ: ClearML Task化を見越した境界確認（I/O契約維持、実装は最小）",
+      "path": "work/tasks/512__ClearML_Task_I_O_.md",
+      "skills": [
+        "S70_DOCS",
+        "S10_SPEC"
+      ],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "docs/04_ARTIFACTS_AND_VERSIONING.md",
+        "docs/09_EVALUATION_PROTOCOL.md",
+        "docs/addons/30_POD_SUITE_SPEC.md",
+        "docs/addons/31_POD_CONFIG_MINIMAL.md",
+        "docs/addons/34_POD_REFERENCES.md"
+      ],
+      "depends_on": [
+        "511"
+      ]
     }
   ],
-  "updated_at": "2025-12-30T00:21:30.972048Z"
+  "updated_at": "2026-02-01T11:30:37Z"
 }

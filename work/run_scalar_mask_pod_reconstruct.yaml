@@ -1,0 +1,27 @@
+dataset: data/mode_decomp_eval_dataset_v1/scalar_mask
+task: reconstruct
+pipeline:
+  decomposer: pod_svd
+  coeff_post: none
+  model: ridge
+output:
+  root: runs
+  tag: scalar_mask_pod
+  project: scalar_mask_pod
+seed: 123
+params:
+  decompose:
+    name: pod_svd
+    mask_policy: ignore_masked_points
+  domain:
+    name: arbitrary_mask
+    mask_source: dataset
+    x_range:
+    - -1.0
+    - 1.0
+    y_range:
+    - -1.0
+    - 1.0
+task_params:
+  train_run_dir: /Volumes/SP PX10/Main_code/mode_decomp/mode_decomp_greenfield_devkit_v1/runs/scalar_mask_pod/train
+  predict_run_dir: /Volumes/SP PX10/Main_code/mode_decomp/mode_decomp_greenfield_devkit_v1/runs/scalar_mask_pod/predict

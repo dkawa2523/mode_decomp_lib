@@ -1,0 +1,9 @@
+name: multitask_lasso
+target_space: a
+alpha: 0.1
+fit_intercept: true
+max_iter: 1000
+tol: 1.0e-4
+selection: cyclic
+cond_scaler: standardize
+seed: ${seed}
