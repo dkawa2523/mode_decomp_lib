@@ -17,8 +17,8 @@
 5. codec: a(raw) → a_vec（lossless/圧縮） + codec meta
 6. coeff_post: a_vec → z（任意） + inverse_transform
 7. model: cond → (a_vec or z)
-8. reconstruct: 予測係数 → field_hat
-9. evaluate: coeff誤差 + field誤差 + 解釈性補助
+8. inference: 予測係数 → field_hat
+9. evaluate: coeff誤差 + field誤差 + 解釈性補助（主に decomposition/inference で実施）
 10. artifacts: config/meta/metrics/preds/model を統一保存
 
 ## P0で扱う領域と手法
@@ -30,7 +30,7 @@
 
 ## 拡張ポイント（plugins）
 - decomposer/codec/coeff_post/model は `src/mode_decomp_ml/plugins/` に集約し、registry で解決する。
-- 拡張の起点は `configs/*/*.yaml` と `scripts/bench/matrix.yaml`。
+- 拡張の起点は `configs/*/*.yaml` と `task=pipeline` の sweep 設定。
 - 詳細な互換表・推奨用途は docs/11_PLUGIN_REGISTRY.md を参照。
 
 ## P1/P2の接続点（実装済み + TODO）
@@ -39,8 +39,7 @@
 - VAE は未実装（現状は Autoencoder のみ）。
 - ClearML は `mode_decomp_ml/tracking/clearml.py` と `configs/clearml/` で接続。`maybe_log_run` 経由で opt-in。
 
-## Bench（quick/full）
-- `scripts/bench/matrix.yaml` が sweep の真実。quick/full は profile で切替える。
-- `scripts/bench/run_p0p1_p2ready.sh`（quick）と `scripts/bench/run_full.sh`（full）を入口にする。
+## Pipeline sweep
+- `task=pipeline` の decompose_list / coeff_post_list / model_list で sweep を実行する。
 
 P1/P2は backlog（queue_p1/queue_p2）で管理し、P0の比較基盤を壊さずに拡張します。

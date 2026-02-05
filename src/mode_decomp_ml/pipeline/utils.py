@@ -6,6 +6,8 @@ import hashlib
 import json
 import subprocess
 import sys
+import shutil
+import csv
 from pathlib import Path
 from typing import Any, Iterable, Mapping, MutableMapping
 
@@ -75,10 +77,63 @@ def resolve_run_dir(cfg: Mapping[str, Any]) -> Path:
     return resolve_path(str(run_dir))
 
 
+def default_run_dir(cfg: Mapping[str, Any], process_name: str) -> Path:
+    output_cfg = cfg_get(cfg, "output", None)
+    output_root = "runs"
+    output_name = "default"
+    if isinstance(output_cfg, Mapping):
+        root_value = cfg_get(output_cfg, "root", None)
+        name_value = cfg_get(output_cfg, "name", None)
+        if root_value is not None and str(root_value).strip() != "":
+            output_root = str(root_value).strip()
+        if name_value is not None and str(name_value).strip() != "":
+            output_name = str(name_value).strip()
+    process = str(process_name).strip() or "task"
+    return resolve_path(Path(output_root) / output_name / process)
+
+
 def ensure_dir(path: str | Path) -> Path:
     path = Path(path)
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def snapshot_inputs(cfg: Mapping[str, Any], run_dir: str | Path) -> None:
+    dataset_cfg = cfg_get(cfg, "dataset", None)
+    if not isinstance(dataset_cfg, Mapping):
+        return
+    dataset_name = str(cfg_get(dataset_cfg, "name", "")).strip()
+    if dataset_name != "csv_fields" and "conditions_csv" not in dataset_cfg:
+        return
+
+    conditions_path = cfg_get(dataset_cfg, "conditions_csv", None)
+    fields_dir = cfg_get(dataset_cfg, "fields_dir", None)
+    if conditions_path is None or fields_dir is None:
+        return
+    conditions_path = resolve_path(str(conditions_path))
+    fields_dir = resolve_path(str(fields_dir))
+    if not conditions_path.exists() or not fields_dir.exists():
+        return
+
+    inputs_dir = ensure_dir(Path(run_dir) / "configuration" / "inputs")
+    fields_out = ensure_dir(inputs_dir / "fields")
+    shutil.copy2(conditions_path, inputs_dir / "conditions.csv")
+
+    id_column = str(cfg_get(dataset_cfg, "id_column", "id")).strip() or "id"
+    try:
+        with conditions_path.open("r", encoding="utf-8") as fh:
+            reader = csv.DictReader(fh)
+            if reader.fieldnames is None or id_column not in reader.fieldnames:
+                return
+            for row in reader:
+                sample_id = str(row.get(id_column, "")).strip()
+                if not sample_id:
+                    continue
+                src = fields_dir / f"{sample_id}.csv"
+                if src.exists():
+                    shutil.copy2(src, fields_out / src.name)
+    except Exception:
+        return
 
 
 def _json_fallback(obj: Any) -> Any:
@@ -109,6 +164,10 @@ def read_json(path: str | Path) -> dict[str, Any]:
 def load_coeff_meta(run_dir: str | Path) -> dict[str, Any]:
     run_root = resolve_path(str(run_dir))
     candidates = (
+        run_root / "outputs" / "states" / "coeff_meta.json",
+        run_root / "outputs" / "states" / "coeff_codec" / "coeff_meta.json",
+        run_root / "outputs" / "states" / "decomposer" / "coeff_meta.json",
+        run_root / "outputs" / "artifacts" / "decomposer" / "coeff_meta.json",
         run_root / "states" / "coeff_meta.json",
         run_root / "states" / "coeff_codec" / "coeff_meta.json",
         run_root / "states" / "decomposer" / "coeff_meta.json",
@@ -217,29 +276,14 @@ def _to_container(cfg: Mapping[str, Any] | None) -> Mapping[str, Any]:
     return {}
 
 
-def _short_hash(payload: Mapping[str, Any]) -> str:
-    data = json.dumps(_to_container(payload), sort_keys=True, default=_json_fallback).encode("utf-8")
-    return hashlib.sha1(data).hexdigest()[:6]
-
-
-def make_run_id(cfg: Mapping[str, Any]) -> str:
-    timestamp = dt.datetime.utcnow().strftime("%Y%m%d-%H%M%S")
-    return f"{timestamp}-{_short_hash(cfg)}"
-
-
 def _has_interpolation(value: Any) -> bool:
     if not isinstance(value, str):
         return False
     return "${" in value and "}" in value
 
 
-def _sanitize_run_id_cfg(cfg: Mapping[str, Any]) -> Mapping[str, Any]:
-    filtered = {k: v for k, v in cfg.items() if k not in {"run_id", "run_dir"}}
-    return filtered
-
-
 class RunDirManager:
-    """Resolve run_dir from output_dir/tag/run_id with stable defaults."""
+    """Resolve run_dir from output.root/output.name/task with stable defaults."""
 
     def __init__(self, cfg: MutableMapping[str, Any]) -> None:
         self._cfg = cfg
@@ -263,32 +307,28 @@ class RunDirManager:
         ):
             return resolve_path(str(run_dir_value))
 
-        project_dir = cfg_get(self._cfg, "project_dir", None)
-        if project_dir is not None and str(project_dir).strip() != "" and not _has_interpolation(project_dir):
-            project_path = Path(str(project_dir))
-            task_name = self._task_name()
-            run_dir = project_path / task_name
-            self._cfg["run_dir"] = run_dir.as_posix()
-            hydra_cfg = self._cfg.get("hydra")
-            if isinstance(hydra_cfg, MutableMapping):
-                hydra_cfg = dict(hydra_cfg)
-                hydra_cfg.setdefault("run", {})
-                if isinstance(hydra_cfg.get("run"), MutableMapping):
-                    hydra_cfg["run"] = dict(hydra_cfg["run"])
-                    hydra_cfg["run"]["dir"] = run_dir.as_posix()
-                self._cfg["hydra"] = hydra_cfg
-            return resolve_path(run_dir)
+        output_cfg = cfg_get(self._cfg, "output", None)
+        output_root = "runs"
+        output_name = "default"
+        if isinstance(output_cfg, Mapping):
+            root_value = cfg_get(output_cfg, "root", None)
+            name_value = cfg_get(output_cfg, "name", None)
+            if root_value is not None and str(root_value).strip() != "":
+                output_root = str(root_value).strip()
+            if name_value is not None and str(name_value).strip() != "":
+                output_name = str(name_value).strip()
+        else:
+            root_value = cfg_get(self._cfg, "output_dir", None)
+            if root_value is not None and str(root_value).strip() != "":
+                output_root = str(root_value).strip()
+            name_value = cfg_get(self._cfg, "output_name", None)
+            if name_value is not None and str(name_value).strip() != "":
+                output_name = str(name_value).strip()
 
-        output_dir = str(cfg_get(self._cfg, "output_dir", "runs")).strip() or "runs"
-        tag = str(cfg_get(self._cfg, "tag", "default")).strip() or "default"
-        run_id = str(cfg_get(self._cfg, "run_id", "")).strip()
-        if not run_id or _has_interpolation(run_id):
-            run_id = make_run_id(_sanitize_run_id_cfg(self._cfg))
-            self._cfg["run_id"] = run_id
-        run_dir = Path(output_dir) / tag / run_id
-        self._cfg["output_dir"] = output_dir
-        self._cfg["tag"] = tag
+        task_name = self._task_name()
+        run_dir = Path(output_root) / output_name / task_name
         self._cfg["run_dir"] = run_dir.as_posix()
+        self._cfg["output"] = {"root": output_root, "name": output_name}
         hydra_cfg = self._cfg.get("hydra")
         if isinstance(hydra_cfg, MutableMapping):
             hydra_cfg = dict(hydra_cfg)
@@ -332,6 +372,9 @@ def build_dataset_meta(
     grid = getattr(dataset, "grid", None)
     if grid:
         meta["grid"] = grid
+    cond_columns = getattr(dataset, "cond_columns", None)
+    if cond_columns:
+        meta["cond_columns"] = list(cond_columns)
     mask_generated = getattr(dataset, "mask_generated", None)
     if mask_generated is not None:
         meta["mask_generated"] = bool(mask_generated)
@@ -366,7 +409,14 @@ def _extract_upstream_artifacts(cfg: Mapping[str, Any]) -> dict[str, Any]:
     if task_cfg is None:
         return {}
     upstream: dict[str, Any] = {}
-    for key in ("train_run_dir", "predict_run_dir", "reconstruct_run_dir", "eval_run_dir"):
+    for key in (
+        "decomposition_run_dir",
+        "preprocessing_run_dir",
+        "train_run_dir",
+        "predict_run_dir",
+        "reconstruct_run_dir",
+        "eval_run_dir",
+    ):
         value = cfg_get(task_cfg, key, None)
         if value is None or str(value).strip() == "":
             continue
@@ -391,9 +441,7 @@ def build_meta(cfg: Mapping[str, Any], dataset_hash: str | None = None) -> dict[
     meta = {
         "task": task_name(cfg),
         "run_dir": str(resolve_run_dir(cfg)),
-        "run_id": cfg_get(cfg, "run_id", None),
-        "tag": cfg_get(cfg, "tag", None),
-        "output_dir": cfg_get(cfg, "output_dir", None),
+        "output": cfg_get(cfg, "output", None),
         "seed": cfg_get(cfg, "seed", None),
         "timestamp": dt.datetime.utcnow().isoformat() + "Z",
         "dataset_hash": dataset_hash,

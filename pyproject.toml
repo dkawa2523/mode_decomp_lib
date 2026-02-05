@@ -15,6 +15,7 @@ dependencies = [
   "matplotlib",
   "hydra-core",
   "omegaconf",
+  "optuna",
 ]
 
 [project.optional-dependencies]

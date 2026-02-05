@@ -31,7 +31,7 @@ def _resolve_output_path(base_dir: Path, value: str | None, default: str) -> Pat
 def main(cfg: Mapping[str, Any] | None = None) -> int:
     if cfg is None:
         raise ValueError("leaderboard requires config from the Hydra entrypoint")
-    require_cfg_keys(cfg, ["run_dir", "output_dir", "task"])
+    require_cfg_keys(cfg, ["run_dir", "task"])
     task_cfg = _require_task_config(cfg_get(cfg, "task", None))
 
     run_dir = resolve_run_dir(cfg)
@@ -39,14 +39,14 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
     steps = StepRecorder(run_dir=run_dir)
     with steps.step(
         "init_run",
-        outputs=[artifact_ref("run.yaml", kind="config")],
+        outputs=[artifact_ref("configuration/run.yaml", kind="config")],
     ):
-        writer.ensure_layout()
+        writer.prepare_layout(clean=True)
         writer.write_run_yaml(cfg)
 
     patterns = cfg_get(task_cfg, "runs", None)
     if patterns is None:
-        patterns = ["runs/**/metrics.json"]
+        patterns = ["runs/**/outputs/metrics.json"]
     if isinstance(patterns, str):
         patterns = [patterns]
 
@@ -84,6 +84,7 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
 
     meta = build_meta(cfg)
     writer.write_manifest(meta=meta, steps=steps.to_list())
+    writer.write_steps(steps.to_list())
     return 0
 
 

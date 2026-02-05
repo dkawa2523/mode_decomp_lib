@@ -1,5 +1,13 @@
-dataset: data/mode_decomp_eval_dataset_v1/scalar_rect
-task: train
+dataset:
+  conditions_csv: data/mode_decomp_eval_dataset_v1/scalar_rect/conditions.csv
+  fields_dir: data/mode_decomp_eval_dataset_v1/scalar_rect/fields
+  id_column: id
+  grid:
+    H: 64
+    W: 64
+    x_range: [0.0, 1.0]
+    y_range: [0.0, 1.0]
+task: pipeline
 pipeline:
   decomposer: fft2
   codec: fft_complex_codec_v1
@@ -7,8 +15,7 @@ pipeline:
   model: ridge
 output:
   root: runs
-  tag: scalar_rect_fft2
-  project: scalar_rect_fft2
+  name: scalar_rect_fft2
 seed: 123
 params:
   decompose:

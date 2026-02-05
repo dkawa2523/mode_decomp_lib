@@ -165,7 +165,7 @@ Notes:
 1) 実装: `src/mode_decomp_ml/plugins/<type>/...` に追加し `@register_*("<name>")` を付与
 2) config: `configs/<type>/<name>.yaml` を追加（`name: <name>` + 必須パラメータ）
 3) tests: `tests/` に smoke を追加（encode/decode or transform/inverse）
-4) sweep: 必要なら `scripts/bench/matrix.yaml` に登録（optional は `optional: true` + `requires`）
+4) sweep: 必要なら `task=pipeline` の decompose_list / model_list に登録
 
 Template（Decomposer + config）:
 ```python

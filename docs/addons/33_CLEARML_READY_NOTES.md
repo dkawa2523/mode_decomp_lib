@@ -8,17 +8,17 @@
 - fit_decomposer（POD等のfitが必要なもの）
 - fit_coeff_post（Quantile/Power/PCAなど train-only fit）
 - train_model
-- predict_latent
-- reconstruct_field
+- inference_coeff
+- inference_field
 - evaluate
 - visualize
-- benchmark_sweep
+- pipeline_sweep
 
 ## v1でやること（設計のみ）
 - artifact契約により、各stepが I/O だけで再実行可能な状態を維持
-- state（decomposer/coeff_post）を `states/` に保存し、次stepが参照できるようにする
+- state（decomposer/coeff_post）を `outputs/states/` に保存し、次stepが参照できるようにする
 - `options.*` は、将来 step を分離しても同じ意味で解釈されるように命名を固定する
 
-TODO(Task493): 現行 run dir は `runs/<tag>/<run_id>/`（`RunDirManager`）で固定され、
-`run.yaml` と `.hydra/config.yaml` が保存される（`src/mode_decomp_ml/run.py` / `cli/run.py`）。
-ClearML task分割時は `states/` と `preds.npz` を境界にI/Oを切る想定で整合させる。
+TODO(Task493): 現行 run dir は `runs/<name>/<process>/`（`RunDirManager`）で固定され、
+`configuration/run.yaml` が保存される（`src/mode_decomp_ml/run.py` / `cli/run.py`）。
+ClearML task分割時は `outputs/states/` と `outputs/preds.npz` を境界にI/Oを切る想定で整合させる。

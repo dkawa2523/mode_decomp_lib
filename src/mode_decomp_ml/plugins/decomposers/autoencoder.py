@@ -362,7 +362,7 @@ class AutoencoderDecomposer(BaseDecomposer):
         path = super().save_state(run_dir)
         if self._model is not None:
             # CONTRACT: torch weights are stored explicitly for reuse.
-            out_dir = Path(run_dir) / "states" / "decomposer"
+            out_dir = Path(run_dir) / "outputs" / "states" / "decomposer"
             out_dir.mkdir(parents=True, exist_ok=True)
             torch.save(self._model.state_dict(), out_dir / "weights.pt")
         return path

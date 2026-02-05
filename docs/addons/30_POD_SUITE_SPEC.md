@@ -176,7 +176,7 @@ UPDATE: `options.rank_select.*` と `options.mode_weight.*` は POD / POD-SVD �
   - mesh helper: `src/mode_decomp_ml/domain/mesh.py`
 - run.yaml 1枚運用入口: `src/mode_decomp_ml/run.py`（`python -m mode_decomp_ml.run --config run.yaml`）
   - Hydra入口: `src/mode_decomp_ml/cli/run.py`
-- Artifact契約: `docs/04_ARTIFACTS_AND_VERSIONING.md`（runs/<tag>/<run_id>/ 構造）
+- Artifact契約: `docs/04_ARTIFACTS_AND_VERSIONING.md`（runs/<name>/<process>/ 構造）
   - run dir生成: `src/mode_decomp_ml/pipeline/utils.py`（`RunDirManager`）
 
 ---

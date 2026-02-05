@@ -1,11 +1,17 @@
 # User Quickstart (run.yaml)
 
-This project provides a single-entry `run.yaml` for non-Hydra users. Use it to run doctor/train/eval/viz without touching multiple configs.
+This project provides a single-entry `run.yaml` for non-Hydra users. Use it to run decomposition/preprocessing/train/inference without touching multiple configs.
 
 ## 1) Minimal run.yaml
 ```yaml
-dataset: data/<dataset_name>   # dataset root with manifest.json
-task: train                    # train/predict/reconstruct/eval/viz/bench/doctor
+dataset:
+  conditions_csv: data/<dataset_name>/conditions.csv
+  fields_dir: data/<dataset_name>/fields
+  id_column: id
+  grid:
+    H: 64
+    W: 64
+task: decomposition            # decomposition/preprocessing/train/inference/pipeline/doctor
 pipeline:
   decomposer: zernike
   codec: zernike_pack_v1
@@ -13,7 +19,7 @@ pipeline:
   model: ridge
 output:
   root: runs
-  tag: demo
+  name: demo
 ```
 
 ## 2) Run (or dry-run)
@@ -40,21 +46,23 @@ params:
     n_max: 8
   model:
     alpha: 0.5
+  train:
+    eval:
+      val_ratio: 0.1
+    cv:
+      enabled: true
+      folds: 5
+  inference:
+    viz:
+      max_samples: 4
 ```
 
 ## Notes
-- Dataset `manifest.json` is the source of truth for domain/grid/field_kind.
-- Legacy datasets without manifest require `params.domain` in run.yaml.
-- `output.root`/`output.tag` control where runs are written.
+- 条件CSVは `id` 必須、値CSVは `fields/<id>.csv`（列は `x,y,f` 固定）。
+- `output.root`/`output.name` で出力先を指定（`runs/<name>/<process>/...`）。
 - `pipeline.codec` is required (use `none` for real-valued coeffs, or the method-specific codecs).
 - `coeff_post: power_yeojohnson` targets skewness while keeping an exact inverse; `coeff_post: quantile` is better for heavy-tailed/outlier-heavy data but its inverse is approximate at extremes.
+- POD系で `coeff_post: pca` を使いたい場合は `coeff_post.force: true` を明示してください（自動で無効化されるため）。
 
-## 4) Benchmark quick/full (matrix)
-Benchmark runs are driven by `scripts/bench/matrix.yaml` and can be run via:
-```bash
-bash scripts/bench/run_p0p1_p2ready.sh   # quick profile (minimal set)
-bash scripts/bench/run_full.sh           # full profile (optional deps are skipped)
-```
-Notes:
-- `scripts/bench/run_matrix.py --profile quick|full` is the underlying runner.
-- Optional methods are skipped when their config or dependency is missing.
+## 4) Pipeline sweep
+複数分解法・複数学習法は `task: pipeline` で実行し、leaderboard を出力します。

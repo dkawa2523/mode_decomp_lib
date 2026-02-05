@@ -13,6 +13,8 @@ except Exception:  # pragma: no cover - optional dependency through hydra
     yaml = None
 
 CONFIG_CANDIDATES = (
+    Path("configuration/run.yaml"),
+    Path("configuration/resolved.yaml"),
     Path("run.yaml"),
     Path(".hydra/config.yaml"),
     Path("hydra/config.yaml"),
@@ -63,10 +65,17 @@ def _resolve_path(project_root: Path, value: Any) -> Path:
 
 
 def _load_manifest(run_dir: Path) -> dict[str, Any]:
-    path = run_dir / "manifest_run.json"
+    path = run_dir / "outputs" / "manifest_run.json"
     if path.exists():
         try:
             with path.open("r", encoding="utf-8") as fh:
+                return json.load(fh)
+        except Exception:
+            return {}
+    legacy = run_dir / "manifest_run.json"
+    if legacy.exists():
+        try:
+            with legacy.open("r", encoding="utf-8") as fh:
                 return json.load(fh)
         except Exception:
             return {}
@@ -98,7 +107,7 @@ def _check_meta(run_dir: Path, errors: list[str]) -> None:
 
 
 def _check_metrics(run_dir: Path, errors: list[str]) -> None:
-    metrics_path = run_dir / "metrics.json"
+    metrics_path = run_dir / "outputs" / "metrics.json"
     if not metrics_path.exists():
         metrics_path = run_dir / "metrics" / "metrics.json"
     if not metrics_path.exists():
@@ -122,7 +131,7 @@ def _check_pred_files(
     errors: list[str],
     label: str,
 ) -> None:
-    preds_npz = run_dir / "preds.npz"
+    preds_npz = run_dir / "outputs" / "preds.npz"
     if preds_npz.exists():
         return
     preds_dir = run_dir / "preds"
@@ -133,6 +142,16 @@ def _check_pred_files(
         if (preds_dir / name).exists():
             return
     errors.append(f"{label}: missing preds file ({', '.join(names)}) in {preds_dir}")
+
+
+def _check_coeffs(run_dir: Path, errors: list[str], label: str) -> None:
+    coeffs_npz = run_dir / "outputs" / "coeffs.npz"
+    if coeffs_npz.exists():
+        return
+    legacy = run_dir / "coeffs.npz"
+    if legacy.exists():
+        return
+    errors.append(f"{label}: coeffs.npz missing ({coeffs_npz})")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -149,7 +168,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     cfg: dict[str, Any] = {}
     config_path = _find_config(run_dir)
     if config_path is None:
-        errors.append("hydra config missing (.hydra/config.yaml or hydra/config.yaml)")
+        errors.append("config missing (configuration/run.yaml or configuration/resolved.yaml)")
     else:
         try:
             cfg = _load_yaml(config_path)
@@ -164,30 +183,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     task_cfg = _task_cfg(cfg) if cfg else {}
     project_root = _project_root()
 
-    if task_name == "eval":
+    if task_name in {"decomposition", "preprocessing", "train", "inference"}:
         _check_metrics(run_dir, errors)
 
-    if task_name == "train":
+    if task_name == "decomposition":
+        _check_coeffs(run_dir, errors, "decomposition")
+        _check_pred_files(run_dir, ("field.npy",), errors, "decomposition")
+    elif task_name == "preprocessing":
+        _check_coeffs(run_dir, errors, "preprocessing")
+    elif task_name == "train":
         _check_model_dir(run_dir, errors, "train")
-    elif task_name == "predict":
-        _check_pred_files(run_dir, ("coeff.npy", "coeff_mean.npy"), errors, "predict")
-    elif task_name == "reconstruct":
-        _check_pred_files(run_dir, ("field.npy",), errors, "reconstruct")
+    elif task_name == "inference":
+        _check_pred_files(run_dir, ("coeff.npy", "field.npy"), errors, "inference")
+
+    decomposition_run_dir = task_cfg.get("decomposition_run_dir")
+    if decomposition_run_dir:
+        decomp_dir = _resolve_path(project_root, decomposition_run_dir)
+        _check_coeffs(decomp_dir, errors, "decomposition_run_dir")
+
+    preprocessing_run_dir = task_cfg.get("preprocessing_run_dir")
+    if preprocessing_run_dir:
+        preprocess_dir = _resolve_path(project_root, preprocessing_run_dir)
+        _check_coeffs(preprocess_dir, errors, "preprocessing_run_dir")
 
     train_run_dir = task_cfg.get("train_run_dir")
     if train_run_dir:
         train_dir = _resolve_path(project_root, train_run_dir)
         _check_model_dir(train_dir, errors, "train_run_dir")
-
-    predict_run_dir = task_cfg.get("predict_run_dir")
-    if predict_run_dir:
-        pred_dir = _resolve_path(project_root, predict_run_dir)
-        _check_pred_files(pred_dir, ("coeff.npy", "coeff_mean.npy"), errors, "predict_run_dir")
-
-    reconstruct_run_dir = task_cfg.get("reconstruct_run_dir")
-    if reconstruct_run_dir:
-        recon_dir = _resolve_path(project_root, reconstruct_run_dir)
-        _check_pred_files(recon_dir, ("field.npy",), errors, "reconstruct_run_dir")
 
     if errors:
         print("[FAIL] Artifact validation failed:")

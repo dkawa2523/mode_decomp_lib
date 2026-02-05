@@ -3,7 +3,7 @@
 POD系を追加すると「何が良くなったか」が分からなくなりがちです。
 レビューと現場意思決定のため、以下を標準図として固定します。
 
-## 必須図（figures/ に固定名で保存）
+## 必須図（plots/ に固定名で保存）
 1) `scree.png`：固有値（eigs）/ 特異値スペクトル
 2) `energy_cum.png`：累積寄与率（K選定根拠）
 3) `recon_error_vs_k.png`：再構成誤差 vs K（train/val/test）
@@ -20,9 +20,9 @@ POD系を追加すると「何が良くなったか」が分からなくなり�
 - 図のサンプル数は固定（例：最大8サンプル）にして出力肥大を避ける
 - 既存の特殊関数 decomposer でも同じ図が出せるものは共通化する
 
-TODO(Task493): 現行 `src/processes/viz.py` の出力は
-`coeff_spectrum.png`, `coeff_hist.png`, `coeff_topk_energy.png`, `field_compare.png`,
-`error_map.png`, `recon_sequence.png` などで、本標準の
+TODO(Task493): 現行 `src/processes/decomposition.py` の出力は
+`coeff_spectrum.png`, `coeff_hist.png`, `field_compare.png`,
+`error_map.png` などで、本標準の
 `scree.png` / `energy_cum.png` / `recon_error_vs_k.png` / `modes_gallery.png` は未実装（Task508）。
 
 ---

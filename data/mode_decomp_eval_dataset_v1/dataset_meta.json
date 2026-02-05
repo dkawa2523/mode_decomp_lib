@@ -10,14 +10,52 @@
     "scalar_rect",
     "scalar_disk",
     "scalar_mask",
+    "scalar_annulus",
+    "scalar_sphere",
     "vector_rect",
     "vector_disk",
     "vector_mask"
   ],
+  "subset_grids": {
+    "scalar_rect": {
+      "H": 64,
+      "W": 64
+    },
+    "scalar_disk": {
+      "H": 64,
+      "W": 64
+    },
+    "scalar_mask": {
+      "H": 64,
+      "W": 64
+    },
+    "scalar_annulus": {
+      "H": 64,
+      "W": 64
+    },
+    "scalar_sphere": {
+      "H": 18,
+      "W": 36
+    },
+    "vector_rect": {
+      "H": 64,
+      "W": 64
+    },
+    "vector_disk": {
+      "H": 64,
+      "W": 64
+    },
+    "vector_mask": {
+      "H": 64,
+      "W": 64
+    }
+  },
   "formats": {
     "cond": "float32 .npy",
     "field": "float32 .npy",
-    "mask": "uint8 .npy (0/1)"
+    "mask": "uint8 .npy (0/1)",
+    "conditions_csv": "csv (id + x1..x8)",
+    "fields_csv": "csv per sample (x,y,f)"
   },
   "cond_design": {
     "scalar": "8 coefficients for fixed spatial patterns (domain-specific)",
@@ -25,6 +63,8 @@
   },
   "notes": {
     "mask": "mask outside domain; field values are zeroed outside mask",
-    "coords": "rectangle patterns use periodic grid in [0,1); disk/mask patterns use x,y in [-1,1]"
+    "coords": "rectangle patterns use periodic grid in [0,1); disk/mask patterns use x,y in [-1,1]",
+    "csv_vector": "vector CSV uses fields/<id>_fx.csv and fields/<id>_fy.csv",
+    "sphere": "scalar_sphere uses lon/lat grid (x=lon, y=lat)"
   }
 }

@@ -22,8 +22,14 @@
 
 ### 最小例
 ```yaml
-dataset: data/<dataset_name>          # データセットディレクトリ（manifest必須）
-task: train                           # train/predict/reconstruct/eval/viz/bench/doctor
+dataset:
+  conditions_csv: data/<dataset_name>/conditions.csv
+  fields_dir: data/<dataset_name>/fields
+  id_column: id
+  grid:
+    H: 64
+    W: 64
+task: decomposition                   # decomposition/preprocessing/train/inference/pipeline/doctor
 pipeline:
   decomposer: zernike                 # registry key
   codec: zernike_pack_v1              # registry key
@@ -31,7 +37,7 @@ pipeline:
   model: ridge                        # registry key
 output:
   root: runs
-  tag: wafer_demo
+  name: wafer_demo
 ```
 
 ### 重要な思想
@@ -68,26 +74,38 @@ data/<dataset_name>/
 
 ---
 
-## 出力のフラット化（runs/<tag>/<run_id>/固定）
+## 出力のフラット化（runs/<name>/<process>/固定）
 
 ### 望ましい出力レイアウト
 ```
-runs/<tag>/<run_id>/
-  run.yaml
-  manifest_run.json
-  metrics.json
-  preds.npz
+runs/<name>/<process>/
+  configuration/
+    run.yaml
+    resolved.yaml
+    inputs/
+  logs/
+    run.log
+    steps.json
+  outputs/
+    manifest_run.json
+    metrics.json
+    preds.npz
+    coeffs.npz
+    states/
+    tables/
   model/
-  states/
-  figures/
-  tables/
-  logs.txt
+  plots/
 ```
 
 ### 不変ルール
 - “どの task でも” 同じ階層・同じファイル名に揃える
-- 追加成果物が必要なときは `tables/` `figures/` `states/` のいずれかへ
-- `outputs/` の深い Hydra run dir は原則廃止（どうしても必要なら 1段にする）
+- 追加成果物が必要なときは `outputs/` 配下に集約する
+- Hydra の `.hydra/` は原則出力しない（`configuration/resolved.yaml` に統一）
+- 同一 `<name>/<process>` の再実行は `configuration/ logs/ outputs/ model/ plots/` を削除して上書きする
+
+### 旧レイアウトからの移行
+- 既存 `runs/<name>/<task>/{states,figures,tables,model}` は互換しない
+- 移行は `tools/migrate_run_layout.py` を使う（コピー/移動、上書き可）
 
 ---
 
@@ -100,6 +118,6 @@ runs/<tag>/<run_id>/
 ---
 
 ## 受け入れ基準（この方針が守れている状態）
-- `run.yaml` だけで train/predict/eval/viz の一連が回る
+- `run.yaml` だけで decomposition→preprocessing→train→inference の一連が回る
 - dataset root を変えるだけで domain 指定無しに domain が合う（manifest依存）
 - 出力ディレクトリを見れば第三者が結果を追える（固定名）

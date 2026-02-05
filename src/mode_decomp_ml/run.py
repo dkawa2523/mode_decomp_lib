@@ -16,9 +16,8 @@ from mode_decomp_ml.pipeline import RunDirManager, resolve_path
 _LOGGER = logging.getLogger(__name__)
 
 
-def _configure_logging(cfg: Mapping[str, Any]) -> None:
-    if logging.getLogger().handlers:
-        return
+def _configure_logging(cfg: Mapping[str, Any], run_dir: Path | None = None) -> None:
+    root_logger = logging.getLogger()
     level = logging.INFO
     fmt = "%(asctime)s %(levelname)s %(name)s: %(message)s"
     logging_cfg = cfg_get(cfg, "logging", None)
@@ -27,21 +26,33 @@ def _configure_logging(cfg: Mapping[str, Any]) -> None:
         if level_name:
             level = getattr(logging, level_name, level)
         fmt = str(logging_cfg.get("format", fmt)) or fmt
-    logging.basicConfig(level=level, format=fmt)
+    if not root_logger.handlers:
+        logging.basicConfig(level=level, format=fmt)
+    if run_dir is None:
+        return
+    logs_dir = run_dir / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_path = logs_dir / "run.log"
+    for handler in root_logger.handlers:
+        if isinstance(handler, logging.FileHandler) and Path(handler.baseFilename) == log_path:
+            return
+    file_handler = logging.FileHandler(log_path, encoding="utf-8")
+    file_handler.setLevel(level)
+    file_handler.setFormatter(logging.Formatter(fmt))
+    root_logger.addHandler(file_handler)
 
 _TASK_ALIASES = {
-    "bench": "benchmark",
-    "benchmark": "benchmark",
+    "bench": "pipeline",
+    "benchmark": "pipeline",
+    "decomposition": "decomposition",
     "doctor": "doctor",
-    "eval": "eval",
-    "evaluate": "eval",
+    "inference": "inference",
     "leaderboard": "leaderboard",
-    "predict": "predict",
-    "preprocess": "preprocess",
-    "reconstruct": "reconstruct",
+    "pipeline": "pipeline",
+    "predict": "inference",
+    "preprocessing": "preprocessing",
+    "preprocess": "preprocessing",
     "train": "train",
-    "viz": "viz",
-    "visualize": "viz",
 }
 
 
@@ -84,6 +95,8 @@ def _normalize_dataset(dataset_value: Any) -> tuple[str | None, Mapping[str, Any
         name = dataset_cfg.get("name")
         if name:
             return str(name), dataset_cfg
+        if "conditions_csv" in dataset_cfg or "fields_dir" in dataset_cfg:
+            return "csv_fields", dataset_cfg
         if "root" in dataset_cfg:
             return "npy_dir", dataset_cfg
         return None, dataset_cfg
@@ -115,9 +128,9 @@ def _normalize_params(params_value: Any) -> Mapping[str, Any]:
 
 
 def _write_snapshot(run_dir: Path, cfg: Mapping[str, Any]) -> None:
-    hydra_dir = run_dir / ".hydra"
-    hydra_dir.mkdir(parents=True, exist_ok=True)
-    with (hydra_dir / "config.yaml").open("w", encoding="utf-8") as fh:
+    config_dir = run_dir / "configuration"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    with (config_dir / "resolved.yaml").open("w", encoding="utf-8") as fh:
         yaml.safe_dump(dict(cfg), fh, sort_keys=False)
 
 
@@ -157,17 +170,8 @@ def _build_config(run_cfg: Mapping[str, Any]) -> tuple[MutableMapping[str, Any],
         cfg["seed"] = seed
 
     output_root = str(output_cfg.get("root", "runs")).strip() or "runs"
-    tag = str(output_cfg.get("tag", "default")).strip() or "default"
-    project = output_cfg.get("project", None)
-    cfg["output_dir"] = output_root
-    cfg["tag"] = tag
-    run_id = str(output_cfg.get("run_id", "")).strip()
-    if run_id:
-        cfg["run_id"] = run_id
-    if project is not None:
-        project_name = str(project).strip()
-        if project_name:
-            cfg["project_dir"] = str(Path(output_root) / project_name)
+    output_name = str(output_cfg.get("name", "default")).strip() or "default"
+    cfg["output"] = {"root": output_root, "name": output_name}
 
     if pipeline_cfg:
         cfg["pipeline"] = dict(pipeline_cfg)
@@ -185,8 +189,7 @@ def _build_config(run_cfg: Mapping[str, Any]) -> tuple[MutableMapping[str, Any],
         "coeff_post": coeff_post,
         "model": model,
         "codec": codec,
-        "tag": tag,
-        "run_id": cfg.get("run_id"),
+        "output_name": output_name,
     }
 
 
@@ -201,8 +204,8 @@ def _print_dry_run(summary: Mapping[str, Any], run_dir: str, cfg: Mapping[str, A
         _LOGGER.info("  model: %s", summary.get("model"))
     if summary.get("codec"):
         _LOGGER.info("  codec: %s", summary.get("codec"))
-    if summary.get("run_id"):
-        _LOGGER.info("  run_id: %s", summary.get("run_id"))
+    if summary.get("output_name"):
+        _LOGGER.info("  output.name: %s", summary.get("output_name"))
     _LOGGER.info("  run_dir: %s", run_dir)
     _LOGGER.info("Resolved config:\n%s", yaml.safe_dump(dict(cfg), sort_keys=False))
 
@@ -232,16 +235,18 @@ def main(argv: list[str] | None = None) -> int:
     run_cfg = _load_yaml(run_cfg_path)
 
     cfg, run_dir, summary = _build_config(run_cfg)
-    _configure_logging(cfg)
+    run_dir_path = resolve_path(run_dir)
+    _configure_logging(cfg, run_dir=run_dir_path)
 
     if args.dry_run:
         _print_dry_run(summary, run_dir, cfg)
         return 0
 
-    run_dir_path = resolve_path(run_dir)
     run_dir_path.mkdir(parents=True, exist_ok=True)
 
-    run_yaml_out = run_dir_path / "run.yaml"
+    config_dir = run_dir_path / "configuration"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    run_yaml_out = config_dir / "run.yaml"
     with run_yaml_out.open("w", encoding="utf-8") as fh:
         yaml.safe_dump(run_cfg, fh, sort_keys=False)
     _write_snapshot(run_dir_path, cfg)

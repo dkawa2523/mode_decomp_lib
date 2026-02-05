@@ -17,53 +17,43 @@
 - meta: dict（domain種、スケールなど）
 
 ## P0で必須のProcess
-### 1) decompose.transform
-- In: field + mask + domain
-- Out: coeff `a` + `coeff_meta.json`
+### 1) decomposition
+- In: field + mask + domain + preprocess + decomposer
+- Out: coeffs.npz（cond + coeff）、preds.npz（recon field）、metrics.json、plots
 
-### 2) coeff_post.fit / transform
-- In: train coeff A_train
-- Out: z_train（state保存）, z_val, z_test
+### 2) preprocessing
+- In: decomposition の coeffs.npz
+- Out: coeff_post state、coeffs.npz（coeff_z）、metrics.json、plots
+- Note: decomposer によって `coeff_post` が自動で無効化される場合がある（例: POD系でのPCA）。強制する場合は `coeff_post.force: true`。
 
 ### 3) train
-- In: condition + z_train（または a_train）
-- Out: model artifact
+- In: preprocessing の coeffs.npz
+- Out: model artifact、metrics.json、plots
+- Train 設定（`train.*`）で val split / CV / 簡易チューニング / 可視化を制御
 
-### 4) predict
-- In: condition + model
-- Out: z_hat（または a_hat）
+### 4) inference
+- In: train model + preprocessing coeff_post + decomposition states
+- Out: preds.npz（coeff + field）、metrics.json、plots
+- Optuna を使う optimize では `outputs/optuna_trials.csv` / `outputs/optuna_best.json` と可視化を追加
 
-### 5) reconstruct
-- In: z_hat + coeff_post state + decomposer state
-- Out: field_hat
+### 5) pipeline
+- In: task.decompose_list / task.coeff_post_list / task.model_list
+- Out: decomposition/ train leaderboard
+- `task.stages` で decomposition/preprocessing/train の範囲を制御
 
-### 6) eval
-- In: field_hat + field
-- Out: metrics.json
-
-### 7) viz
-- In: run dir（preds.npz/metrics.json）
-- Out: viz images + summary tables
-- Note: process層がI/Oとrun_dirを扱い、描画ロジックは `mode_decomp_ml/viz` に集約
-  - domain-aware 追加図: `figures/domain/`（disk/annulus の polar、sphere_grid の投影、mesh の頂点表示）
-  - sphere_grid 投影は `viz.sphere_projection: plate_carre | mollweide` で切替
-
-### 8) leaderboard
+### 6) leaderboard
 - In: 複数run dir
 - Out: 集計CSV/Markdown
 
-### 9) doctor
+### 7) doctor
 - In: config
 - Out: 環境/データ/最小smoke結果
 
 ---
 
 ## 補足: preprocess は内部ステップ
-- preprocess は train 時に fit/transform され、reconstruct/viz で inverse が適用される内部ステップ
-- state は `states/preprocess/state.pkl` に保存
+- preprocess（field前処理）は decomposition 時に fit/transform され、inference で inverse が適用される
+- state は `outputs/states/preprocess/state.pkl` に保存
 
 ## P1以降のProcess
-- multirun benchmark（method sweep）
-  - 例: `python -m mode_decomp_ml.cli.run -m task=benchmark task.decompose_list=fft2,zernike task.coeff_post_list=none,pca`
-  - 各runは `runs/<tag>/<run_id>/` に保存
 - domain変換（points/mesh）

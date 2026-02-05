@@ -484,7 +484,7 @@ class SphericalSlepianDecomposer(EigenBasisDecomposerBase):
         if self._basis is None or self._eigenvalues is None or self._region_spec is None:
             raise ValueError("spherical_slepian basis is not initialized")
 
-        out_dir = Path(run_dir) / "states" / "decomposer"
+        out_dir = Path(run_dir) / "outputs" / "states" / "decomposer"
         out_dir.mkdir(parents=True, exist_ok=True)
         basis_path = out_dir / "slepian_basis.npz"
         payload = {

@@ -11,7 +11,7 @@
 
 ## 2. Process単位で実行できる
 - `Process` は単独で実行でき、入出力（I/O）が明確であること。
-- 例：`preprocess`, `decompose.fit`, `decompose.transform`, `coeff_post.fit`, `train`, `eval`, `predict`, `reconstruct`, `viz`, `leaderboard`, `doctor`
+- 例：`decomposition`, `preprocessing`, `train`, `inference`, `pipeline`, `leaderboard`, `doctor`
 - Process間の受け渡しは **artifact契約**（docs/04）に従う。
 
 ## 3. 比較可能性（Comparability）

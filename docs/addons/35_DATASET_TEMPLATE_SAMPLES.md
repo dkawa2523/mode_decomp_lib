@@ -42,7 +42,7 @@ dataset:
   name: npy_dir
   root: data/my_dataset
   mask_policy: allow_none
-task: train
+task: pipeline
 params:
   domain:
     name: sphere_grid
@@ -50,4 +50,45 @@ params:
     n_lon: 36
     angle_unit: deg
     radius: 1.0
+```
+
+## CSV dataset layout (conditions + per-sample fields)
+
+```
+data/my_dataset/
+  conditions.csv
+  fields/
+    <id>.csv
+```
+
+`conditions.csv` columns:
+- `id` (required)
+- feature columns (arbitrary names)
+
+`fields/<id>.csv` columns:
+- `x`, `y`, `f` (fixed)
+
+Vector fields (C=2) use two files:
+- `fields/<id>_fx.csv`
+- `fields/<id>_fy.csv`
+and set `field_components: [fx, fy]`.
+
+## run.yaml example (csv_fields)
+
+```yaml
+dataset:
+  conditions_csv: data/my_dataset/conditions.csv
+  fields_dir: data/my_dataset/fields
+  id_column: id
+  mask_policy: allow_none
+  field_components: [fx, fy]   # vector only
+  grid:
+    H: 64
+    W: 64
+task: decomposition
+params:
+  domain:
+    name: rectangle
+    x_range: [-1.0, 1.0]
+    y_range: [-1.0, 1.0]
 ```

@@ -65,15 +65,11 @@
 ---
 
 ## Process（単独実行単位）
-- preprocess: raw -> cleaned（mask維持）
-- decompose.fit: decomposerのfit（必要なら）
-- decompose.transform: field -> a
-- coeff_post.fit: coeff -> z（学習データで）
+- decomposition: field -> a -> field_hat（評価/可視化含む）
+- preprocessing: coeff a -> z（学習データで）
 - train: condition -> (z or a)
-- predict: condition -> (z_hat or a_hat)
-- reconstruct: (z_hat -> a_hat -> field_hat)
-- eval: field_hat vs field の評価
-- viz: 可視化・レポート
+- inference: condition -> (z_hat or a_hat) -> field_hat
+- pipeline: 複数手法の一括実行
 - leaderboard: 結果集計
 - doctor: 環境/データ/再現性チェック
 

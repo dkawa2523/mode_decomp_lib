@@ -4,7 +4,7 @@
 
 ## 1. configの階層（現行）
 - `configs/config.yaml`: Hydra 入口（defaults + seed + run_dir）
-- `configs/dataset/*.yaml`: dataset preset（`synthetic`, `npy_dir`）
+- `configs/dataset/*.yaml`: dataset preset（`synthetic`, `npy_dir`, `csv_fields`）
 - `configs/split/*.yaml`: split preset（`all`）
 - `configs/domain/*.yaml`: domain preset（`rectangle`, `disk`, `annulus`, `sphere_grid`, `arbitrary_mask`）
 - `configs/preprocess/*.yaml`: preprocess pipeline（`basic`）
@@ -12,11 +12,12 @@
 - `configs/codec/*.yaml`: coeff codec preset（`none`, `fft_complex_codec_v1`, `zernike_pack_v1`, `wavelet_pack_v1`, `sh_pack_v1`）
 - `configs/coeff_post/*.yaml`: coeff post preset（`none`, `pca`, `quantile`, `power_yeojohnson`）
 - `configs/model/*.yaml`: regressor preset（`ridge`, `multitask_lasso`, `mtgp`, `xgb`, `lgbm`, `catboost`）
+- `configs/train/*.yaml`: train eval/CV/tuning/viz preset（`basic`）
 - `configs/eval/*.yaml`: metrics/report settings（`basic`）
 - `configs/viz/*.yaml`: visualization settings（`basic`）
 - `configs/uncertainty/*.yaml`: uncertainty settings（`gpr_mc`）
 - `configs/clearml/*.yaml`: tracking settings（`basic`）
-- `configs/task/*.yaml`: task routing（doctor/train/predict/reconstruct/eval/benchmark/leaderboard/viz）
+- `configs/task/*.yaml`: task routing（doctor/decomposition/preprocessing/train/inference/pipeline/leaderboard）
 
 > NOTE: 旧プリセットは cleanup で削除済み。必要なら task/RFC で復活させる。
 
@@ -51,6 +52,10 @@ params:
 詳細な domain 概念は `docs/02_DOMAIN_MODEL.md` を参照。
 dataset テンプレは `docs/addons/35_DATASET_TEMPLATE_SAMPLES.md` を参照。
 
+### csv_fields（vector）
+- ベクトル場は `fields/<id>_fx.csv` / `<id>_fy.csv` の2ファイル
+- `field_components: [fx, fy]` を指定する
+
 補完される範囲（内部で利用）:
 - `lat_range`: [-90.0, 90.0]
 - `lon_range`: [-180.0, 180.0 - 360/n_lon]（周期重複を避ける）
@@ -63,10 +68,13 @@ dataset 生成スクリプトを追加する場合は、`mode_decomp_ml.domain.s
 - split / model init / torch seed を必ず統制
 
 ## 6. run dir
-- 出力は `runs/<tag>/<run_id>/` 固定（docs/04）
-- Hydra run dir でも `run_dir` を最終保存先として扱う
+- 出力は `runs/<name>/<process>/` 固定（docs/04）
+- run_id は廃止し、同一 `<name>/<process>` は常に上書き
 
 ## 7. Multi-run（比較）
-- Hydra multirun で method sweep を可能にする
-- ただし比較可能性（docs/00）を壊す sweep（datasetを混ぜる等）は禁止
-- 例: `python -m mode_decomp_ml.cli.run -m task=benchmark task.decompose_list=fft2,zernike task.coeff_post_list=none,pca`
+- pipeline で method sweep を実行する（decompose_list / model_list）
+- 例: `python -m mode_decomp_ml.cli.run -m task=pipeline task.decompose_list=fft2,zernike task.coeff_post_list=none,pca`
+
+## 8. 追加の運用ルール
+- preprocessing では decomposer によって `coeff_post` が自動で無効化される場合がある（例: POD系は PCA を無効化）。明示的に強制する場合は `coeff_post.force: true` を指定する。
+- pipeline は `task.stages` と `task.energy_threshold`（energy_cumsumの閾値）をサポートする。

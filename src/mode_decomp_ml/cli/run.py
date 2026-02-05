@@ -24,7 +24,7 @@ except Exception:  # pragma: no cover - fallback when OmegaConf is missing
 import yaml
 
 from mode_decomp_ml.config import cfg_get
-from mode_decomp_ml.pipeline import RunDirManager
+from mode_decomp_ml.pipeline import RunDirManager, resolve_path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 CONFIG_DIR = PROJECT_ROOT / "configs"
@@ -142,10 +142,6 @@ def _resolve_interpolations(cfg: MutableMapping[str, Any]) -> MutableMapping[str
     )
     if remove_run_dir:
         run_dir_value = cfg_copy.pop("run_dir", None)
-    run_id_value = cfg_copy.get("run_id")
-    remove_run_id = isinstance(run_id_value, str) and ("${hydra:" in run_id_value or "${now:" in run_id_value)
-    if remove_run_id:
-        run_id_value = cfg_copy.pop("run_id", None)
     resolved = OmegaConf.to_container(OmegaConf.create(cfg_copy), resolve=True)
     if not isinstance(resolved, MutableMapping):
         return _resolve_simple_interpolations(cfg)
@@ -153,8 +149,6 @@ def _resolve_interpolations(cfg: MutableMapping[str, Any]) -> MutableMapping[str
         resolved["hydra"] = hydra_cfg
     if remove_run_dir and run_dir_value is not None:
         resolved["run_dir"] = run_dir_value
-    if remove_run_id and run_id_value is not None:
-        resolved["run_id"] = run_id_value
     return _resolve_simple_interpolations(resolved)
 
 
@@ -224,9 +218,9 @@ def _materialize_run_dir(cfg: MutableMapping[str, Any]) -> Path:
 
 
 def _write_hydra_snapshot(run_dir: Path, cfg: Mapping[str, Any]) -> None:
-    hydra_dir = run_dir / ".hydra"
-    hydra_dir.mkdir(parents=True, exist_ok=True)
-    with (hydra_dir / "config.yaml").open("w", encoding="utf-8") as fh:
+    config_dir = run_dir / "configuration"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    with (config_dir / "resolved.yaml").open("w", encoding="utf-8") as fh:
         yaml.safe_dump(dict(cfg), fh, sort_keys=False)
 
 
@@ -236,6 +230,7 @@ def _run_fallback(argv: Sequence[str]) -> int:
     _write_hydra_snapshot(run_dir, cfg)
     os.makedirs(run_dir, exist_ok=True)
     os.chdir(run_dir)
+    _ensure_logging(cfg, run_dir=resolve_path(run_dir))
     task_name = _task_name(cfg)
     module = _load_task_module(task_name)
     if not hasattr(module, "main"):
@@ -243,9 +238,8 @@ def _run_fallback(argv: Sequence[str]) -> int:
     return int(_call_main(module.main, cfg))
 
 
-def _ensure_logging(cfg: Mapping[str, Any] | None = None) -> None:
-    if logging.getLogger().handlers:
-        return
+def _ensure_logging(cfg: Mapping[str, Any] | None = None, run_dir: Path | None = None) -> None:
+    root_logger = logging.getLogger()
     level = logging.INFO
     fmt = "%(asctime)s %(levelname)s %(name)s: %(message)s"
     logging_cfg = cfg_get(cfg, "logging", None)
@@ -254,14 +248,29 @@ def _ensure_logging(cfg: Mapping[str, Any] | None = None) -> None:
         if level_name:
             level = getattr(logging, level_name, level)
         fmt = str(logging_cfg.get("format", fmt)) or fmt
-    logging.basicConfig(level=level, format=fmt)
+    if not root_logger.handlers:
+        logging.basicConfig(level=level, format=fmt)
+    if run_dir is None:
+        return
+    logs_dir = run_dir / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_path = logs_dir / "run.log"
+    for handler in root_logger.handlers:
+        if isinstance(handler, logging.FileHandler) and Path(handler.baseFilename) == log_path:
+            return
+    file_handler = logging.FileHandler(log_path, encoding="utf-8")
+    file_handler.setLevel(level)
+    file_handler.setFormatter(logging.Formatter(fmt))
+    root_logger.addHandler(file_handler)
 
 
 if _HYDRA_AVAILABLE:
     # CONTRACT: Hydra config is the single source of truth and defines task routing.
     @hydra.main(version_base=None, config_path=str(CONFIG_DIR), config_name="config")
     def main(cfg: Mapping[str, Any]) -> int:
-        _ensure_logging(cfg)
+        run_dir = resolve_path(RunDirManager(dict(cfg)).ensure())
+        _write_hydra_snapshot(run_dir, cfg)
+        _ensure_logging(cfg, run_dir=run_dir)
         task_name = _task_name(cfg)
         module = _load_task_module(task_name)
         if not hasattr(module, "main"):
@@ -269,7 +278,10 @@ if _HYDRA_AVAILABLE:
         return int(_call_main(module.main, cfg))
 else:
     def main(cfg: Mapping[str, Any] | None = None) -> int:
-        _ensure_logging(cfg)
+        run_dir = resolve_path(RunDirManager(dict(cfg)).ensure()) if cfg is not None else None
+        if run_dir is not None and cfg is not None:
+            _write_hydra_snapshot(run_dir, cfg)
+        _ensure_logging(cfg, run_dir=run_dir)
         if cfg is not None:
             task_name = _task_name(cfg)
             module = _load_task_module(task_name)

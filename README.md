@@ -9,7 +9,7 @@ VSCode + Codex CLI で `autopilot.sh` を回し、`work/queue.json` のP0タス�
 - decomposer（一次分解）: FFT2, Zernike（P0）
 - coeff_post（係数後処理）: none, standardize, PCA（train-only fit, inverse）
 - model（回帰）: Ridge（多出力）
-- process（CLI）: train / predict / reconstruct / eval / leaderboard / benchmark / doctor
+- process（CLI）: decomposition / preprocessing / train / inference / pipeline / leaderboard / doctor
 - artifact契約に沿った保存（config/meta/metrics/preds/model）
 - 比較可能な評価（coeff誤差 + field再構成誤差）
 
@@ -25,7 +25,7 @@ VSCode + Codex CLI で `autopilot.sh` を回し、`work/queue.json` のP0タス�
    - GBDT models (xgb/lgbm/catboost): `pip install xgboost lightgbm catboost`
 3) 最短実行例（`pip install -e .` を使わない場合は `PYTHONPATH=src` を付ける）
    - `PYTHONPATH=src python -m mode_decomp_ml.cli.run task=doctor`
-   - `PYTHONPATH=src python -m mode_decomp_ml.cli.run task=benchmark`
+   - `PYTHONPATH=src python -m mode_decomp_ml.cli.run task=pipeline`
 4) examples（run.yaml）
    - `PYTHONPATH=src python -m mode_decomp_ml.run --config examples/run_scalar_rect_fft2_ridge.yaml`
    - `PYTHONPATH=src python -m mode_decomp_ml.run --config examples/run_scalar_disk_zernike.yaml`

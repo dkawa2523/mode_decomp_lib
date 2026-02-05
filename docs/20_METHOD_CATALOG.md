@@ -74,5 +74,5 @@
 - PSWF2D tensor + Ridge（rect）: `python -m mode_decomp_ml.run --config examples/run_scalar_rect_pswf_ridge.yaml`
 - Zernike + Ridge（disk）: `python -m mode_decomp_ml.run --config examples/run_scalar_disk_zernike.yaml`
 - POD + Ridge（mask）: `python -m mode_decomp_ml.run --config examples/run_scalar_mask_pod_ridge.yaml`
-- 成果物は `runs/<tag>/<run_id>/` に保存される
+- 成果物は `runs/<name>/<process>/` に保存される
 - 他の例は `examples/` を参照

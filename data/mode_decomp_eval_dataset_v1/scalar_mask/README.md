@@ -6,6 +6,8 @@
 - `cond.npy` : cond: shape [N,8] （8個の基底パターン係数）
 - `field.npy`: field: shape [N,H,W,1] （スカラー場）
 - `mask.npy` : shape [N,H,W]（0/1, 1が有効領域）
+- `conditions.csv` : 条件テーブル（id + x1..x8）
+- `fields/` : 各条件の `x,y,f` CSV（1条件1ファイル）
 
 ## 生成方法（概要）
 - 各サンプルは **固定の8個の空間パターン**の線形結合で作られています。
@@ -16,3 +18,5 @@
 - 分布モード分解の再構成精度比較（FFT/Zernike/Bessel/POD/Graph...）
 - `cond -> mode係数` 回帰モデル（Ridge/GPR/...）の学習・推論評価
 
+## CSV 利用例（maskあり）
+`dataset=csv_fields` で `dataset.mask_file=mask.npy` を指定してください。

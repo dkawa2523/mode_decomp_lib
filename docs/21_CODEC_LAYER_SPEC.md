@@ -59,4 +59,4 @@ decomposer が増えると係数の表現が多様化します:
 ## テスト要件（必須）
 - lossless codec は `decode(encode(x)) == x`（許容誤差内）を保証
 - lossy codec は情報損失を明示し、評価指標（再構成誤差）に影響を記録
-- meta を保存/復元できること（artifact: `states/coeff_meta.json` 等）
+- meta を保存/復元できること（artifact: `outputs/states/coeff_meta.json` 等）

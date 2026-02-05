@@ -47,11 +47,9 @@ def _upload_json(task: Any, name: str, path: Path) -> None:
 
 
 def _upload_config_yaml(task: Any, run_dir: Path) -> None:
-    config_path = run_dir / "run.yaml"
+    config_path = run_dir / "configuration" / "run.yaml"
     if not config_path.exists():
-        config_path = run_dir / ".hydra" / "config.yaml"
-    if not config_path.exists():
-        config_path = run_dir / "hydra" / "config.yaml"
+        config_path = run_dir / "configuration" / "resolved.yaml"
     if not config_path.exists():
         return
     payload = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
@@ -72,11 +70,9 @@ def _upload_model(task: Any, run_dir: Path) -> None:
 
 
 def _upload_plots(task: Any, run_dir: Path) -> None:
-    viz_dir = run_dir / "figures"
+    viz_dir = run_dir / "plots"
     if not viz_dir.exists():
-        viz_dir = run_dir / "viz"
-        if not viz_dir.exists():
-            return
+        return
     for path in sorted(viz_dir.rglob("*.png")):
         rel = str(path.relative_to(run_dir)).replace("/", "_")
         task.upload_artifact(f"plot_{rel}", artifact_object=str(path))
@@ -106,10 +102,10 @@ def maybe_log_run(cfg: Mapping[str, Any], run_dir: str | Path) -> None:
 
     task.connect(_to_container(cfg), name="config")
     _upload_config_yaml(task, run_dir_path)
-    metrics_path = run_dir_path / "metrics.json"
+    metrics_path = run_dir_path / "outputs" / "metrics.json"
     if not metrics_path.exists():
         metrics_path = run_dir_path / "metrics" / "metrics.json"
     _upload_json(task, "metrics", metrics_path)
-    _upload_json(task, "manifest_run", run_dir_path / "manifest_run.json")
+    _upload_json(task, "manifest_run", run_dir_path / "outputs" / "manifest_run.json")
     _upload_model(task, run_dir_path)
     _upload_plots(task, run_dir_path)

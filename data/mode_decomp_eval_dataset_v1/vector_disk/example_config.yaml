@@ -3,10 +3,17 @@
 # 実際のキーはプロジェクト側の configs/ に合わせて調整してください。
 
 dataset:
-  name: npy_dir
-  root: data/mode_decomp_eval_dataset_v1/vector_disk
-  # mask_policy がある場合は require を推奨
-  mask_policy: require
+  name: csv_fields
+  conditions_csv: data/mode_decomp_eval_dataset_v1/vector_disk/conditions.csv
+  fields_dir: data/mode_decomp_eval_dataset_v1/vector_disk/fields
+  field_components: [fx, fy]
+  id_column: id
+  grid:
+    H: 64
+    W: 64
+    x_range: [-1.0, 1.0]
+    y_range: [-1.0, 1.0]
+  mask_policy: allow_none
 
 domain:
   name: disk

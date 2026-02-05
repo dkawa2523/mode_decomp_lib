@@ -9,25 +9,28 @@ defaults:
   - codec: none
   - coeff_post: none
   - model: ridge
+  - train: basic
   - eval: basic
   - viz: basic
+  - inference: basic
   - logging: basic
   - uncertainty: gpr_mc
   - clearml: basic
   - _self_
 
 seed: 123
-output_dir: runs
-tag: default
-run_id: ${now:%Y%m%d-%H%M%S}-${hydra:job.num}
-run_dir: ${output_dir}/${tag}/${run_id}
+output:
+  root: runs
+  name: default
+run_dir: ${output.root}/${output.name}/${task.name}
 
 hydra:
+  output_subdir: null
   run:
     dir: ${run_dir}
   sweep:
-    dir: ${output_dir}/${tag}
-    subdir: ${run_id}
+    dir: ${run_dir}
+    subdir: ""
   job:
     config:
       override_dirname:
@@ -35,11 +38,9 @@ hydra:
         item_sep: "__"
         exclude_keys:
           - dataset.root
-          - output_dir
           - run_dir
-          - run_id
-          - tag
+          - output.root
+          - output.name
+          - task.decomposition_run_dir
+          - task.preprocessing_run_dir
           - task.train_run_dir
-          - task.predict_run_dir
-          - task.reconstruct_run_dir
-          - task.eval_run_dir

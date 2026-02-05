@@ -8,7 +8,7 @@
 
 ```yaml
 dataset: data/<dataset_name>        # dataset manifest が真実
-task: train                         # train/predict/reconstruct/eval/bench/viz
+task: pipeline                      # decomposition/preprocessing/train/inference/pipeline
 pipeline:
   decomposer: pod                   # pod / gappy_pod / fft2 / zernike ...
   coeff_post: pca                   # none/pca/quantile/power (必要なら)
@@ -19,7 +19,7 @@ options:
   mode_weight: { enable: false, method: eigval_scale }   # eigval_scale|none
 output:
   root: runs
-  tag: pod_suite
+  name: pod_suite
 ```
 
 TODO(Task493): 現行実装の decomposer 名は `pod_svd` のみ（`configs/decompose/data_driven/pod_svd.yaml`）。

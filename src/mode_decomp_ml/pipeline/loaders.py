@@ -23,8 +23,8 @@ def _resolve_existing(primary: Path, fallback: Path | None, label: str) -> Path:
 
 def _resolve_component_state(run_root: Path, component: str) -> Path:
     return _resolve_existing(
+        run_root / "outputs" / "states" / component / "state.pkl",
         run_root / "states" / component / "state.pkl",
-        run_root / "artifacts" / component / "state.pkl",
         f"{component} state",
     )
 

@@ -126,6 +126,12 @@ class WaveletPackCodecV1(BaseCoeffCodec):
         order = _resolve_flatten_order(raw_meta)
         channels = int(raw_meta.get("channels", 1))
         if channels == 1:
+            if (
+                isinstance(raw_coeff, (list, tuple))
+                and len(raw_coeff) == 1
+                and isinstance(raw_coeff[0], (list, tuple))
+            ):
+                raw_coeff = raw_coeff[0]
             channel_coeffs = [raw_coeff]
         else:
             if not isinstance(raw_coeff, (list, tuple)) or len(raw_coeff) != channels:

@@ -2,7 +2,7 @@
 
 あなたは以下まで完了しています:
 - P0 完了（000〜120）
-- P1: domain(arbitrary_mask), Fourier–Bessel, POD/SVD, GPR, sweep benchmark
+- P1: domain(arbitrary_mask), Fourier–Bessel, POD/SVD, GPR, pipeline sweep
 
 ## P1で残っている必須（最短で“完成”にする）
 ### 250: 不確かさ（GPR）を artifact に残し、可視化する

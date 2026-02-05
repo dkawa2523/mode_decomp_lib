@@ -64,6 +64,8 @@ def _collect_run_dir(path: Path) -> Path | None:
     if path.is_file() and path.name == "metrics.json":
         if path.parent.name == "metrics":
             return path.parent.parent
+        if path.parent.name == "outputs":
+            return path.parent
         return path.parent
     return None
 
@@ -92,9 +94,12 @@ def collect_run_dirs(patterns: Sequence[str]) -> list[Path]:
 
 
 def _read_manifest(run_dir: Path) -> dict[str, Any]:
-    manifest_path = run_dir / "manifest_run.json"
+    manifest_path = run_dir / "outputs" / "manifest_run.json"
     if manifest_path.exists():
         return _read_json(manifest_path)
+    legacy = run_dir / "manifest_run.json"
+    if legacy.exists():
+        return _read_json(legacy)
     legacy_meta = run_dir / "meta.json"
     if legacy_meta.exists():
         return _read_json(legacy_meta)
@@ -110,11 +115,19 @@ def _manifest_dataset_meta(manifest: Mapping[str, Any], run_dir: Path) -> dict[s
     dataset_meta = manifest.get("dataset_meta") if isinstance(manifest, Mapping) else None
     if isinstance(dataset_meta, Mapping):
         return dict(dataset_meta)
-    return _read_json(run_dir / "artifacts" / "dataset_meta.json")
+    for path in (
+        run_dir / "outputs" / "artifacts" / "dataset_meta.json",
+        run_dir / "artifacts" / "dataset_meta.json",
+    ):
+        if path.exists():
+            return _read_json(path)
+    return {}
 
 
 def _load_config(run_dir: Path) -> dict[str, Any]:
     for cfg_path in (
+        run_dir / "configuration" / "run.yaml",
+        run_dir / "configuration" / "resolved.yaml",
         run_dir / "run.yaml",
         run_dir / ".hydra" / "config.yaml",
         run_dir / "hydra" / "config.yaml",
@@ -126,7 +139,7 @@ def _load_config(run_dir: Path) -> dict[str, Any]:
 
 def load_run_row(run_dir: Path) -> dict[str, Any] | None:
     # CONTRACT: leaderboard reads metrics from metrics.json.
-    metrics_path = run_dir / "metrics.json"
+    metrics_path = run_dir / "outputs" / "metrics.json"
     if not metrics_path.exists():
         metrics_path = run_dir / "metrics" / "metrics.json"
     if not metrics_path.exists():

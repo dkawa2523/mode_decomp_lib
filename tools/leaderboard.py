@@ -18,8 +18,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "runs",
         nargs="*",
-        default=["runs/**/metrics.json", "outputs/**/eval"],
-        help="Run directories or glob patterns (default: runs/**/metrics.json, outputs/**/eval).",
+        default=["runs/**/outputs/metrics.json", "runs/**/metrics.json"],
+        help="Run directories or glob patterns (default: runs/**/outputs/metrics.json, runs/**/metrics.json).",
     )
     parser.add_argument("--out", default="leaderboard.csv", help="Output CSV path.")
     parser.add_argument("--md", default="leaderboard.md", help="Output Markdown path.")

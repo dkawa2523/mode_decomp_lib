@@ -6,7 +6,7 @@
 ## P1 tail
 ### Task 250: uncertainty
 - add: `src/mode_decomp_ml/viz/uncertainty.py`
-- update: eval/reconstruct process（stdがある場合の保存/描画）
+- update: decomposition/inference process（stdがある場合の保存/描画）
 - add: `configs/uncertainty/gpr_mc.yaml`（MCサンプル数、対象サンプル数など）
 
 ### Task 260: ElasticNet / MultiTask

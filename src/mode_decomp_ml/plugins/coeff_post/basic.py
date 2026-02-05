@@ -54,7 +54,7 @@ class BaseCoeffPost:
         return self._state
 
     def save_state(self, run_dir: str | Path) -> Path:
-        out_dir = Path(run_dir) / "states" / "coeff_post"
+        out_dir = Path(run_dir) / "outputs" / "states" / "coeff_post"
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / "state.pkl"
         with path.open("wb") as fh:

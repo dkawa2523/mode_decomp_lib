@@ -20,7 +20,7 @@
 4. **テスト**
    - unit（小配列）+ e2e（smoke）を最低限追加（docs/07）
 5. **比較基盤**
-   - metrics/leaderboard/benchmark に載ること（docs/09, 04）
+   - metrics/leaderboard/pipeline に載ること（docs/09, 04）
 6. **ドキュメント更新**
    - docs/20_METHOD_CATALOG.md などに “追加した手法” を追記
 
@@ -43,7 +43,7 @@
   - sphere_grid を扱うデータ生成では `mode_decomp_ml.domain.sphere_grid` のユーティリティを使用する（range の再実装禁止）
   - dataset テンプレは `docs/addons/35_DATASET_TEMPLATE_SAMPLES.md` を参照
 - 可視化の拡充:
-  - viz process で追加（artifactに残す）
+  - decomposition/inference の plots 出力で追加（artifactに残す）
 - ClearML対応:
   - まず `tracking hooks` の抽象点を用意（docs/12 を参照し、必要ならタスク化）
 - アーキテクトなリファクタ:

@@ -5,6 +5,7 @@ scikit-learn
 matplotlib
 hydra-core
 omegaconf
+optuna
 
 # Optional (P2 / deep learning):
 # torch

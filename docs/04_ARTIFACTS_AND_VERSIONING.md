@@ -8,38 +8,48 @@
 
 ## 代表的な run dir 構造（例）
 ```
-runs/<tag>/<run_id>/
-  run.yaml
-  manifest_run.json
-  metrics.json
-  preds.npz
+runs/<name>/<process>/
+  configuration/
+    run.yaml
+    resolved.yaml
+    inputs/
+  logs/
+    run.log
+    steps.json
+  outputs/
+    manifest_run.json
+    metrics.json
+    preds.npz
+    coeffs.npz
+    optuna_trials.csv          # inference optimize
+    optuna_best.json           # inference optimize
+    states/
+      decomposer/
+        state.pkl           # basis/indices 等（必要な場合）
+        coeff_meta.json     # 係数のindex対応
+      coeff_post/
+        state.pkl           # PCA等
+      preprocess/
+        state.pkl
+    tables/
   model/
     model.pkl or model.pth
-  states/
-    decomposer/
-      state.pkl             # basis/indices 等（必要な場合）
-      coeff_meta.json       # 係数のindex対応
-    coeff_post/
-      state.pkl             # PCA等
-    preprocess/
-      state.pkl
-  figures/
+  plots/
     recon.png
     error_map.png
     coeff_spectrum.png
-  tables/
-  logs.txt                  # 任意
 ```
 
 ---
 
 ## 必須artifact（最低限）
-- `run.yaml`（入力設定の保存）
-- `manifest_run.json`（seed、git、dataset hash、dataset_meta、upstream_artifacts 等）
-- `metrics.json`（評価指標。evalのみ）
-- `preds.npz`（predict/reconstructのみ）
-- `states/decomposer`（transform再現に必要なstateがある場合）
-- `states/coeff_post`（PCA等のstateは必須）
+- `configuration/run.yaml`（入力設定の保存）
+- `outputs/manifest_run.json`（seed、git、dataset hash、dataset_meta、upstream_artifacts 等）
+- `outputs/metrics.json`（評価指標）
+- `outputs/preds.npz`（inference の予測）
+- `outputs/coeffs.npz`（decomposition/preprocessing の係数）
+- `outputs/states/decomposer`（transform再現に必要なstateがある場合）
+- `outputs/states/coeff_post`（PCA等のstateは必須）
 - `model/`（学習モデル）
 
 ---

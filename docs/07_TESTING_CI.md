@@ -16,8 +16,8 @@
   - 期待するshapeが維持される
 
 ### Integration
-- `train -> predict -> reconstruct -> eval` の一連が動く（smoke）
-- Hydra override で method を切り替えても動く
+- `decomposition -> preprocessing -> train -> inference` の一連が動く（smoke）
+- pipeline で method を切り替えても動く
 
 ## 3. 数値系の注意
 - 浮動小数は `np.allclose` を使う（tolをconfig化）

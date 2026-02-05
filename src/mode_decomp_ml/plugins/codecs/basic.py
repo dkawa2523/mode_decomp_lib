@@ -88,7 +88,7 @@ class BaseCoeffCodec:
         return self._state
 
     def save_state(self, run_dir: str | Path) -> Path:
-        out_dir = Path(run_dir) / "states" / "coeff_codec"
+        out_dir = Path(run_dir) / "outputs" / "states" / "coeff_codec"
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / "state.pkl"
         with path.open("wb") as fh:
@@ -124,7 +124,7 @@ class BaseCoeffCodec:
     ) -> Path:
         meta = self.coeff_meta(raw_meta, vector_coeff)
         run_root = Path(run_dir)
-        states_dir = run_root / "states"
+        states_dir = run_root / "outputs" / "states"
         states_dir.mkdir(parents=True, exist_ok=True)
         primary = states_dir / "coeff_meta.json"
         write_json(primary, meta)

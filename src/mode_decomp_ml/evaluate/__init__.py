@@ -115,7 +115,7 @@ def field_rmse(
         mask_batch = _ensure_mask_batch(mask, field_true.shape[:3])
         if not mask_batch.any():
             raise ValueError("mask has no valid entries")
-        diff = diff[mask_batch[..., None]]
+        diff = diff[mask_batch]
     return float(np.sqrt(np.mean(diff**2)))
 
 

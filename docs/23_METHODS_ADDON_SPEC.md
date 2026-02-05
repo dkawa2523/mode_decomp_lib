@@ -122,22 +122,22 @@
 - 方針: `IndependentMultiOutputWrapper` で多出力を統一
 - optional dependency:
   - xgboost / lightgbm / catboost
-- test: 小データで train/predict が通る + shape契約
+- test: 小データで fit/predict が通る + shape契約
 
 ### 4.2 MultiTaskLasso
 - native multi-output
 - scikit-learn
-- test: train/predict + sparsityが働く簡単例
+- test: fit/predict + sparsityが働く簡単例
 
 ### 4.3 Multi-task GP（相関）
 - 目的: 出力間相関を学習（P2相当）
 - 推奨: GPyTorch で実装（optional）
-- test: 小さな toy で train/predict 通過（重いので CI ではスキップも可）
+- test: 小さな toy で fit/predict 通過（重いので CI ではスキップも可）
 
 ---
 
 ## 共通の受け入れ基準（追加手法すべて）
 - registry に登録され、`--list-plugins` 等で列挙可能
 - run.yaml から選択できる
-- artifact（states/）に必要な meta/state を保存する
-- benchmark sweep に最低1ケース追加し、比較可能性を壊さない
+- artifact（outputs/states/）に必要な meta/state を保存する
+- pipeline sweep に最低1ケース追加し、比較可能性を壊さない

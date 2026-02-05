@@ -87,21 +87,155 @@ def plot_field_grid(
         constrained_layout=True,
     )
     cmap_obj = _colormap_with_bad(cmap)
+    images: list[list[Any]] = [[None for _ in range(n_cols)] for _ in range(n_rows)]
     for col, (field, title) in enumerate(zip(field_stack, titles)):
         for row in range(channels):
             ax = axes[row][col]
             data = field[..., row]
             if mask is not None:
                 data = np.where(mask, data, np.nan)
-            ax.imshow(data, origin="lower", cmap=cmap_obj, vmin=vmin[row], vmax=vmax[row])
+            image = ax.imshow(data, origin="lower", cmap=cmap_obj, vmin=vmin[row], vmax=vmax[row])
+            images[row][col] = image
             ax.set_xticks([])
             ax.set_yticks([])
             if row == 0:
                 ax.set_title(title)
             if col == 0 and channels > 1:
                 ax.set_ylabel(f"ch{row}")
+            ax.set_aspect("equal")
+    for row in range(n_rows):
+        image = next((img for img in images[row] if img is not None), None)
+        if image is not None:
+            fig.colorbar(image, ax=axes[row, :], fraction=0.046, pad=0.04)
     if suptitle:
         fig.suptitle(suptitle)
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    return path
+
+
+def plot_vector_streamplot(
+    path: str | Path,
+    field: np.ndarray,
+    *,
+    mask: np.ndarray | None = None,
+    density: float = 1.2,
+    linewidth: float = 1.0,
+    cmap: str = "viridis",
+    title: str | None = None,
+    show_background: bool = True,
+    background_alpha: float = 0.35,
+) -> Path:
+    field = _ensure_field_3d(field)
+    if field.shape[2] < 2:
+        raise ValueError("vector streamplot requires at least 2 channels")
+    u = np.asarray(field[..., 0], dtype=float)
+    v = np.asarray(field[..., 1], dtype=float)
+    mask = _ensure_mask(mask, u.shape)
+    if mask is not None:
+        u = np.where(mask, u, np.nan)
+        v = np.where(mask, v, np.nan)
+    mag = np.sqrt(u**2 + v**2)
+    height, width = u.shape
+    x = np.arange(width, dtype=float)
+    y = np.arange(height, dtype=float)
+
+    fig, ax = plt.subplots(figsize=(4.2, 3.6), constrained_layout=True)
+    if show_background:
+        ax.imshow(
+            mag,
+            origin="lower",
+            cmap=_colormap_with_bad("Greys"),
+            alpha=float(background_alpha),
+        )
+    strm = ax.streamplot(
+        x,
+        y,
+        u,
+        v,
+        density=float(density),
+        color=mag,
+        linewidth=linewidth,
+        cmap=cmap,
+    )
+    fig.colorbar(strm.lines, ax=ax, fraction=0.046, pad=0.04, label="|v|")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_aspect("equal")
+    if title:
+        ax.set_title(title)
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    return path
+
+
+def plot_vector_quiver(
+    path: str | Path,
+    field: np.ndarray,
+    *,
+    mask: np.ndarray | None = None,
+    stride: int | None = None,
+    cmap: str = "viridis",
+    title: str | None = None,
+    show_background: bool = True,
+    background_alpha: float = 0.35,
+) -> Path:
+    field = _ensure_field_3d(field)
+    if field.shape[2] < 2:
+        raise ValueError("vector quiver requires at least 2 channels")
+    u = np.asarray(field[..., 0], dtype=float)
+    v = np.asarray(field[..., 1], dtype=float)
+    mask = _ensure_mask(mask, u.shape)
+    height, width = u.shape
+    if stride is None:
+        stride = max(1, int(max(height, width) // 32))
+    stride = max(1, int(stride))
+    y_idx = np.arange(0, height, stride)
+    x_idx = np.arange(0, width, stride)
+    X, Y = np.meshgrid(x_idx, y_idx)
+    U = u[y_idx[:, None], x_idx[None, :]]
+    V = v[y_idx[:, None], x_idx[None, :]]
+    if mask is not None:
+        M = mask[y_idx[:, None], x_idx[None, :]]
+        U = np.where(M, U, np.nan)
+        V = np.where(M, V, np.nan)
+    mag = np.sqrt(U**2 + V**2)
+    if mask is not None:
+        mag_full = np.where(mask, np.sqrt(u**2 + v**2), np.nan)
+    else:
+        mag_full = np.sqrt(u**2 + v**2)
+
+    fig, ax = plt.subplots(figsize=(4.2, 3.6), constrained_layout=True)
+    if show_background:
+        ax.imshow(
+            mag_full,
+            origin="lower",
+            cmap=_colormap_with_bad("Greys"),
+            alpha=float(background_alpha),
+        )
+    q = ax.quiver(
+        X,
+        Y,
+        U,
+        V,
+        mag,
+        cmap=cmap,
+        angles="xy",
+        scale_units="xy",
+        scale=None,
+        width=0.0025,
+        pivot="mid",
+    )
+    fig.colorbar(q, ax=ax, fraction=0.046, pad=0.04, label="|v|")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_aspect("equal")
+    if title:
+        ax.set_title(title)
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=150)
@@ -135,6 +269,7 @@ def plot_error_map(
     image = ax.imshow(error, origin="lower", cmap=cmap_obj)
     ax.set_xticks([])
     ax.set_yticks([])
+    ax.set_aspect("equal")
     fig.colorbar(image, ax=ax, fraction=0.046, pad=0.04)
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -243,6 +378,7 @@ def plot_domain_field_grid(
         constrained_layout=True,
     )
     cmap_obj = _colormap_with_bad(cmap)
+    images: list[list[Any]] = [[None for _ in range(n_cols)] for _ in range(n_rows)]
     for col, (field, title) in enumerate(zip(field_stack, titles)):
         for row in range(channels):
             ax = axes[row][col]
@@ -250,7 +386,7 @@ def plot_domain_field_grid(
             if mask is not None:
                 data = np.where(mask, data, np.nan)
             if getattr(domain_spec, "name", "") == "sphere_grid":
-                _plot_sphere_field(
+                image = _plot_sphere_field(
                     ax,
                     data,
                     domain_spec=domain_spec,
@@ -260,7 +396,7 @@ def plot_domain_field_grid(
                     projection=sphere_projection,
                 )
             else:
-                ax.imshow(
+                image = ax.imshow(
                     data,
                     origin="lower",
                     cmap=cmap_obj,
@@ -268,6 +404,8 @@ def plot_domain_field_grid(
                     vmax=vmax[row],
                     extent=extent,
                 )
+                ax.set_aspect("equal")
+            images[row][col] = image
             ax.set_xticks([])
             ax.set_yticks([])
             if extent is not None:
@@ -277,6 +415,10 @@ def plot_domain_field_grid(
                 ax.set_title(title)
             if col == 0 and channels > 1:
                 ax.set_ylabel(f"ch{row}")
+    for row in range(n_rows):
+        image = next((img for img in images[row] if img is not None), None)
+        if image is not None:
+            fig.colorbar(image, ax=axes[row, :], fraction=0.046, pad=0.04)
     if suptitle:
         fig.suptitle(suptitle)
     path = Path(path)
@@ -324,6 +466,7 @@ def plot_domain_error_map(
         )
     else:
         image = ax.imshow(error, origin="lower", cmap=cmap_obj, extent=extent)
+        ax.set_aspect("equal")
     ax.set_xticks([])
     ax.set_yticks([])
     if extent is not None:
@@ -643,6 +786,57 @@ def coeff_value_magnitude(
                     return mag.reshape(-1)
                 return np.abs(reshaped).reshape(-1)
     return np.abs(coeff).reshape(-1)
+
+
+def coeff_channel_norms(
+    coeff_a: np.ndarray,
+    coeff_meta: Mapping[str, Any] | None = None,
+) -> np.ndarray | None:
+    coeff = np.asarray(coeff_a)
+    if coeff.ndim != 2 or not coeff_meta:
+        return None
+    channels = int(coeff_meta.get("channels", 1) or 1)
+    if channels <= 1:
+        return None
+    coeff_shape = coeff_meta.get("coeff_shape")
+    if not isinstance(coeff_shape, list):
+        return None
+    try:
+        expected = int(np.prod(coeff_shape))
+    except (TypeError, ValueError):
+        return None
+    if expected != coeff.shape[1]:
+        return None
+    flatten_order = str(coeff_meta.get("flatten_order", "C"))
+    reshaped = coeff.reshape((coeff.shape[0], *coeff_shape), order=flatten_order)
+    if reshaped.ndim < 3 or reshaped.shape[1] != channels:
+        return None
+    axes = tuple(range(2, reshaped.ndim))
+    norms = np.sqrt(np.sum(np.abs(reshaped) ** 2, axis=axes))
+    return norms
+
+
+def plot_channel_norm_scatter(
+    path: str | Path,
+    norms: np.ndarray,
+    *,
+    title: str = "channel norms",
+    max_points: int = 2000,
+) -> Path:
+    norms = np.asarray(norms)
+    if norms.ndim != 2 or norms.shape[1] < 2:
+        raise ValueError("channel norms must be 2D with at least two channels")
+    n_points = min(int(max_points), norms.shape[0])
+    fig, ax = plt.subplots(figsize=(4.2, 3.2), constrained_layout=True)
+    ax.scatter(norms[:n_points, 0], norms[:n_points, 1], s=12, alpha=0.7)
+    ax.set_xlabel("channel 0 norm")
+    ax.set_ylabel("channel 1 norm")
+    ax.set_title(title)
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    return path
 
 
 def fft_magnitude_spectrum(
@@ -971,9 +1165,13 @@ def plot_coeff_spectrum(
 
 __all__ = [
     "coeff_energy_vector",
+    "coeff_channel_norms",
     "coeff_value_magnitude",
     "coeff_energy_spectrum",
     "fft_magnitude_spectrum",
+    "plot_vector_streamplot",
+    "plot_vector_quiver",
+    "plot_channel_norm_scatter",
     "plot_coeff_spectrum",
     "plot_coeff_histogram",
     "plot_energy_bars",

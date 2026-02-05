@@ -92,7 +92,7 @@ def test_spherical_slepian_state_saves_basis(tmp_path: pathlib.Path) -> None:
 
     decomposer.fit(dataset=None, domain_spec=domain)
     decomposer.save_state(tmp_path)
-    basis_path = tmp_path / "states" / "decomposer" / "slepian_basis.npz"
+    basis_path = tmp_path / "outputs" / "states" / "decomposer" / "slepian_basis.npz"
     assert basis_path.exists()
     data = np.load(basis_path)
     assert "eigenvalues" in data

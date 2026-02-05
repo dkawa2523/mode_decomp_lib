@@ -1,0 +1,19 @@
+mode: single
+values: {}
+source: grid
+grid: {}
+ranges: {}
+n_samples: 16
+n_trials: 50
+sampler: tpe
+objective:
+  name: field_std
+  direction: minimize
+viz:
+  max_samples: 8
+  scatter_max_points: 2000
+  coeff_hist_bins: 60
+  coeff_hist_scale: log
+  coeff_spectrum_scale: log
+  field_stats:
+    enabled: true

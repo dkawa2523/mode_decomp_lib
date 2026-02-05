@@ -7,7 +7,7 @@ dataset:
   channels: 1
   mask_policy: allow_none
   mask_mode: none
-task: train
+task: pipeline
 pipeline:
   decomposer: annular_zernike
   codec: zernike_pack_v1
@@ -15,8 +15,7 @@ pipeline:
   model: ridge
 output:
   root: runs
-  tag: scalar_annulus_annular_zernike
-  project: scalar_annulus_annular_zernike
+  name: scalar_annulus_annular_zernike
 seed: 123
 params:
   decompose:

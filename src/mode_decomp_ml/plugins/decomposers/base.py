@@ -92,7 +92,7 @@ class BaseDecomposer:
 
     def save_coeff_meta(self, run_dir: str | Path) -> Path:
         meta = self.coeff_meta()
-        out_dir = Path(run_dir) / "states" / "decomposer"
+        out_dir = Path(run_dir) / "outputs" / "states" / "decomposer"
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / "coeff_meta.json"
         # CONTRACT: coeff_meta must be persisted for comparability.
@@ -101,7 +101,7 @@ class BaseDecomposer:
         return path
 
     def save_state(self, run_dir: str | Path) -> Path:
-        out_dir = Path(run_dir) / "states" / "decomposer"
+        out_dir = Path(run_dir) / "outputs" / "states" / "decomposer"
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / "state.pkl"
         with path.open("wb") as fh:

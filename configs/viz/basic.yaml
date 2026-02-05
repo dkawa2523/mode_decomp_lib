@@ -1,5 +1,6 @@
 name: basic
 sample_index: 0
+max_samples: 8
 k_list: [1, 2, 4, 8, 16]
 spectrum_scale: log
 coeff_diag:
@@ -11,3 +12,13 @@ coeff_diag:
   wavelet_band_energy: true
   sh_l_energy: true
   slepian_concentration: true
+data_driven:
+  enabled: true
+  max_modes: 9
+  coeff_top_k: 6
+  coeff_hist_cols: 3
+  corr_top_k: 12
+spatial_stats:
+  enabled: true
+  show_pred: true
+  show_error: true

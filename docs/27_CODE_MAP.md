@@ -9,10 +9,10 @@ This document is a quick map of "where to look" and "how data moves".
 
 ## High-level flow (typical run)
 1. CLI loads config (Hydra) → `cli/run.py`
-2. Task routes to process → `src/processes/{train,predict,reconstruct,eval,viz,benchmark,leaderboard}.py` (I/O + run_dir)
+2. Task routes to process → `src/processes/{decomposition,preprocessing,train,inference,pipeline,leaderboard}.py` (I/O + run_dir)
 3. Process uses pipeline helpers → `src/mode_decomp_ml/pipeline/*`
 4. Pipeline calls plugins → `src/mode_decomp_ml/plugins/*`
-5. Artifacts are written → `runs/<tag>/<run_id>/...`
+5. Artifacts are written → `runs/<name>/<process>/...`
 
 ## Core modules
 - Pipeline utilities: `src/mode_decomp_ml/pipeline/`

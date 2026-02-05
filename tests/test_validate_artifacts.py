@@ -21,42 +21,30 @@ def _write_manifest(path: Path) -> None:
         "meta": {
             "seed": 123,
             "git": {"commit": "deadbeef"},
-            "task": "eval",
+            "task": "decomposition",
         }
     }
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def test_validate_artifacts_eval_pass(tmp_path: Path) -> None:
+def test_validate_artifacts_decomposition_pass(tmp_path: Path) -> None:
     validator = _load_validator()
 
-    train_dir = tmp_path / "train"
-    (train_dir / "model").mkdir(parents=True)
-    (train_dir / "model" / "model.pkl").write_bytes(b"0")
-
-    predict_dir = tmp_path / "predict"
-    predict_dir.mkdir(parents=True, exist_ok=True)
-    (predict_dir / "preds.npz").write_bytes(b"0")
-
-    reconstruct_dir = tmp_path / "reconstruct"
-    reconstruct_dir.mkdir(parents=True, exist_ok=True)
-    (reconstruct_dir / "preds.npz").write_bytes(b"0")
-
-    run_dir = tmp_path / "eval"
-    (run_dir / ".hydra").mkdir(parents=True)
+    run_dir = tmp_path / "decomposition"
+    (run_dir / "configuration").mkdir(parents=True)
+    (run_dir / "outputs").mkdir(parents=True)
     config = {
         "task": {
-            "name": "eval",
-            "train_run_dir": str(train_dir),
-            "predict_run_dir": str(predict_dir),
-            "reconstruct_run_dir": str(reconstruct_dir),
+            "name": "decomposition",
         }
     }
-    (run_dir / ".hydra" / "config.yaml").write_text(
+    (run_dir / "configuration" / "run.yaml").write_text(
         yaml.safe_dump(config, sort_keys=False),
         encoding="utf-8",
     )
-    (run_dir / "metrics.json").write_text("{}", encoding="utf-8")
-    _write_manifest(run_dir / "manifest_run.json")
+    (run_dir / "outputs" / "metrics.json").write_text("{}", encoding="utf-8")
+    (run_dir / "outputs" / "preds.npz").write_bytes(b"0")
+    (run_dir / "outputs" / "coeffs.npz").write_bytes(b"0")
+    _write_manifest(run_dir / "outputs" / "manifest_run.json")
 
     assert validator.main([str(run_dir)]) == 0

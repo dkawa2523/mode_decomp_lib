@@ -7,7 +7,7 @@ dataset:
   channels: 1
   mask_policy: allow_none
   mask_mode: none
-task: train
+task: pipeline
 pipeline:
   decomposer: spherical_slepian
   codec: slepian_pack_v1
@@ -32,6 +32,5 @@ params:
       angle_unit: deg
 output:
   root: runs
-  tag: sphere_slepian_ridge
-  project: sphere_slepian_ridge
+  name: sphere_slepian_ridge
 seed: 123

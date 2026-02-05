@@ -28,7 +28,7 @@ def main(cfg: Mapping[str, object] | None = None) -> int:
     # CONTRACT: doctor fails fast if core config is missing.
     if cfg is None:
         raise ValueError("doctor requires config from the Hydra entrypoint")
-    _require_keys(cfg, ["seed", "run_dir", "output_dir", "task", "dataset"])
+    _require_keys(cfg, ["seed", "run_dir", "task", "dataset"])
 
     dataset_cfg = cfg_get(cfg, "dataset")
     domain_cfg = cfg_get(cfg, "domain")

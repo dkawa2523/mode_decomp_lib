@@ -1,0 +1,12 @@
+name: csv_fields
+conditions_csv: null
+fields_dir: null
+id_column: id
+target_column: null
+feature_columns: null
+mask_policy: allow_none
+grid:
+  H: null
+  W: null
+  x_range: null
+  y_range: null

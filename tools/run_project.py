@@ -1,4 +1,4 @@
-"""Run train/predict/reconstruct/eval/viz for a single project directory."""
+"""Run decomposition/preprocessing/train/inference for a single project directory."""
 from __future__ import annotations
 
 import argparse
@@ -24,12 +24,9 @@ def _project_name(cfg: Mapping[str, Any], override: str | None, fallback: str) -
         return override
     output_cfg = cfg.get("output", {})
     if isinstance(output_cfg, Mapping):
-        project = output_cfg.get("project", None)
-        if project:
-            return str(project).strip()
-        tag = output_cfg.get("tag", None)
-        if tag:
-            return str(tag).strip()
+        name = output_cfg.get("name", None)
+        if name:
+            return str(name).strip()
     return fallback
 
 
@@ -50,7 +47,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run a project suite under one output directory.")
     parser.add_argument("--config", required=True, help="Path to base run.yaml")
     parser.add_argument("--project", default=None, help="Project name override")
-    parser.add_argument("--steps", default="train,predict,reconstruct,eval,viz")
+    parser.add_argument("--steps", default="decomposition,preprocessing,train,inference")
     args = parser.parse_args(argv)
 
     base_path = Path(args.config).expanduser()
@@ -61,7 +58,7 @@ def main(argv: list[str] | None = None) -> int:
     project = _project_name(base_cfg, args.project, fallback=base_path.stem)
     output_cfg = dict(base_cfg.get("output", {}) or {})
     output_root = str(output_cfg.get("root", "runs")).strip() or "runs"
-    output_cfg["project"] = project
+    output_cfg["name"] = project
     base_cfg["output"] = output_cfg
 
     project_dir = PROJECT_ROOT / output_root / project
@@ -70,64 +67,44 @@ def main(argv: list[str] | None = None) -> int:
     if not steps:
         raise ValueError("steps must be non-empty")
 
-    # train
+    if "decomposition" in steps:
+        decomposition_cfg = dict(base_cfg)
+        decomposition_cfg["task"] = {"name": "decomposition"}
+        decomposition_path = PROJECT_ROOT / "work" / f"run_{project}_decomposition.yaml"
+        _write_yaml(decomposition_path, decomposition_cfg)
+        _run(["python3", "-m", "mode_decomp_ml.run", "--config", str(decomposition_path)])
+
+    decomposition_dir = _task_run_dir(project_dir, "decomposition")
+
+    if "preprocessing" in steps:
+        preprocessing_cfg = dict(base_cfg)
+        preprocessing_cfg["task"] = {"name": "preprocessing", "decomposition_run_dir": str(decomposition_dir)}
+        preprocessing_path = PROJECT_ROOT / "work" / f"run_{project}_preprocessing.yaml"
+        _write_yaml(preprocessing_path, preprocessing_cfg)
+        _run(["python3", "-m", "mode_decomp_ml.run", "--config", str(preprocessing_path)])
+
+    preprocessing_dir = _task_run_dir(project_dir, "preprocessing")
+
     if "train" in steps:
         train_cfg = dict(base_cfg)
-        train_cfg["task"] = "train"
+        train_cfg["task"] = {"name": "train", "preprocessing_run_dir": str(preprocessing_dir)}
         train_path = PROJECT_ROOT / "work" / f"run_{project}_train.yaml"
         _write_yaml(train_path, train_cfg)
         _run(["python3", "-m", "mode_decomp_ml.run", "--config", str(train_path)])
 
     train_dir = _task_run_dir(project_dir, "train")
 
-    if "predict" in steps:
-        predict_cfg = dict(base_cfg)
-        predict_cfg["task"] = "predict"
-        task_params = dict(predict_cfg.get("task_params", {}) or {})
-        task_params["train_run_dir"] = str(train_dir)
-        predict_cfg["task_params"] = task_params
-        predict_path = PROJECT_ROOT / "work" / f"run_{project}_predict.yaml"
-        _write_yaml(predict_path, predict_cfg)
-        _run(["python3", "-m", "mode_decomp_ml.run", "--config", str(predict_path)])
-
-    predict_dir = _task_run_dir(project_dir, "predict")
-
-    if "reconstruct" in steps:
-        recon_cfg = dict(base_cfg)
-        recon_cfg["task"] = "reconstruct"
-        task_params = dict(recon_cfg.get("task_params", {}) or {})
-        task_params["train_run_dir"] = str(train_dir)
-        task_params["predict_run_dir"] = str(predict_dir)
-        recon_cfg["task_params"] = task_params
-        recon_path = PROJECT_ROOT / "work" / f"run_{project}_reconstruct.yaml"
-        _write_yaml(recon_path, recon_cfg)
-        _run(["python3", "-m", "mode_decomp_ml.run", "--config", str(recon_path)])
-
-    reconstruct_dir = _task_run_dir(project_dir, "reconstruct")
-
-    if "eval" in steps:
-        eval_cfg = dict(base_cfg)
-        eval_cfg["task"] = "eval"
-        task_params = dict(eval_cfg.get("task_params", {}) or {})
-        task_params["train_run_dir"] = str(train_dir)
-        task_params["predict_run_dir"] = str(predict_dir)
-        task_params["reconstruct_run_dir"] = str(reconstruct_dir)
-        eval_cfg["task_params"] = task_params
-        eval_path = PROJECT_ROOT / "work" / f"run_{project}_eval.yaml"
-        _write_yaml(eval_path, eval_cfg)
-        _run(["python3", "-m", "mode_decomp_ml.run", "--config", str(eval_path)])
-
-    if "viz" in steps:
-        viz_cfg = dict(base_cfg)
-        viz_cfg["task"] = "viz"
-        task_params = dict(viz_cfg.get("task_params", {}) or {})
-        task_params["train_run_dir"] = str(train_dir)
-        task_params["predict_run_dir"] = str(predict_dir)
-        task_params["reconstruct_run_dir"] = str(reconstruct_dir)
-        viz_cfg["task_params"] = task_params
-        viz_path = PROJECT_ROOT / "work" / f"run_{project}_viz.yaml"
-        _write_yaml(viz_path, viz_cfg)
-        _run(["python3", "-m", "mode_decomp_ml.run", "--config", str(viz_path)])
+    if "inference" in steps:
+        inference_cfg = dict(base_cfg)
+        inference_cfg["task"] = {
+            "name": "inference",
+            "decomposition_run_dir": str(decomposition_dir),
+            "preprocessing_run_dir": str(preprocessing_dir),
+            "train_run_dir": str(train_dir),
+        }
+        inference_path = PROJECT_ROOT / "work" / f"run_{project}_inference.yaml"
+        _write_yaml(inference_path, inference_cfg)
+        _run(["python3", "-m", "mode_decomp_ml.run", "--config", str(inference_path)])
 
     return 0
 

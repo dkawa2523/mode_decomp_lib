@@ -1,0 +1,23 @@
+{
+  "version": "offset_noise_30",
+  "samples": 30,
+  "cond_dim_scalar": 4,
+  "cond_dim_vector": 8,
+  "notes": {
+    "offset": "constant offset per sample",
+    "fluctuation": "~10% of offset magnitude",
+    "noise": "~1% of offset magnitude per spatial location"
+  },
+  "subsets": [
+    "scalar_rect",
+    "scalar_disk",
+    "scalar_annulus",
+    "scalar_mask",
+    "scalar_sphere",
+    "vector_rect",
+    "vector_disk",
+    "vector_annulus",
+    "vector_mask",
+    "vector_sphere"
+  ]
+}
