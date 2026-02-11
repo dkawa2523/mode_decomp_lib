@@ -9,7 +9,10 @@ try:  # SciPy 1.15+ deprecates sph_harm in favor of sph_harm_y
     from scipy.special import sph_harm_y as _sph_harm_y
 
     def _sph_harm(m: int, l: int, theta: np.ndarray, phi: np.ndarray):
-        return _sph_harm_y(l, m, theta, phi)
+        # `sph_harm_y(n, m, theta, phi)` uses (theta=polar, phi=azimuth) while the deprecated
+        # `sph_harm(m, n, theta, phi)` uses (theta=azimuth, phi=polar). Swap angles to preserve
+        # `sph_harm` semantics for downstream code.
+        return _sph_harm_y(l, m, phi, theta)
 except Exception:  # pragma: no cover - fallback for older SciPy
     from scipy.special import sph_harm as _sph_harm
 
@@ -26,23 +29,6 @@ except Exception:  # pragma: no cover - optional dependency
 
 _ALLOWED_BACKENDS = {"pyshtools", "scipy"}
 _ALLOWED_NORMS = {"ortho", "schmidt", "4pi"}
-
-
-
-def parse_bool(value: Any, *, default: bool) -> bool:
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, np.integer)):
-        return bool(value)
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"true", "1", "yes", "y"}:
-            return True
-        if lowered in {"false", "0", "no", "n"}:
-            return False
-    raise ValueError(f"Invalid boolean value: {value}")
 
 
 def _basis_cache_key(domain_spec: DomainSpec) -> tuple[Any, ...]:

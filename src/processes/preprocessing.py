@@ -1,4 +1,10 @@
-"""Process entrypoint: preprocessing."""
+"""Process entrypoint: preprocessing.
+
+Stage responsibility:
+- load decomposition coeffs
+- fit coeff_post (e.g., PCA) on train split
+- write processed coeff arrays + diagnostics
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -17,16 +23,15 @@ from mode_decomp_ml.pipeline import (
     ArtifactWriter,
     StepRecorder,
     artifact_ref,
-    build_meta,
     cfg_get,
     default_run_dir,
     load_coeff_meta,
     require_cfg_keys,
     resolve_path,
     resolve_run_dir,
-    snapshot_inputs,
 )
 from mode_decomp_ml.pipeline.artifacts import load_coeffs_npz
+from mode_decomp_ml.pipeline.process_base import finalize_run, init_run
 from mode_decomp_ml.viz import (
     coeff_channel_norms,
     coeff_energy_spectrum,
@@ -128,13 +133,7 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
     run_dir = resolve_run_dir(cfg)
     writer = ArtifactWriter(run_dir)
     steps = StepRecorder(run_dir=run_dir)
-    with steps.step(
-        "init_run",
-        outputs=[artifact_ref("configuration/run.yaml", kind="config")],
-    ):
-        writer.prepare_layout(clean=True)
-        writer.write_run_yaml(cfg)
-        snapshot_inputs(cfg, run_dir)
+    init_run(writer=writer, steps=steps, cfg=cfg, run_dir=run_dir, clean=True, snapshot=True)
 
     decomposition_dir = _resolve_decomposition_dir(cfg)
     decompose_name = _resolve_decompose_name(decomposition_dir)
@@ -231,9 +230,12 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
                 title="coeff_a_recon channel norms",
             )
 
-    meta = build_meta(cfg)
-    writer.write_manifest(meta=meta, steps=steps.to_list(), extra={"decomposition_run_dir": decomposition_dir})
-    writer.write_steps(steps.to_list())
+    finalize_run(
+        writer=writer,
+        steps=steps,
+        cfg=cfg,
+        extra={"decomposition_run_dir": decomposition_dir},
+    )
     return 0
 
 

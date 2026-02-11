@@ -35,6 +35,8 @@
 ## よくある拡張例の“差し込み位置”
 - 特徴量化（分解後）:
   - coeff_post に PCA/ICA/NMF/whitening など（train-only fit）
+- 前処理（分解前）:
+  - `mode_decomp_ml.preprocess` に実装を追加し、登録は `mode_decomp_ml.plugins.registry.register_preprocess` を使う（pickle互換のため module path は維持）
 - モデル拡張:
   - sklearn（Ridge/ElasticNet/GPR）
   - torch（MLP/CNN）

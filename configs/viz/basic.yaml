@@ -22,3 +22,46 @@ spatial_stats:
   enabled: true
   show_pred: true
   show_error: true
+
+# Extra diagnostics for understanding method/domain behavior.
+validity:
+  enabled: true
+  scatter:
+    enabled: true
+    max_samples: 8
+    max_points: 200000
+    seed: 0
+    per_channel: true
+    magnitude: true
+  r2_vs_k:
+    enabled: true
+    max_samples: 16
+    k_list: ${viz.k_list}
+  per_pixel_r2:
+    enabled: true
+    max_samples: 64
+    downsample: 1
+    hist_bins: 60
+    per_channel: true
+    magnitude: true
+  coeff_mode_hist:
+    enabled: true
+    top_k: 8
+    cols: 4
+    bins: 40
+  mask_stats:
+    enabled: true
+
+# One-page overview (for summaries/PDFs). Uses robust scaling and magnitude for vectors.
+key_dashboard:
+  enabled: true
+  sample_index: ${viz.sample_index}
+  k_list: [1, 2, 4, 8, 16, 32, 64]
+  r2_max_samples: 16
+  scatter_max_samples: 8
+  scatter_max_points: 120000
+  scatter_seed: 0
+  scatter_plot_points: 40000
+  pixel_max_samples: 64
+  pixel_downsample: 1
+  error_vmax_percentile: 99.0

@@ -1,0 +1,6 @@
+name: pod_joint
+n_modes: 16
+mask_policy: zero_fill
+inner_product: euclidean
+# mean_centered: false
+

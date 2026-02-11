@@ -1,0 +1,20 @@
+{
+  "field_kind": "scalar",
+  "grid": {
+    "H": 64,
+    "W": 64,
+    "x_range": [
+      -1.0,
+      1.0
+    ],
+    "y_range": [
+      -1.0,
+      1.0
+    ]
+  },
+  "domain": {
+    "type": "arbitrary_mask",
+    "mask_source": "file",
+    "mask_path": "mask.npy"
+  }
+}

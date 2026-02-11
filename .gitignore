@@ -6,5 +6,23 @@ work/_logs/
 .pytest_cache/
 .DS_Store
 .venv/
+.venv_release*/
 .venv_release/
 .venv_release_copy/
+
+# Large/generated artifacts (do not commit)
+runs/
+data/benchmarks/
+data/**/offset_noise_*/
+src/**/*.egg-info/
+
+# Keep eval datasets lightweight in Git: prefer `cond.npy/field.npy/mask.npy` + manifest.json.
+data/mode_decomp_eval_dataset_v1/**/conditions.csv
+data/mode_decomp_eval_dataset_v1/**/fields/*.csv
+
+# Generated benchmark reports
+summary_benchmark*.md
+summary_benchmark*.pdf
+
+# MkDocs build output
+docs_manual/site/

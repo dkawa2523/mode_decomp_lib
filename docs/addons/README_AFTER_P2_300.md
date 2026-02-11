@@ -30,7 +30,7 @@ unzip -o mode_decomp_greenfield_addon_after_p2_300_v1_flat.zip -d .
 を行います。
 
 ```bash
-python tools/apply_addon_after_p2_300.py
+python tools/_legacy/apply_addon_after_p2_300.py
 ```
 
 ## Autopilot再開
@@ -45,4 +45,4 @@ LIVE_TEE=1 PYTHON_BIN=/usr/bin/python3 ./autopilot.sh 80
 - work/tasks_p2_v2/*.md（310/320/330/340/350/390 を強化）
 - work/tasks_p2_v2/395_artifact_validator.md（追加）
 - work/tasks_p2_v2/398_release_ready_packaging.md（追加）
-- tools/apply_addon_after_p2_300.py（queueパッチ）
+- tools/_legacy/apply_addon_after_p2_300.py（queueパッチ）

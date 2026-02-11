@@ -1,0 +1,4 @@
+name: fft2_lowpass
+disk_policy: mask_zero_fill
+block_size: 8
+

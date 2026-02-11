@@ -8,7 +8,7 @@ from mode_decomp_ml.config import cfg_get
 
 from mode_decomp_ml.domain import DomainSpec
 from mode_decomp_ml.optional import require_dependency
-from mode_decomp_ml.plugins.decomposers.base import GridDecomposerBase, require_cfg
+from mode_decomp_ml.plugins.decomposers.base import GridDecomposerBase, parse_bool, require_cfg
 from mode_decomp_ml.plugins.registry import register_decomposer
 
 try:  # optional dependency
@@ -18,7 +18,6 @@ except Exception:  # pragma: no cover - SciPy optional for this decomposer
 
 _MASK_POLICIES = {"error", "zero_fill"}
 _DPSS_NORM = 2
-
 
 
 def _parse_positive_int(value: Any, *, key: str) -> int:
@@ -77,6 +76,9 @@ class PSWF2DTensorDecomposer(GridDecomposerBase):
             raise ValueError(
                 f"decompose.mask_policy must be one of {_MASK_POLICIES}, got {self._mask_policy}"
             )
+        # DPSS bases do not include an explicit DC term. For offset-dominant datasets, include the
+        # per-channel mean as the first coefficient to avoid catastrophic R^2 due to tiny ss_tot.
+        self._include_mean = parse_bool(cfg_get(cfg, "include_mean", False), default=False)
         self._basis_cache_key: tuple[Any, ...] | None = None
         self._basis_x: np.ndarray | None = None
         self._basis_y: np.ndarray | None = None
@@ -152,31 +154,123 @@ class PSWF2DTensorDecomposer(GridDecomposerBase):
         basis_x, basis_y, eig_x, eig_y = self._get_basis(domain_spec)
         allow_zero_fill = self._mask_policy == "zero_fill"
 
-        coeff_tensor = self._grid_transform(
-            field,
-            mask,
-            domain_spec,
-            allow_zero_fill=allow_zero_fill,
-            forward_fn=lambda arr: self._project(arr, basis_x, basis_y),
-            coeff_layout="CYX",
-            complex_format="real",
-            extra_meta={
-                "c_x": float(self._c_x),
-                "c_y": float(self._c_y),
-                "n_x": int(self._n_x),
-                "n_y": int(self._n_y),
-                "basis_type": "dpss",
-                "dpss_norm": _DPSS_NORM,
-                "mask_policy": self._mask_policy,
-                "mode_axes": ["y", "x"],
-                "mode_order": "row_major",
-                "mode_shape": [int(self._n_y), int(self._n_x)],
-                "eigvals_x": [float(val) for val in eig_x],
-                "eigvals_y": [float(val) for val in eig_y],
-                "projection": "tensor_product",
-                "approximation": "discrete_pswf_dpss",
-            },
+        extra_meta = {
+            "c_x": float(self._c_x),
+            "c_y": float(self._c_y),
+            "n_x": int(self._n_x),
+            "n_y": int(self._n_y),
+            "basis_type": "dpss",
+            "dpss_norm": _DPSS_NORM,
+            "mask_policy": self._mask_policy,
+            "mode_axes": ["y", "x"],
+            "mode_order": "row_major",
+            "mode_shape": [int(self._n_y), int(self._n_x)],
+            "eigvals_x": [float(val) for val in eig_x],
+            "eigvals_y": [float(val) for val in eig_y],
+            "projection": "tensor_product",
+            "approximation": "discrete_pswf_dpss",
+            "include_mean": bool(self._include_mean),
+        }
+
+        if not self._include_mean:
+            coeff_tensor = self._grid_transform(
+                field,
+                mask,
+                domain_spec,
+                allow_zero_fill=allow_zero_fill,
+                forward_fn=lambda arr: self._project(arr, basis_x, basis_y),
+                coeff_layout="CYX",
+                complex_format="real",
+                extra_meta=extra_meta,
+            )
+            self._grid_shape = domain_spec.grid_shape
+            return coeff_tensor
+
+        from mode_decomp_ml.domain import validate_decomposer_compatibility
+
+        validate_decomposer_compatibility(domain_spec, self._cfg)
+        field_3d, was_2d = self._prepare_field(
+            field, mask, domain_spec, allow_zero_fill=allow_zero_fill
         )
+
+        # Compute combined mask for mean estimation / centering.
+        combined_mask: np.ndarray | None = None
+        if mask is not None:
+            mask_arr = np.asarray(mask).astype(bool)
+            if mask_arr.ndim == 3:
+                mask_arr = mask_arr[..., 0]
+            if mask_arr.shape != domain_spec.grid_shape:
+                raise ValueError(
+                    f"mask shape {mask_arr.shape} does not match domain {domain_spec.grid_shape}"
+                )
+            combined_mask = mask_arr
+        if domain_spec.mask is not None:
+            combined_mask = domain_spec.mask if combined_mask is None else (combined_mask & domain_spec.mask)
+
+        weights = domain_spec.weights
+        if weights is None:
+            weights_arr = None
+        else:
+            weights_arr = np.asarray(weights, dtype=np.float64)
+            if weights_arr.shape != domain_spec.grid_shape:
+                raise ValueError(
+                    f"weights shape {weights_arr.shape} does not match domain {domain_spec.grid_shape}"
+                )
+            if combined_mask is not None:
+                weights_arr = np.where(combined_mask, weights_arr, 0.0)
+            if np.sum(weights_arr) <= 0.0:
+                raise ValueError("pswf2d_tensor weights are empty after masking")
+
+        # Mean-center per channel, then project residual onto the DPSS tensor basis.
+        field_f64 = np.asarray(field_3d, dtype=np.float64)
+        means: list[float] = []
+        residual = field_f64.copy()
+        for ch in range(field_f64.shape[-1]):
+            if weights_arr is None:
+                if combined_mask is None:
+                    mean = float(np.mean(field_f64[..., ch]))
+                else:
+                    if not np.any(combined_mask):
+                        raise ValueError("pswf2d_tensor mask has no valid entries")
+                    mean = float(np.mean(field_f64[..., ch][combined_mask]))
+            else:
+                mean = float(np.sum(weights_arr * field_f64[..., ch]) / np.sum(weights_arr))
+            means.append(mean)
+            residual[..., ch] = field_f64[..., ch] - mean
+        if combined_mask is not None and not combined_mask.all():
+            residual[~combined_mask] = 0.0
+
+        coeffs_flat: list[np.ndarray] = []
+        for ch, mean in enumerate(means):
+            coeff_2d = self._project(residual[..., ch], basis_x, basis_y)
+            coeff_flat = np.asarray(coeff_2d, dtype=np.float64).reshape(-1, order="C")
+            coeffs_flat.append(np.concatenate([np.asarray([mean], dtype=np.float64), coeff_flat], axis=0))
+        coeff_tensor = np.stack(coeffs_flat, axis=0)
+
+        self._coeff_shape = coeff_tensor.shape
+        self._field_ndim = 2 if was_2d else 3
+        self._grid_shape = domain_spec.grid_shape
+
+        meta = self._coeff_meta_base(
+            field_shape=field_3d.shape[:2] if was_2d else field_3d.shape,
+            field_ndim=self._field_ndim,
+            field_layout="HW" if was_2d else "HWC",
+            channels=int(field_3d.shape[-1]),
+            coeff_shape=coeff_tensor.shape,
+            coeff_layout="CK",
+            complex_format="real",
+            flatten_order="C",
+        )
+        meta.update(dict(extra_meta))
+        meta.update(
+            {
+                "mean_mode": "per_channel",
+                "mean_index": 0,
+                "residual_coeff_index_offset": 1,
+                "residual_mode_shape": [int(self._n_y), int(self._n_x)],
+            }
+        )
+        self._coeff_meta = meta
         self._grid_shape = domain_spec.grid_shape
         return coeff_tensor
 
@@ -184,11 +278,43 @@ class PSWF2DTensorDecomposer(GridDecomposerBase):
         if self._grid_shape is not None and domain_spec.grid_shape != self._grid_shape:
             raise ValueError("pswf2d_tensor domain grid does not match cached shape")
         basis_x, basis_y, _, _ = self._get_basis(domain_spec)
-        return self._grid_inverse(
-            coeff,
-            domain_spec,
-            inverse_fn=lambda arr: self._reconstruct(arr, basis_x, basis_y),
-        )
+
+        if not self._include_mean:
+            return self._grid_inverse(
+                coeff,
+                domain_spec,
+                inverse_fn=lambda arr: self._reconstruct(arr, basis_x, basis_y),
+            )
+
+        from mode_decomp_ml.domain import validate_decomposer_compatibility
+
+        validate_decomposer_compatibility(domain_spec, self._cfg)
+        if self._coeff_shape is None or self._field_ndim is None:
+            raise ValueError("transform must be called before inverse_transform")
+        coeff_tensor = self._reshape_coeff(coeff, self._coeff_shape, name=self.name)
+        if coeff_tensor.ndim != 2 or coeff_tensor.shape[1] < 1:
+            raise ValueError("pswf2d_tensor coeff must be 2D (C x K) for include_mean")
+
+        fields = []
+        for ch in range(coeff_tensor.shape[0]):
+            mean = float(coeff_tensor[ch, 0])
+            rest = np.asarray(coeff_tensor[ch, 1:], dtype=np.float64)
+            expected = int(self._n_x) * int(self._n_y)
+            if rest.size != expected:
+                raise ValueError(
+                    f"pswf2d_tensor residual coeff size {rest.size} does not match expected {expected}"
+                )
+            coeff_2d = rest.reshape((int(self._n_y), int(self._n_x)), order="C")
+            field_res = self._reconstruct(coeff_2d, basis_x, basis_y)
+            fields.append(np.asarray(field_res, dtype=np.float64) + mean)
+
+        field_hat = np.stack(fields, axis=-1)
+        if domain_spec.mask is not None:
+            field_hat = field_hat.copy()
+            field_hat[~domain_spec.mask] = 0.0
+        if self._field_ndim == 2 and field_hat.shape[-1] == 1:
+            return field_hat[..., 0]
+        return field_hat
 
 
 __all__ = ["PSWF2DTensorDecomposer"]

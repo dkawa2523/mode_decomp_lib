@@ -11,3 +11,8 @@ optuna
 # torch
 # torchvision
 # modred
+
+# Optional (tests):
+# PyWavelets
+# lightgbm
+# gpytorch

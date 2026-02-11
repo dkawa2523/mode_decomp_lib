@@ -39,3 +39,30 @@ def test_pswf2d_tensor_roundtrip_scalar() -> None:
 
     assert field_hat.shape == field.shape
     assert np.allclose(field_hat, field, atol=1e-6)
+
+
+def test_pswf2d_tensor_include_mean_reconstructs_constant_with_partial_basis() -> None:
+    field = np.full((16, 16), 3.0, dtype=np.float64)
+    domain = build_domain_spec(_domain_cfg(), field.shape)
+
+    decomposer = build_decomposer(
+        {
+            "name": "pswf2d_tensor",
+            "c_x": 3.0,
+            "c_y": 3.0,
+            "n_x": 4,
+            "n_y": 4,
+            "mask_policy": "error",
+            "include_mean": True,
+        }
+    )
+    codec = build_coeff_codec({"name": "tensor_pack_v1", "dtype_policy": "float64"})
+
+    raw_coeff = decomposer.transform(field, mask=None, domain_spec=domain)
+    raw_meta = decomposer.coeff_meta()
+    vec = codec.encode(raw_coeff, raw_meta)
+    raw_back = codec.decode(vec, raw_meta)
+    field_hat = decomposer.inverse_transform(raw_back, domain_spec=domain)
+
+    assert field_hat.shape == field.shape
+    assert np.allclose(field_hat, field, atol=1e-6)

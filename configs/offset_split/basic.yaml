@@ -1,0 +1,8 @@
+enabled: auto # false|true|auto
+f_offset: 5.0
+max_samples: 128
+seed: ${seed}
+min_residual_rms: 1e-8
+offset_def: mean_per_channel
+agg: median
+

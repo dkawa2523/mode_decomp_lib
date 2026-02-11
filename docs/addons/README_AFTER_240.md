@@ -16,7 +16,7 @@ unzip -o mode_decomp_greenfield_addon_after_240_v1_flat.zip -d .
 ## 2) queue を更新（推奨：自動パッチ）
 現在の `work/queue.json` に残タスクを安全に追加します（バックアップ付き）:
 ```bash
-python tools/apply_addon_after_240.py
+python tools/_legacy/apply_addon_after_240.py
 ```
 
 - これにより、タスク **250/260/270/290** が `work/queue.json` に追加され、
@@ -43,5 +43,5 @@ LIVE_TEE=1 PYTHON_BIN=/usr/bin/python3 ./autopilot.sh 60
 - docs/addons/25_AFTER_240_NEXT_STEPS.md
 - work/tasks_p1_tail/250_*.md など（P1残りタスク）
 - work/queue_after_240_with_tail.json（手動で置き換えたい方向け）
-- tools/apply_addon_after_240.py（queue自動パッチ）
+- tools/_legacy/apply_addon_after_240.py（queue自動パッチ）
 - work/queue_p2_ready.json（P2開始用）

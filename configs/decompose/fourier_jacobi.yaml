@@ -1,0 +1,7 @@
+# Auto-generated shim for Hydra compatibility.
+# Source: configs/decompose/analytic/fourier_jacobi.yaml
+
+defaults:
+  - /decompose/analytic/fourier_jacobi
+  - _self_
+

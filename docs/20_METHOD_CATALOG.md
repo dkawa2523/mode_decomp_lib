@@ -5,7 +5,11 @@
 ## 一次分解（Decomposer）カテゴリ
 ### 円（disk）
 - Zernike（P0）
+- Pseudo-Zernike（P1, Implemented）
 - Fourier–Bessel（P1, Implemented）
+- Fourier–Jacobi（P1, Implemented）
+- Polar FFT（P2, Implemented, approximate）
+- Disk Slepian（P3, Implemented）
 
 ### 矩形（rect）
 - FFT2（P0）
@@ -15,9 +19,13 @@
 
 ### ベクトル場（vector）
 - Helmholtz（div/curl, P2, Implemented）
+- Helmholtz Poisson（div/curl, non-periodic BC on rectangle, P3, Implemented）
 
 ### データ駆動（grid）
 - POD / SVD（P1, Implemented）
+- Joint POD（vector joint modes, P1, Implemented）
+- POD-EM（varying masks via EM/ALS, P1, Implemented）
+- Joint POD-EM（varying masks + joint channels, P1, Implemented）
 - Dictionary Learning（P2, Implemented）
   - 有効: 局所/繰り返しパターンを少数辞書で表現できる場合、maskが固定できる場合
   - 無効: サンプルごとにmaskが変わる場合、線形結合で再構成できない場合
@@ -27,8 +35,10 @@
 - VAE（P2, TODO）
 
 ### 任意マスク/不規則点
-- RBF expansion（P0–P1）
+- RBF expansion（P1, Implemented）
 - Graph Fourier（P1, Implemented）
+- Gappy Graph Fourier（P2, Implemented; fixed basis + per-sample ridge）
+- POD-EM / Joint POD-EM（P1, Implemented; varying masks）
 
 ### 多解像
 - Wavelet（P1）

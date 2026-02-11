@@ -1,0 +1,7 @@
+# Auto-generated shim for Hydra compatibility.
+# Source: configs/decompose/analytic/fourier_bessel_neumann.yaml
+
+defaults:
+  - /decompose/analytic/fourier_bessel_neumann
+  - _self_
+

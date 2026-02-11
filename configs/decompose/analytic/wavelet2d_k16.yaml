@@ -1,0 +1,8 @@
+name: wavelet2d
+wavelet: db2
+level: 4
+mode: periodization
+keep: approx
+mask_policy: zero_fill
+mask_fill: mean
+

@@ -1,27 +1,38 @@
-site_name: mode_decomp_ml Manual
-site_description: Manual for mode_decomp_ml (mode decomposition + ML pipeline)
-site_dir: ../docs_manual_site
-use_directory_urls: false
+site_name: Mode Decomposition ML Manual
+site_description: Detailed manual for mode decomposition, training, inference, and benchmarking.
+
+theme:
+  name: readthedocs
+
+docs_dir: docs
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - tables
+  - admonition
+  - fenced_code
+  - attr_list
+
+extra_javascript:
+  # Keep Mermaid vendored so diagrams work offline and don't depend on CDN availability.
+  - assets/js/mermaid.min.js
+  - assets/js/mermaid-init.js
+
 nav:
   - 概要: index.md
+  - 概要（背景/課題/機能一覧）: overview.md
   - コード構成: code-structure.md
   - 用途ごとのモデルの説明: model-usage.md
-  - 実行体の説明: execution.md
-  - 実行フロー（ドメイン別）: domain-flows.md
-  - 設定ファイルの説明: config-reference.md
+  - 実行体の説明（Local実行）: execution.md
+  - ドメインごとの実行フロー: domain-flows.md
+  - 設定ファイルの説明（YAML）: config-reference.md
   - モード分解手法: decomposition-methods.md
   - 学習機能: training.md
   - 推論機能: inference.md
   - データセット仕様: dataset-spec.md
-  - グラフ出力一覧: plots.md
-  - ドメイン別テストデータ: test-datasets.md
-  - 処理フロー: processing-flow.md
+  - グラフ出力（plots）: plots.md
+  - ドメインごとのテストデータ: test-datasets.md
+  - 処理フロー（ClearML含む）: processing-flow.md
   - 利用方法ガイドライン: usage-guidelines.md
   - 改良方法ガイドライン: improvement-guidelines.md
-  - 追加Index提案: index-proposals.md
-markdown_extensions:
-  - tables
-  - toc:
-      permalink: true
-  - admonition
-  - def_list

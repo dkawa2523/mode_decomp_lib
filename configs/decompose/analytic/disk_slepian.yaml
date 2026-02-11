@@ -1,0 +1,10 @@
+name: disk_slepian
+n_modes: 8
+freq_radius: 4
+solver: eigsh
+dense_threshold: 512
+eigsh_tol: 1.0e-6
+eigsh_maxiter: 2000
+mask_policy: allow
+boundary_condition: dirichlet
+

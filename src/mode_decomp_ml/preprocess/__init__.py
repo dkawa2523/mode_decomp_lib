@@ -8,8 +8,11 @@ from typing import Any, Callable, Dict, Mapping
 import numpy as np
 
 from mode_decomp_ml.config import cfg_get
-
-_PREPROCESS_REGISTRY: Dict[str, Callable[..., "BasePreprocess"]] = {}
+from mode_decomp_ml.plugins.registry import (
+    build_preprocess as _plugins_build_preprocess,
+    list_preprocess as _plugins_list_preprocess,
+    register_preprocess as _plugins_register_preprocess,
+)
 
 
 def _validate_train_split(split: str) -> None:
@@ -42,27 +45,16 @@ def _ensure_mask_batch(masks: np.ndarray | None, expected_shape: tuple[int, int,
 
 
 def register_preprocess(name: str) -> Callable[[Callable[..., "BasePreprocess"]], Callable[..., "BasePreprocess"]]:
-    def _wrapper(cls: Callable[..., "BasePreprocess"]) -> Callable[..., "BasePreprocess"]:
-        if name in _PREPROCESS_REGISTRY:
-            raise KeyError(f"Preprocess already registered: {name}")
-        _PREPROCESS_REGISTRY[name] = cls
-        return cls
-
-    return _wrapper
+    # Delegate registration to the central plugins registry. Keep classes in this module for pickle compatibility.
+    return _plugins_register_preprocess(name)
 
 
 def list_preprocess() -> tuple[str, ...]:
-    return tuple(sorted(_PREPROCESS_REGISTRY.keys()))
+    return _plugins_list_preprocess()
 
 
 def build_preprocess(cfg: Mapping[str, Any]) -> "BasePreprocess":
-    name = str(cfg_get(cfg, "name", "")).strip()
-    if not name:
-        raise ValueError("preprocess.name is required")
-    cls = _PREPROCESS_REGISTRY.get(name)
-    if cls is None:
-        raise KeyError(f"Unknown preprocess: {name}. Available: {list_preprocess()}")
-    return cls(cfg=cfg)
+    return _plugins_build_preprocess(cfg)
 
 
 def load_preprocess_state(path: str | Path) -> "BasePreprocess":

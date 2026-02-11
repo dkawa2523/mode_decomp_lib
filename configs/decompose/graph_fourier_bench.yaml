@@ -1,0 +1,7 @@
+# Auto-generated shim for Hydra compatibility.
+# Source: configs/decompose/analytic/graph_fourier_bench.yaml
+
+defaults:
+  - /decompose/analytic/graph_fourier_bench
+  - _self_
+

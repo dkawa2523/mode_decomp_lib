@@ -1,0 +1,8 @@
+name: dict_learning
+# NOTE: npy_dir datasets with a manifest generate per-sample masks (even if all-true).
+# Use ignore_masked_points so benchmarks work consistently across domains.
+mask_policy: ignore_masked_points
+n_components: 32
+alpha: 1.0
+max_iter: 200
+transform_algorithm: lasso_cd

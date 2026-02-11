@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any, Callable, Mapping
 
 import numpy as np
-from scipy.special import comb
+from scipy.special import comb, gammaln
 
 from mode_decomp_ml.config import cfg_get
 from .base import ZernikeFamilyBase
@@ -37,6 +37,59 @@ def radial_poly_standard(n: int, m: int, r: np.ndarray) -> np.ndarray:
         coeff = (-1.0) ** k * comb(n - k, k) * comb(n - 2 * k, k_max - k)
         radial += coeff * np.power(r, n - 2 * k)
     return radial
+
+
+def build_nm_list_pseudo(
+    n_max: int,
+    ordering: str,
+    *,
+    m_max: int | None = None,
+) -> list[tuple[int, int]]:
+    """(n,m) list for pseudo-zernike family (no parity constraint on m)."""
+    if ordering not in _ORDERING_OPTIONS:
+        raise ValueError(f"pseudo_zernike ordering must be one of {_ORDERING_OPTIONS}, got {ordering}")
+    if m_max is None:
+        m_max = n_max
+    nm_list: list[tuple[int, int]] = []
+    for n in range(n_max + 1):
+        m_cap = min(n, m_max)
+        for m in range(-m_cap, m_cap + 1):
+            nm_list.append((n, m))
+    return nm_list
+
+
+def radial_poly_pseudo(n: int, m: int, r: np.ndarray) -> np.ndarray:
+    """Pseudo-Zernike radial polynomial R_nm(r).
+
+    Definition (Dai et al., also matches common references):
+      R_nm(r) = sum_{s=0}^{n-|m|} D_{n,|m|,s} * r^{n-s}
+      D_{n,|m|,s} = (-1)^s * (2n+1-s)! / ( s! * (n-|m|-s)! * (n+|m|-s+1)! )
+
+    We compute factorial ratios via log-gamma for numerical stability.
+    """
+    m_abs = abs(int(m))
+    if n < 0:
+        raise ValueError("n must be >= 0")
+    if m_abs > n:
+        return np.zeros_like(r, dtype=np.float64)
+    out = np.zeros_like(r, dtype=np.float64)
+    # s = 0..(n-|m|)
+    s_max = n - m_abs
+    n_f = float(n)
+    for s in range(s_max + 1):
+        # log((2n+1-s)!) = gammaln(2n+2-s)
+        # denom: s! (n-|m|-s)! (n+|m|-s+1)!
+        log_num = gammaln(2.0 * n_f + 2.0 - float(s))
+        log_den = (
+            gammaln(float(s) + 1.0)
+            + gammaln(float(n - m_abs - s) + 1.0)
+            + gammaln(float(n + m_abs - s) + 2.0)
+        )
+        coeff = np.exp(log_num - log_den)
+        if s % 2 == 1:
+            coeff = -coeff
+        out += coeff * np.power(r, n - s)
+    return out
 
 
 def zernike_mode(
@@ -92,7 +145,9 @@ __all__ = [
     "_ORDERING_OPTIONS",
     "cfg_get",
     "build_nm_list",
+    "build_nm_list_pseudo",
     "radial_poly_standard",
+    "radial_poly_pseudo",
     "zernike_mode",
     "build_basis",
     "build_nm_kind_list",

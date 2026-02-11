@@ -1,0 +1,6 @@
+name: spherical_harmonics
+l_max: 7
+real_form: true
+norm: ortho
+backend: scipy
+

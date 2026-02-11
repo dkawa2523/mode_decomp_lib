@@ -8,11 +8,11 @@ from mode_decomp_ml.pipeline import (
     ArtifactWriter,
     StepRecorder,
     artifact_ref,
-    build_meta,
     cfg_get,
     require_cfg_keys,
     resolve_run_dir,
 )
+from mode_decomp_ml.pipeline.process_base import finalize_run, init_run
 from mode_decomp_ml.tracking.leaderboard import collect_rows, write_leaderboard
 
 
@@ -37,12 +37,7 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
     run_dir = resolve_run_dir(cfg)
     writer = ArtifactWriter(run_dir)
     steps = StepRecorder(run_dir=run_dir)
-    with steps.step(
-        "init_run",
-        outputs=[artifact_ref("configuration/run.yaml", kind="config")],
-    ):
-        writer.prepare_layout(clean=True)
-        writer.write_run_yaml(cfg)
+    init_run(writer=writer, steps=steps, cfg=cfg, run_dir=run_dir, clean=True, snapshot=False)
 
     patterns = cfg_get(task_cfg, "runs", None)
     if patterns is None:
@@ -82,9 +77,7 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
             descending=descending,
         )
 
-    meta = build_meta(cfg)
-    writer.write_manifest(meta=meta, steps=steps.to_list())
-    writer.write_steps(steps.to_list())
+    finalize_run(writer=writer, steps=steps, cfg=cfg)
     return 0
 
 

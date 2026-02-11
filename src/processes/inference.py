@@ -1,4 +1,10 @@
-"""Process entrypoint: inference."""
+"""Process entrypoint: inference.
+
+Stage responsibility:
+- load decomposition/preprocessing/train states
+- run model inference (cond -> coeff) and reconstruct field (decode + inverse_transform)
+- write predictions and diagnostics under `run_dir/`
+"""
 from __future__ import annotations
 
 import csv
@@ -18,7 +24,6 @@ from mode_decomp_ml.pipeline import (
     ArtifactWriter,
     StepRecorder,
     artifact_ref,
-    build_meta,
     cfg_get,
     default_run_dir,
     load_coeff_meta,
@@ -26,9 +31,9 @@ from mode_decomp_ml.pipeline import (
     require_cfg_keys,
     resolve_path,
     resolve_run_dir,
-    snapshot_inputs,
 )
 from mode_decomp_ml.pipeline.loaders import load_model_state, load_preprocess_state_from_run
+from mode_decomp_ml.pipeline.process_base import finalize_run, init_run
 from mode_decomp_ml.plugins.coeff_post import BaseCoeffPost
 from mode_decomp_ml.plugins.codecs import BaseCoeffCodec
 from mode_decomp_ml.plugins.decomposers import BaseDecomposer
@@ -310,6 +315,53 @@ def _plot_field_stats(field_hat: np.ndarray, *, out_dir: Path, mask: np.ndarray 
         )
 
 
+def _plot_field_value_hist(
+    field_hat: np.ndarray,
+    *,
+    out_dir: Path,
+    mask: np.ndarray | None,
+    bins: int,
+) -> None:
+    field_hat = np.asarray(field_hat)
+    if field_hat.ndim != 4 or field_hat.size == 0:
+        return
+    mask_arr = None
+    if mask is not None:
+        mask_arr = np.asarray(mask).astype(bool)
+        if mask_arr.ndim != 2:
+            mask_arr = None
+
+    def _masked_values(arr: np.ndarray) -> np.ndarray:
+        if mask_arr is None:
+            return arr.reshape(-1)
+        return arr[:, mask_arr].reshape(-1)
+
+    channels = int(field_hat.shape[-1])
+    for ch in range(channels):
+        vals = _masked_values(field_hat[..., ch])
+        vals = vals[np.isfinite(vals)]
+        if vals.size == 0:
+            continue
+        fig, ax = plt.subplots(figsize=(4.2, 3.0), constrained_layout=True)
+        ax.hist(vals, bins=int(bins), color="#4C78A8", alpha=0.85)
+        ax.set_xlabel(f"field value (ch{ch})")
+        ax.set_ylabel("count")
+        fig.savefig(out_dir / f"field_value_hist_ch{ch}.png", dpi=150)
+        plt.close(fig)
+
+    if channels > 1:
+        mag = np.linalg.norm(field_hat, axis=-1)
+        vals = _masked_values(mag)
+        vals = vals[np.isfinite(vals)]
+        if vals.size:
+            fig, ax = plt.subplots(figsize=(4.2, 3.0), constrained_layout=True)
+            ax.hist(vals, bins=int(bins), color="#54A24B", alpha=0.85)
+            ax.set_xlabel("field magnitude")
+            ax.set_ylabel("count")
+            fig.savefig(out_dir / "field_value_hist_mag.png", dpi=150)
+            plt.close(fig)
+
+
 def _plot_coeff_diagnostics(
     coeff_a: np.ndarray,
     coeff_meta: Mapping[str, Any] | None,
@@ -374,13 +426,7 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
     run_dir = resolve_run_dir(cfg)
     writer = ArtifactWriter(run_dir)
     steps = StepRecorder(run_dir=run_dir)
-    with steps.step(
-        "init_run",
-        outputs=[artifact_ref("configuration/run.yaml", kind="config")],
-    ):
-        writer.prepare_layout(clean=True)
-        writer.write_run_yaml(cfg)
-        snapshot_inputs(cfg, run_dir)
+    init_run(writer=writer, steps=steps, cfg=cfg, run_dir=run_dir, clean=True, snapshot=True)
 
     decomposition_dir = _resolve_run_dir(cfg, "decomposition_run_dir", "decomposition")
     preprocessing_dir = _resolve_run_dir(cfg, "preprocessing_run_dir", "preprocessing")
@@ -608,6 +654,12 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
         max_points = int(cfg_get(viz_cfg, "scatter_max_points", 2000))
         field_stats_cfg = cfg_get(viz_cfg, "field_stats", {}) or {}
         field_stats_enabled = bool(cfg_get(field_stats_cfg, "enabled", True))
+        field_hist_cfg = cfg_get(viz_cfg, "field_hist", {}) or {}
+        field_hist_enabled = bool(cfg_get(field_hist_cfg, "enabled", True))
+        field_hist_bins = int(cfg_get(field_hist_cfg, "bins", 60))
+        coeff_std_cfg = cfg_get(viz_cfg, "coeff_std_diag", {}) or {}
+        coeff_std_enabled = bool(cfg_get(coeff_std_cfg, "enabled", True))
+        coeff_std_bins = int(cfg_get(coeff_std_cfg, "bins", 60))
         hist_bins = int(cfg_get(viz_cfg, "coeff_hist_bins", 60))
         hist_scale = str(cfg_get(viz_cfg, "coeff_hist_scale", "log")).strip().lower()
         spectrum_scale = str(cfg_get(viz_cfg, "coeff_spectrum_scale", "log")).strip().lower()
@@ -618,6 +670,8 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
             _plot_field_samples_grid(field_hat, out_dir=writer.plots_dir, max_samples=max_samples, mask=domain_mask)
             if field_stats_enabled:
                 _plot_field_stats(field_hat, out_dir=writer.plots_dir, mask=domain_mask)
+            if field_hist_enabled:
+                _plot_field_value_hist(field_hat, out_dir=writer.plots_dir, mask=domain_mask, bins=field_hist_bins)
         if coeff_a is not None:
             _plot_coeff_diagnostics(
                 coeff_a,
@@ -635,6 +689,16 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
                     title="coeff channel norms",
                     max_points=max_points,
                 )
+        if coeff_std is not None and coeff_std_enabled:
+            vals = np.asarray(coeff_std, dtype=float).reshape(-1)
+            vals = vals[np.isfinite(vals)]
+            if vals.size:
+                fig, ax = plt.subplots(figsize=(4.2, 3.0), constrained_layout=True)
+                ax.hist(vals, bins=int(coeff_std_bins), color="#F58518", alpha=0.85)
+                ax.set_xlabel("coeff std")
+                ax.set_ylabel("count")
+                fig.savefig(writer.plots_dir / "coeff_std_hist.png", dpi=150)
+                plt.close(fig)
         if objective_values is not None and conds is not None:
             _plot_objective_scatter(
                 conds,
@@ -652,17 +716,16 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
         if study is not None:
             _save_optuna_plots(study, writer.plots_dir / "optuna")
 
-    meta = build_meta(cfg)
-    writer.write_manifest(
-        meta=meta,
-        steps=steps.to_list(),
+    finalize_run(
+        writer=writer,
+        steps=steps,
+        cfg=cfg,
         extra={
             "decomposition_run_dir": decomposition_dir,
             "preprocessing_run_dir": preprocessing_dir,
             "train_run_dir": train_dir,
         },
     )
-    writer.write_steps(steps.to_list())
     return 0
 
 

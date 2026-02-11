@@ -1,0 +1,8 @@
+name: rbf_expansion
+kernel: gaussian
+centers: stride
+n_centers: 16
+length_scale: 0.6
+ridge_alpha: 1.0e-6
+mask_policy: ignore_masked_points
+

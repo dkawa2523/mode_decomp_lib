@@ -1,0 +1,24 @@
+{
+  "field_kind": "scalar",
+  "grid": {
+    "H": 64,
+    "W": 64,
+    "x_range": [
+      -1.0,
+      1.0
+    ],
+    "y_range": [
+      -1.0,
+      1.0
+    ]
+  },
+  "domain": {
+    "type": "annulus",
+    "center": [
+      0.0,
+      0.0
+    ],
+    "r_inner": 0.35,
+    "r_outer": 1.0
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "field_kind": "vector",
+  "grid": {
+    "H": 64,
+    "W": 64,
+    "x_range": [
+      0.0,
+      1.0
+    ],
+    "y_range": [
+      0.0,
+      1.0
+    ]
+  },
+  "domain": {
+    "type": "rectangle"
+  }
+}

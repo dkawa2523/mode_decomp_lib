@@ -6,7 +6,8 @@ defaults:
   - domain: rectangle
   - preprocess: basic
   - decompose: fft2
-  - codec: none
+  - codec: auto
+  - offset_split: basic
   - coeff_post: none
   - model: ridge
   - train: basic

@@ -1,0 +1,8 @@
+name: fourier_jacobi
+m_max: 4
+k_max: 4
+ordering: m_then_k
+normalization: orthonormal
+boundary_condition: dirichlet
+mask_policy: ignore_masked_points
+

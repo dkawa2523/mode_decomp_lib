@@ -1,0 +1,11 @@
+name: spherical_slepian
+l_max: 3
+k: 8
+backend: scipy
+region_mask: null
+region_cap:
+  lat: 0.0
+  lon: 0.0
+  radius: 60.0
+  angle_unit: deg
+

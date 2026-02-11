@@ -1,0 +1,7 @@
+# Auto-generated shim for Hydra compatibility.
+# Source: configs/decompose/analytic/fft2_lowpass_disk_k64.yaml
+
+defaults:
+  - /decompose/analytic/fft2_lowpass_disk_k64
+  - _self_
+

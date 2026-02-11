@@ -1,0 +1,4 @@
+name: fft2_lowpass
+disk_policy: error
+block_size: 8
+

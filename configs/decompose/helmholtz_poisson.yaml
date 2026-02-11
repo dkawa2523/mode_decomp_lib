@@ -1,0 +1,5 @@
+# Source: configs/decompose/analytic/helmholtz_poisson.yaml
+
+defaults:
+  - /decompose/analytic/helmholtz_poisson
+

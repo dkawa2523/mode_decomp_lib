@@ -1,0 +1,7 @@
+# Auto-generated shim for Hydra compatibility.
+# Source: configs/decompose/data_driven/dict_learning_bench.yaml
+
+defaults:
+  - /decompose/data_driven/dict_learning_bench
+  - _self_
+

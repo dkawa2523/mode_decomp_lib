@@ -58,4 +58,6 @@ def test_autoencoder_roundtrip() -> None:
     assert np.isfinite(field_hat).all()
     meta = decomposer.coeff_meta()
     assert meta["method"] == "autoencoder"
-    assert meta["coeff_shape"] == [4]
+    # Default behavior includes per-channel mean + latent.
+    assert meta["include_mean"] is True
+    assert meta["coeff_shape"] == [5]

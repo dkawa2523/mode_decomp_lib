@@ -1,0 +1,7 @@
+# Auto-generated shim for Hydra compatibility.
+# Source: configs/decompose/analytic/pod_joint.yaml
+
+defaults:
+  - /decompose/analytic/pod_joint
+  - _self_
+

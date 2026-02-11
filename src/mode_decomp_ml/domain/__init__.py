@@ -375,16 +375,64 @@ def validate_decomposer_compatibility(
     if not method:
         raise ValueError("decompose.name is required")
 
-    if method == "zernike" and domain_spec.name != "disk":
-        raise ValueError("zernike requires disk domain")
+    allowed_domains_by_method: dict[str, set[str] | None] = {
+        # Disk / annulus special functions.
+        "zernike": {"disk"},
+        "pseudo_zernike": {"disk"},
+        "annular_zernike": {"annulus"},
+        "fourier_bessel": {"disk"},
+        "fourier_jacobi": {"disk"},
+        "polar_fft": {"disk", "annulus"},
+        "disk_slepian": {"disk"},
+        # Grid / mask-compatible.
+        "rbf_expansion": {"rectangle", "disk", "annulus", "arbitrary_mask", "mask"},
+        "pod_joint": {"rectangle", "disk", "annulus", "arbitrary_mask", "mask"},
+        "pod_em": {"rectangle", "disk", "annulus", "arbitrary_mask", "mask"},
+        "pod_joint_em": {"rectangle", "disk", "annulus", "arbitrary_mask", "mask"},
+        "gappy_graph_fourier": {"rectangle", "disk", "annulus", "arbitrary_mask", "mask"},
+        # FFT/DCT family is broadly applicable, but disk needs a policy override.
+        "fft2": None,
+        "dct2": None,
+        "fft2_lowpass": None,
+        # Mesh / vector physics.
+        "laplace_beltrami": {"mesh"},
+        "helmholtz": {"rectangle", "arbitrary_mask", "mask"},
+        "helmholtz_poisson": {"rectangle"},
+        # Rectangle-only.
+        "pswf2d_tensor": {"rectangle"},
+        # Wavelet can operate on masked grids (with caveats).
+        "wavelet2d": {"rectangle", "disk", "arbitrary_mask", "mask"},
+        # Sphere-grid.
+        "spherical_harmonics": {"sphere_grid"},
+        "spherical_slepian": {"sphere_grid"},
+    }
 
-    if method == "annular_zernike" and domain_spec.name != "annulus":
-        raise ValueError("annular_zernike requires annulus domain")
+    allowed = allowed_domains_by_method.get(method)
+    if allowed is not None and domain_spec.name not in allowed:
+        msg_by_method = {
+            "zernike": "zernike requires disk domain",
+            "pseudo_zernike": "pseudo_zernike requires disk domain",
+            "annular_zernike": "annular_zernike requires annulus domain",
+            "fourier_bessel": "fourier_bessel requires disk domain",
+            "fourier_jacobi": "fourier_jacobi requires disk domain",
+            "polar_fft": "polar_fft requires disk or annulus domain",
+            "disk_slepian": "disk_slepian requires disk domain",
+            "rbf_expansion": "rbf_expansion requires a grid domain with x/y coords",
+            "pod_joint": "pod_joint requires a grid domain",
+            "pod_em": "pod_em requires a grid domain",
+            "pod_joint_em": "pod_joint_em requires a grid domain",
+            "gappy_graph_fourier": "gappy_graph_fourier requires a grid domain",
+            "laplace_beltrami": "laplace_beltrami requires mesh domain",
+            "helmholtz": "helmholtz requires rectangle or mask domain",
+            "helmholtz_poisson": "helmholtz_poisson requires rectangle domain",
+            "wavelet2d": "wavelet2d requires rectangle or mask-compatible domain",
+            "pswf2d_tensor": "pswf2d_tensor requires rectangle domain",
+            "spherical_harmonics": "spherical_harmonics requires sphere_grid domain",
+            "spherical_slepian": "spherical_slepian requires sphere_grid domain",
+        }
+        raise ValueError(msg_by_method.get(method, f"{method} is incompatible with domain {domain_spec.name}"))
 
-    if method == "fourier_bessel" and domain_spec.name != "disk":
-        raise ValueError("fourier_bessel requires disk domain")
-
-    if method in {"fft2", "dct2"} and domain_spec.name == "disk":
+    if method in {"fft2", "dct2", "fft2_lowpass"} and domain_spec.name == "disk":
         policy = str(cfg_get(decomposer_cfg, "disk_policy", "")).strip()
         if not policy:
             raise ValueError("decompose.disk_policy is required for disk domain")
@@ -392,21 +440,3 @@ def validate_decomposer_compatibility(
             raise ValueError(f"decompose.disk_policy must be one of {_DISK_POLICIES}, got {policy}")
         if policy == "error":
             raise ValueError(f"{method} does not allow disk domain without mask_zero_fill")
-
-    if method == "laplace_beltrami" and domain_spec.name != "mesh":
-        raise ValueError("laplace_beltrami requires mesh domain")
-
-    if method == "helmholtz" and domain_spec.name not in {"rectangle", "arbitrary_mask", "mask"}:
-        raise ValueError("helmholtz requires rectangle or mask domain")
-
-    if method == "wavelet2d" and domain_spec.name not in {"rectangle", "disk", "arbitrary_mask", "mask"}:
-        raise ValueError("wavelet2d requires rectangle or mask-compatible domain")
-
-    if method == "pswf2d_tensor" and domain_spec.name != "rectangle":
-        raise ValueError("pswf2d_tensor requires rectangle domain")
-
-    if method == "spherical_harmonics" and domain_spec.name != "sphere_grid":
-        raise ValueError("spherical_harmonics requires sphere_grid domain")
-
-    if method == "spherical_slepian" and domain_spec.name != "sphere_grid":
-        raise ValueError("spherical_slepian requires sphere_grid domain")

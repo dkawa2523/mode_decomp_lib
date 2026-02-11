@@ -17,6 +17,7 @@ _DECOMPOSER_REGISTRY: Dict[str, Callable[..., "BaseDecomposer"]] = {}
 _COEFF_POST_REGISTRY: Dict[str, Callable[..., "BaseCoeffPost"]] = {}
 _REGRESSOR_REGISTRY: Dict[str, Callable[..., "BaseRegressor"]] = {}
 _COEFF_CODEC_REGISTRY: Dict[str, Callable[..., "BaseCoeffCodec"]] = {}
+_PREPROCESS_REGISTRY: Dict[str, Callable[..., Any]] = {}
 
 
 def _register(
@@ -118,6 +119,24 @@ def build_regressor(cfg: Mapping[str, Any]) -> "BaseRegressor":
     )
 
 
+def register_preprocess(name: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    # Preprocess classes live in `mode_decomp_ml.preprocess` to preserve pickle module paths.
+    return _register(name, _PREPROCESS_REGISTRY, label="Preprocess")
+
+
+def list_preprocess() -> tuple[str, ...]:
+    return tuple(sorted(_PREPROCESS_REGISTRY.keys()))
+
+
+def build_preprocess(cfg: Mapping[str, Any]) -> Any:
+    return _build_from_registry(
+        cfg,
+        _PREPROCESS_REGISTRY,
+        label="preprocess",
+        list_fn=list_preprocess,
+    )
+
+
 __all__ = [
     "register_decomposer",
     "list_decomposers",
@@ -131,4 +150,7 @@ __all__ = [
     "register_regressor",
     "list_regressors",
     "build_regressor",
+    "register_preprocess",
+    "list_preprocess",
+    "build_preprocess",
 ]

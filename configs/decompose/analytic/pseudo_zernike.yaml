@@ -1,0 +1,7 @@
+name: pseudo_zernike
+n_max: 6
+# m_max: 6  # optional (defaults to n_max)
+ordering: n_then_m
+normalization: orthonormal
+boundary_condition: unit_disk
+

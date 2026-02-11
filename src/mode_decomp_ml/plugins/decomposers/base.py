@@ -369,11 +369,25 @@ class ChannelwiseAdapter(BaseDecomposer):
         self._field_ndim: int | None = None
         self._channel_shapes: list[tuple[int, ...]] | None = None
 
+    def __getstate__(self) -> dict[str, Any]:
+        state = dict(self.__dict__)
+        # The factory can be a lambda/closure (not picklable). It's only needed before
+        # per-channel decomposers are materialized, so drop it from serialized state.
+        state["_factory"] = None
+        return state
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        self.__dict__.update(state)
+
     def _ensure_decomposers(self, channels: int) -> None:
         if self._decomposers:
             if len(self._decomposers) != channels:
                 raise ValueError("channelwise adapter channel count mismatch")
             return
+        if self._factory is None:
+            raise ValueError(
+                "channelwise adapter is missing decomposer_factory (likely loaded from state); refit is required"
+            )
         self._decomposers = [self._factory(dict(self._cfg)) for _ in range(channels)]
         self._channels = channels
 
@@ -402,11 +416,24 @@ class ChannelwiseAdapter(BaseDecomposer):
                 if field.ndim != 3:
                     raise ValueError("channelwise adapter expects 3D fields in dataset")
                 field_ch = field[..., self._channel]
+                cond_raw = getattr(sample, "cond", None)
+                if cond_raw is None:
+                    cond = np.zeros((0,), dtype=np.float32)
+                else:
+                    cond = np.asarray(cond_raw, dtype=np.float32).reshape(-1)
+                meta_raw = getattr(sample, "meta", None)
+                if meta_raw is None:
+                    meta = {}
+                else:
+                    try:
+                        meta = dict(meta_raw)
+                    except Exception:
+                        meta = {}
                 return FieldSample(
-                    cond=sample.cond,
+                    cond=cond,
                     field=field_ch,
-                    mask=sample.mask,
-                    meta=dict(sample.meta),
+                    mask=getattr(sample, "mask", None),
+                    meta=meta,
                 )
 
         for idx, decomposer in enumerate(self._decomposers):

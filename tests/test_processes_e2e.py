@@ -108,6 +108,8 @@ def test_process_pipeline_e2e(tmp_path: Path) -> None:
     train_metrics = json.loads(train_metrics_path.read_text(encoding="utf-8"))
     assert "fit_time_sec" in train_metrics
     assert train_metrics["fit_time_sec"] >= 0.0
+    # Field-space metrics should be present when viz.field_eval is enabled (default).
+    assert ("val_field_r2" in train_metrics) or ("train_field_r2" in train_metrics)
 
     with np.load(inference_dir / "outputs" / "preds.npz") as data:
         coeff_pred = data["coeff"]

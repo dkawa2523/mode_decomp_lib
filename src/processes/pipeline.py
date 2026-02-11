@@ -15,11 +15,10 @@ from mode_decomp_ml.pipeline import (
     PROJECT_ROOT,
     StepRecorder,
     artifact_ref,
-    build_meta,
     cfg_get,
     resolve_run_dir,
-    snapshot_inputs,
 )
+from mode_decomp_ml.pipeline.process_base import finalize_run, init_run
 from processes import decomposition as decomposition_process
 from processes import preprocessing as preprocessing_process
 from processes import train as train_process
@@ -204,17 +203,12 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
     if cfg is None:
         raise ValueError("pipeline requires config from the Hydra entrypoint")
     task_cfg = _require_task_config(cfg_get(cfg, "task", None))
+    continue_on_error = bool(cfg_get(task_cfg, "continue_on_error", False))
 
     run_dir = resolve_run_dir(cfg)
     writer = ArtifactWriter(run_dir)
     steps = StepRecorder(run_dir=run_dir)
-    with steps.step(
-        "init_run",
-        outputs=[artifact_ref("configuration/run.yaml", kind="config")],
-    ):
-        writer.prepare_layout(clean=True)
-        writer.write_run_yaml(cfg)
-        snapshot_inputs(cfg, run_dir)
+    init_run(writer=writer, steps=steps, cfg=cfg, run_dir=run_dir, clean=True, snapshot=True)
 
     base_cfg = _to_container(cfg)
     seed_value = cfg_get(base_cfg, "seed", None)
@@ -246,21 +240,41 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
                 decomp_cfg["run_dir"] = str(decomp_run_dir)
                 decomp_cfg["output"] = {"root": str(output_root), "name": combo_base}
                 decomp_cfg["decompose"] = _to_container(decompose_cfg)
-                decomposition_process.main(decomp_cfg)
+                decomp_status = "ok"
+                decomp_error = None
+                decomp_cached = False
+                try:
+                    decomposition_process.main(decomp_cfg)
+                except Exception as exc:
+                    decomp_status = "failed"
+                    decomp_error = f"{type(exc).__name__}: {exc}"
+                    if not continue_on_error:
+                        raise
             else:
                 if not decomp_run_dir.exists():
                     raise ValueError(
                         "pipeline stages skip decomposition but run dir is missing: "
                         f"{decomp_run_dir}"
                     )
+                # Reuse existing decomposition artifacts.
+                decomp_status = "ok"
+                decomp_error = None
+                decomp_cached = True
 
             decompositions.append(
                 {
                     "name": combo_base,
                     "decompose": decompose_name,
                     "decomposition_run_dir": str(decomp_run_dir),
+                    "status": decomp_status,
+                    "error": decomp_error,
+                    "cached": decomp_cached,
                 }
             )
+
+            if decomp_status != "ok":
+                # Can't proceed to preprocessing/train without decomposition artifacts.
+                continue
 
             if "preprocessing" not in stages and "train" not in stages:
                 continue
@@ -278,7 +292,24 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
                     preproc_cfg["run_dir"] = str(preproc_run_dir)
                     preproc_cfg["output"] = {"root": str(output_root), "name": preproc_name}
                     preproc_cfg["coeff_post"] = _to_container(coeff_post_cfg)
-                    preprocessing_process.main(preproc_cfg)
+                    try:
+                        preprocessing_process.main(preproc_cfg)
+                    except Exception as exc:
+                        if not continue_on_error:
+                            raise
+                        # Skip training if preprocessing failed.
+                        trainings.append(
+                            {
+                                "name": preproc_name,
+                                "decompose": decompose_name,
+                                "coeff_post": coeff_post_name,
+                                "model": None,
+                                "train_run_dir": None,
+                                "status": "skipped",
+                                "error": f"preprocessing failed: {type(exc).__name__}: {exc}",
+                            }
+                        )
+                        continue
                 else:
                     if "train" in stages and not preproc_run_dir.exists():
                         raise ValueError(
@@ -300,7 +331,15 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
                     train_cfg["run_dir"] = str(train_run_dir)
                     train_cfg["output"] = {"root": str(output_root), "name": model_run_name}
                     train_cfg["model"] = _to_container(model_cfg)
-                    train_process.main(train_cfg)
+                    train_status = "ok"
+                    train_error = None
+                    try:
+                        train_process.main(train_cfg)
+                    except Exception as exc:
+                        train_status = "failed"
+                        train_error = f"{type(exc).__name__}: {exc}"
+                        if not continue_on_error:
+                            raise
                     trainings.append(
                         {
                             "name": model_run_name,
@@ -308,6 +347,8 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
                             "coeff_post": coeff_post_name,
                             "model": model_name,
                             "train_run_dir": str(train_run_dir),
+                            "status": train_status,
+                            "error": train_error,
                         }
                     )
 
@@ -328,12 +369,26 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
             metrics = yaml.safe_load(metrics_path.read_text(encoding="utf-8")) or {}
         else:
             metrics = {}
+        # Keep leaderboards small and CSV-friendly. Large arrays (e.g. energy_cumsum)
+        # are still available in each run's outputs/metrics.json.
+        energy_cumsum = metrics.pop("energy_cumsum", None)
         record = dict(row)
         record.update(metrics)
         required = _required_components(metrics.get("energy_cumsum"), threshold=energy_threshold)
+        # If we removed energy_cumsum from metrics, compute required from the original payload.
+        if required is None and energy_cumsum is not None:
+            required = _required_components(energy_cumsum, threshold=energy_threshold)
         if required is not None:
             record["energy_threshold"] = energy_threshold
             record["n_components_required"] = required
+        if energy_cumsum is not None:
+            try:
+                values = np.asarray(energy_cumsum, dtype=float).reshape(-1)
+                record["energy_cumsum_len"] = int(values.size)
+                record["energy_cumsum_last"] = float(values[-1]) if values.size else None
+            except Exception:
+                record["energy_cumsum_len"] = None
+                record["energy_cumsum_last"] = None
         decomp_rows.append(record)
     _write_leaderboard(
         decomp_rows,
@@ -352,11 +407,12 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
 
     train_rows = []
     for row in trainings:
-        metrics_path = Path(row["train_run_dir"]) / "outputs" / "metrics.json"
-        if metrics_path.exists():
-            metrics = yaml.safe_load(metrics_path.read_text(encoding="utf-8")) or {}
-        else:
-            metrics = {}
+        train_run_dir = row.get("train_run_dir")
+        metrics = {}
+        if train_run_dir:
+            metrics_path = Path(train_run_dir) / "outputs" / "metrics.json"
+            if metrics_path.exists():
+                metrics = yaml.safe_load(metrics_path.read_text(encoding="utf-8")) or {}
         record = dict(row)
         record.update(metrics)
         train_rows.append(record)
@@ -375,9 +431,7 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
             label_key="model",
         )
 
-    meta = build_meta(cfg)
-    writer.write_manifest(meta=meta, steps=steps.to_list())
-    writer.write_steps(steps.to_list())
+    finalize_run(writer=writer, steps=steps, cfg=cfg)
     return 0
 
 

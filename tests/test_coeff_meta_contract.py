@@ -77,6 +77,27 @@ def test_coeff_meta_contract_graph_fourier() -> None:
     meta = decomposer.coeff_meta()
     _assert_required(meta)
 
+def test_coeff_meta_contract_fourier_jacobi() -> None:
+    # Build a disk domain matching the field shape for the decomposer.
+    disk = build_domain_spec(
+        {"name": "disk", "center": [0.0, 0.0], "radius": 1.0, "x_range": [-1.0, 1.0], "y_range": [-1.0, 1.0]},
+        (9, 9),
+    )
+    field = np.zeros((9, 9, 1), dtype=np.float32)
+    cfg = {
+        "name": "fourier_jacobi",
+        "m_max": 1,
+        "k_max": 1,
+        "ordering": "m_then_k",
+        "normalization": "orthonormal",
+        "boundary_condition": "dirichlet",
+        "mask_policy": "ignore_masked_points",
+    }
+    decomposer = build_decomposer(cfg)
+    _ = decomposer.transform(field, mask=None, domain_spec=disk)
+    meta = decomposer.coeff_meta()
+    _assert_required(meta)
+
 
 def test_coeff_meta_contract_laplace_beltrami() -> None:
     vertices = np.array(
@@ -146,5 +167,188 @@ def test_coeff_meta_contract_wavelet2d() -> None:
     }
     decomposer = build_decomposer(cfg)
     _ = decomposer.transform(field, mask=None, domain_spec=domain)
+    meta = decomposer.coeff_meta()
+    _assert_required(meta)
+
+
+def test_coeff_meta_contract_polar_fft() -> None:
+    disk = build_domain_spec(
+        {"name": "disk", "center": [0.0, 0.0], "radius": 1.0, "x_range": [-1.0, 1.0], "y_range": [-1.0, 1.0]},
+        (9, 9),
+    )
+    field = np.zeros((9, 9, 1), dtype=np.float32)
+    cfg = {
+        "name": "polar_fft",
+        "n_r": 16,
+        "n_theta": 32,
+        "radial_transform": "dct",
+        "angular_transform": "fft",
+        "interpolation": "bilinear",
+        "boundary_condition": "dirichlet",
+        "mask_policy": "ignore_masked_points",
+    }
+    decomposer = build_decomposer(cfg)
+    _ = decomposer.transform(field, mask=None, domain_spec=disk)
+    meta = decomposer.coeff_meta()
+    _assert_required(meta)
+
+
+def test_coeff_meta_contract_disk_slepian() -> None:
+    disk = build_domain_spec(
+        {"name": "disk", "center": [0.0, 0.0], "radius": 1.0, "x_range": [-1.0, 1.0], "y_range": [-1.0, 1.0]},
+        (17, 17),
+    )
+    field = np.zeros((17, 17, 1), dtype=np.float64)
+    cfg = {
+        "name": "disk_slepian",
+        "n_modes": 4,
+        "freq_radius": 3,
+        "solver": "eigsh",
+        "dense_threshold": 512,
+        "eigsh_tol": 1.0e-6,
+        "eigsh_maxiter": 2000,
+        "mask_policy": "allow",
+        "boundary_condition": "dirichlet",
+    }
+    decomposer = build_decomposer(cfg)
+    decomposer.fit(domain_spec=disk)
+    _ = decomposer.transform(field, mask=None, domain_spec=disk)
+    meta = decomposer.coeff_meta()
+    _assert_required(meta)
+
+
+def test_coeff_meta_contract_rbf_expansion() -> None:
+    domain = build_domain_spec({"name": "rectangle", "x_range": [0.0, 1.0], "y_range": [0.0, 1.0]}, (9, 9))
+    field = np.zeros((9, 9, 1), dtype=np.float32)
+    cfg = {
+        "name": "rbf_expansion",
+        "kernel": "gaussian",
+        "centers": "stride",
+        "stride": 3,
+        "length_scale": 0.25,
+        "ridge_alpha": 1.0e-6,
+        "mask_policy": "ignore_masked_points",
+    }
+    decomposer = build_decomposer(cfg)
+    _ = decomposer.transform(field, mask=None, domain_spec=domain)
+    meta = decomposer.coeff_meta()
+    _assert_required(meta)
+
+
+def test_coeff_meta_contract_pod_joint() -> None:
+    domain = build_domain_spec({"name": "rectangle", "x_range": [0.0, 1.0], "y_range": [0.0, 1.0]}, (9, 9))
+    rng = np.random.default_rng(0)
+    fields = [rng.normal(size=(9, 9, 2)).astype(np.float64) for _ in range(3)]
+    masks = [None, None, None]
+
+    class _Dataset:
+        def __len__(self) -> int:
+            return len(fields)
+
+        def __getitem__(self, idx: int):
+            return type("Sample", (), {"field": fields[idx], "mask": masks[idx]})
+
+    cfg = {"name": "pod_joint", "n_modes": 2, "mask_policy": "error", "inner_product": "euclidean"}
+    decomposer = build_decomposer(cfg)
+    decomposer.fit(dataset=_Dataset(), domain_spec=domain)
+    _ = decomposer.transform(fields[0], mask=None, domain_spec=domain)
+    meta = decomposer.coeff_meta()
+    _assert_required(meta)
+
+
+def test_coeff_meta_contract_gappy_graph_fourier() -> None:
+    domain = build_domain_spec({"name": "rectangle", "x_range": [0.0, 1.0], "y_range": [0.0, 1.0]}, (9, 9))
+    field = np.zeros((9, 9, 1), dtype=np.float64)
+    cfg = {
+        "name": "gappy_graph_fourier",
+        "n_modes": 4,
+        "connectivity": 4,
+        "laplacian_type": "combinatorial",
+        "mask_policy": "allow_full",
+        "solver": "dense",
+        "dense_threshold": 4096,
+        "eigsh_tol": 1.0e-6,
+        "eigsh_maxiter": 2000,
+        "ridge_alpha": 1.0e-6,
+    }
+    decomposer = build_decomposer(cfg)
+    decomposer.fit(domain_spec=domain)
+    _ = decomposer.transform(field, mask=None, domain_spec=domain)
+    meta = decomposer.coeff_meta()
+    _assert_required(meta)
+
+
+def test_coeff_meta_contract_helmholtz_poisson() -> None:
+    domain = build_domain_spec({"name": "rectangle", "x_range": [0.0, 1.0], "y_range": [0.0, 1.0]}, (9, 9))
+    field = np.zeros((9, 9, 2), dtype=np.float64)
+    cfg = {"name": "helmholtz_poisson", "boundary_condition": "periodic", "mask_policy": "error"}
+    decomposer = build_decomposer(cfg)
+    _ = decomposer.transform(field, mask=None, domain_spec=domain)
+    meta = decomposer.coeff_meta()
+    _assert_required(meta)
+
+
+def test_coeff_meta_contract_pod_em() -> None:
+    domain = build_domain_spec({"name": "rectangle", "x_range": [0.0, 1.0], "y_range": [0.0, 1.0]}, (9, 9))
+    rng = np.random.default_rng(2)
+    fields = [rng.normal(size=(9, 9, 1)).astype(np.float64) for _ in range(4)]
+    masks = []
+    for _ in range(4):
+        m = rng.random(size=(9, 9)) < 0.8
+        m[:2, :2] = True
+        masks.append(m.astype(bool))
+
+    class _Dataset:
+        def __len__(self) -> int:
+            return len(fields)
+
+        def __getitem__(self, idx: int):
+            return type("Sample", (), {"field": fields[idx], "mask": masks[idx]})
+
+    cfg = {
+        "name": "pod_em",
+        "n_modes": 2,
+        "n_iter": 2,
+        "ridge_alpha": 1.0e-6,
+        "init": "mean_fill",
+        "inner_product": "euclidean",
+        "mask_policy": "allow",
+    }
+    decomposer = build_decomposer(cfg)
+    decomposer.fit(dataset=_Dataset(), domain_spec=domain)
+    _ = decomposer.transform(fields[0], mask=masks[0], domain_spec=domain)
+    meta = decomposer.coeff_meta()
+    _assert_required(meta)
+
+
+def test_coeff_meta_contract_pod_joint_em() -> None:
+    domain = build_domain_spec({"name": "rectangle", "x_range": [0.0, 1.0], "y_range": [0.0, 1.0]}, (9, 9))
+    rng = np.random.default_rng(3)
+    fields = [rng.normal(size=(9, 9, 2)).astype(np.float64) for _ in range(4)]
+    masks = []
+    for _ in range(4):
+        m = rng.random(size=(9, 9)) < 0.8
+        m[:2, :2] = True
+        masks.append(m.astype(bool))
+
+    class _Dataset:
+        def __len__(self) -> int:
+            return len(fields)
+
+        def __getitem__(self, idx: int):
+            return type("Sample", (), {"field": fields[idx], "mask": masks[idx]})
+
+    cfg = {
+        "name": "pod_joint_em",
+        "n_modes": 2,
+        "n_iter": 2,
+        "ridge_alpha": 1.0e-6,
+        "init": "mean_fill",
+        "inner_product": "euclidean",
+        "mask_policy": "allow",
+    }
+    decomposer = build_decomposer(cfg)
+    decomposer.fit(dataset=_Dataset(), domain_spec=domain)
+    _ = decomposer.transform(fields[0], mask=masks[0], domain_spec=domain)
     meta = decomposer.coeff_meta()
     _assert_required(meta)

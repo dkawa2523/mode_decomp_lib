@@ -1,0 +1,9 @@
+name: polar_fft
+n_r: 32
+n_theta: 64
+radial_transform: dct
+angular_transform: fft
+interpolation: bilinear
+boundary_condition: dirichlet
+mask_policy: ignore_masked_points
+

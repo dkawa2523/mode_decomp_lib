@@ -395,7 +395,11 @@ def main(argv: list[str] | None = None) -> int:
         if domain.name == "disk":
             methods = [
                 ("zernike", {"name": "zernike", "n_max": 8, "ordering": "n_then_m", "normalization": "orthonormal", "boundary_condition": "dirichlet", "mask_policy": "ignore_masked_points"}),
+                ("pseudo_zernike", {"name": "pseudo_zernike", "n_max": 8, "m_max": 8, "ordering": "n_then_m", "normalization": "orthonormal", "boundary_condition": "dirichlet", "mask_policy": "ignore_masked_points"}),
                 ("fourier_bessel", {"name": "fourier_bessel", "n_max": 6, "m_max": 6, "ordering": "m_then_n", "normalization": "orthonormal", "boundary_condition": "dirichlet", "mask_policy": "ignore_masked_points"}),
+                ("fourier_jacobi", {"name": "fourier_jacobi", "m_max": 6, "k_max": 6, "ordering": "m_then_k", "normalization": "orthonormal", "boundary_condition": "dirichlet", "mask_policy": "ignore_masked_points"}),
+                ("polar_fft", {"name": "polar_fft", "n_r": 32, "n_theta": 64, "radial_transform": "dct", "angular_transform": "fft", "interpolation": "bilinear", "boundary_condition": "dirichlet", "mask_policy": "ignore_masked_points"}),
+                ("disk_slepian", {"name": "disk_slepian", "n_modes": 8, "freq_radius": 4, "solver": "eigsh", "dense_threshold": 512, "eigsh_tol": 1.0e-6, "eigsh_maxiter": 2000, "mask_policy": "allow", "boundary_condition": "dirichlet"}),
             ]
         if domain.name == "annulus":
             methods = [

@@ -22,6 +22,11 @@ dependencies = [
 pod = [
   "modred",
 ]
+optional_tests = [
+  "PyWavelets",
+  "lightgbm",
+  "gpytorch",
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

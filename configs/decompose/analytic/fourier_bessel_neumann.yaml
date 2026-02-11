@@ -1,0 +1,8 @@
+name: fourier_bessel
+m_max: 4
+n_max: 4
+ordering: m_then_n
+normalization: orthonormal
+boundary_condition: neumann
+mask_policy: ignore_masked_points
+

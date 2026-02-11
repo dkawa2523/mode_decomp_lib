@@ -1,12 +1,6 @@
 dataset:
-  conditions_csv: data/mode_decomp_eval_dataset_v1/scalar_disk/conditions.csv
-  fields_dir: data/mode_decomp_eval_dataset_v1/scalar_disk/fields
-  id_column: id
-  grid:
-    H: 64
-    W: 64
-    x_range: [-1.0, 1.0]
-    y_range: [-1.0, 1.0]
+  root: data/mode_decomp_eval_dataset_v1/scalar_disk
+  mask_policy: allow_none
 task: pipeline
 pipeline:
   decomposer: zernike
@@ -17,12 +11,6 @@ output:
   name: scalar_disk_zernike_pca_mtgp
 seed: 123
 params:
-  domain:
-    name: disk
-    center: [0.0, 0.0]
-    radius: 1.0
-    x_range: [-1.0, 1.0]
-    y_range: [-1.0, 1.0]
   decompose:
     name: zernike
     n_max: 6

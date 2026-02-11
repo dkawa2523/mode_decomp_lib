@@ -1,0 +1,7 @@
+# Auto-generated shim for Hydra compatibility.
+# Source: configs/decompose/analytic/offset_residual.yaml
+
+defaults:
+  - /decompose/analytic/offset_residual
+  - _self_
+

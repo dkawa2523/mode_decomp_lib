@@ -8,7 +8,13 @@ import json
 import numpy as np
 from mode_decomp_ml.config import cfg_get
 try:  # SciPy 1.15+ deprecates sph_harm in favor of sph_harm_y
-    from scipy.special import sph_harm_y as _sph_harm
+    from scipy.special import sph_harm_y as _sph_harm_y
+
+    def _sph_harm(m: int, l: int, theta: np.ndarray, phi: np.ndarray):
+        # `sph_harm_y(n, m, theta, phi)` uses (theta=polar, phi=azimuth) while the deprecated
+        # `sph_harm(m, n, theta, phi)` uses (theta=azimuth, phi=polar). Swap angles to preserve
+        # `sph_harm` semantics used throughout the codebase.
+        return _sph_harm_y(l, m, phi, theta)
 except Exception:  # pragma: no cover - fallback for older SciPy
     from scipy.special import sph_harm as _sph_harm
 

@@ -1,0 +1,7 @@
+# Auto-generated shim for Hydra compatibility.
+# Source: configs/decompose/analytic/polar_fft.yaml
+
+defaults:
+  - /decompose/analytic/polar_fft
+  - _self_
+

@@ -5,7 +5,7 @@
 ---
 
 ## 1. 対象
-- preprocess: `PreprocessOp`
+- preprocess: `PreprocessOp`（実装は `mode_decomp_ml.preprocess` に置きつつ、登録は `mode_decomp_ml.plugins.registry` で統一）
 - vector: `VectorTransform`
 - decompose: `Decomposer`
 - codec: `CoeffCodec`
@@ -65,14 +65,24 @@ src/mode_decomp_ml/plugins/
 | dct2 | ok | ok* | - | - | - | - | disk_policy=mask_zero_fill で disk 可 |
 | wavelet2d | ok | ok* | - | ok* | - | - | mask_policy=zero_fill, requires pywt |
 | zernike | - | ok | - | - | - | - | disk only |
+| pseudo_zernike | - | ok | - | - | - | - | disk only |
 | annular_zernike | - | - | ok | - | - | - | annulus only |
 | fourier_bessel | - | ok | - | - | - | - | disk only |
+| fourier_jacobi | - | ok | - | - | - | - | disk only |
+| polar_fft | - | ok | ok | - | - | - | disk/annulus only (approximate; interpolation) |
+| disk_slepian | - | ok | - | - | - | - | disk only (bandlimited eigenbasis) |
 | graph_fourier | ok | ok | ok | ok | - | - | grid graph, 固定mask推奨 |
+| gappy_graph_fourier | ok | ok | ok | ok | - | - | fixed basis (domain mask only) + per-sample ridge on observed points |
 | pod | ok | ok | ok | ok | - | - | mask_policy=ignore_masked_points で固定mask |
 | pod_svd | ok | ok | ok | ok | - | - | mask_policy=ignore_masked_points で固定mask |
+| pod_joint | ok | ok | ok | ok | - | - | joint POD across channels (vector-friendly); mask_policy=zero_fill for varying masks |
+| pod_em | ok | ok | ok | ok | - | - | POD with varying masks via EM/ALS imputation (supports vectors via channelwise adapter) |
+| pod_joint_em | ok | ok | ok | ok | - | - | joint POD with varying masks via EM/ALS (vector-friendly) |
+| rbf_expansion | ok | ok | ok | ok | - | - | RBF basis (stride centers), supports varying sample masks via weighted ridge |
 | dict_learning | ok | ok | ok | ok | - | - | 固定mask推奨, iterative |
 | autoencoder | ok | ok | ok | ok | - | - | requires torch, mask_policy=zero_fill |
 | helmholtz | ok | - | - | ok | - | - | vector field only |
+| helmholtz_poisson | ok | - | - | - | - | - | vector field only; rectangle + periodic/dirichlet/neumann BC |
 | spherical_harmonics | - | - | - | - | ok | - | requires pyshtools |
 | spherical_slepian | - | - | - | - | ok | - | region mask/cap, pyshtools optional |
 | laplace_beltrami | - | - | - | - | - | ok | mesh only |

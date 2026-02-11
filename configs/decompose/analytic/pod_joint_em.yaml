@@ -1,0 +1,9 @@
+name: pod_joint_em
+n_modes: 16
+n_iter: 10
+ridge_alpha: 1.0e-6
+init: mean_fill
+inner_product: euclidean
+mask_policy: allow
+# mean_centered: false
+

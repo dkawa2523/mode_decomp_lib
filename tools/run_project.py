@@ -1,4 +1,15 @@
-"""Run decomposition/preprocessing/train/inference for a single project directory."""
+"""Legacy project runner (deprecated).
+
+This script predates the `task=pipeline` workflow and duplicates functionality provided by:
+
+- Hydra entrypoint:
+  `PYTHONPATH=src python3 -m mode_decomp_ml.cli.run task=pipeline ...`
+- run.yaml entrypoint:
+  `python3 -m mode_decomp_ml.run --config <run.yaml>`
+
+It is kept temporarily for backwards compatibility, but new usage should switch to the
+entrypoints above.
+"""
 from __future__ import annotations
 
 import argparse
@@ -7,6 +18,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 import yaml
+import warnings
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -44,6 +56,12 @@ def _task_run_dir(project_dir: Path, task: str) -> Path:
 
 
 def main(argv: list[str] | None = None) -> int:
+    warnings.warn(
+        "tools/run_project.py is deprecated. Use `python3 -m mode_decomp_ml.run --config <run.yaml>` "
+        "or `PYTHONPATH=src python3 -m mode_decomp_ml.cli.run task=pipeline ...` instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     parser = argparse.ArgumentParser(description="Run a project suite under one output directory.")
     parser.add_argument("--config", required=True, help="Path to base run.yaml")
     parser.add_argument("--project", default=None, help="Project name override")

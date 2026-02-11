@@ -1,0 +1,4 @@
+name: helmholtz_poisson
+boundary_condition: periodic
+mask_policy: error
+

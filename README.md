@@ -43,4 +43,6 @@ VSCode + Codex CLI で `autopilot.sh` を回し、`work/queue.json` のP0タス�
 
 ## ドキュメント
 - `docs/README.md` から読むのが最短です
+- ベンチ/レポート: `docs/30_BENCHMARKING.md`
+- コード全体の見取り図: `docs/31_CODE_TOUR.md`
 - 追加の拡張計画は `work/queue_p1.json`, `work/queue_p2.json` にあります（P0完了後に実施）

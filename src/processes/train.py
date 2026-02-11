@@ -1,4 +1,10 @@
-"""Process entrypoint: train."""
+"""Process entrypoint: train.
+
+Stage responsibility:
+- load (cond, coeff) pairs from preprocessing run
+- fit regression model (cond -> coeff)
+- (optional) decode+inverse_transform for field-space evaluation plots/metrics
+"""
 from __future__ import annotations
 
 import time
@@ -8,28 +14,68 @@ from typing import Any, Iterable, Mapping
 
 import numpy as np
 
+import yaml
+
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from mode_decomp_ml.domain import build_domain_spec
+from mode_decomp_ml.evaluate import field_r2 as eval_field_r2
+from mode_decomp_ml.evaluate import field_rmse as eval_field_rmse
 from mode_decomp_ml.plugins.models import build_regressor
 from mode_decomp_ml.pipeline import (
     ArtifactWriter,
     StepRecorder,
     artifact_ref,
-    build_meta,
     cfg_get,
     default_run_dir,
     load_coeff_meta,
     read_json,
     require_cfg_keys,
+    resolve_domain_cfg,
     resolve_path,
     resolve_run_dir,
-    snapshot_inputs,
 )
 from mode_decomp_ml.pipeline.artifacts import load_coeffs_npz
-from mode_decomp_ml.viz import coeff_channel_norms, plot_channel_norm_scatter
+from mode_decomp_ml.pipeline.loaders import load_preprocess_state_from_run
+from mode_decomp_ml.pipeline.process_base import finalize_run, init_run
+from mode_decomp_ml.plugins.coeff_post import BaseCoeffPost
+from mode_decomp_ml.plugins.codecs import BaseCoeffCodec
+from mode_decomp_ml.plugins.decomposers import BaseDecomposer
+from mode_decomp_ml.viz import (
+    coeff_channel_norms,
+    masked_weighted_r2,
+    per_pixel_r2_map,
+    plot_field_grid,
+    plot_line_with_band,
+    plot_scatter_true_pred,
+    sample_scatter_points,
+    plot_channel_norm_scatter,
+)
+
+
+_CONFIG_CANDIDATES = (
+    Path("configuration/run.yaml"),
+    Path("configuration/resolved.yaml"),
+    Path("run.yaml"),
+    Path(".hydra/config.yaml"),
+    Path("hydra/config.yaml"),
+)
+
+
+def _load_run_config(run_dir: str | Path) -> Mapping[str, Any]:
+    root = Path(run_dir)
+    for rel in _CONFIG_CANDIDATES:
+        path = root / rel
+        if path.exists():
+            try:
+                data = yaml.safe_load(path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            return data if isinstance(data, Mapping) else {}
+    return {}
 
 
 def _require_task_config(task_cfg: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -253,13 +299,7 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
     run_dir = resolve_run_dir(cfg)
     writer = ArtifactWriter(run_dir)
     steps = StepRecorder(run_dir=run_dir)
-    with steps.step(
-        "init_run",
-        outputs=[artifact_ref("configuration/run.yaml", kind="config")],
-    ):
-        writer.prepare_layout(clean=True)
-        writer.write_run_yaml(cfg)
-        snapshot_inputs(cfg, run_dir)
+    init_run(writer=writer, steps=steps, cfg=cfg, run_dir=run_dir, clean=True, snapshot=True)
 
     preprocess_dir = _resolve_preprocess_dir(cfg)
     with steps.step(
@@ -523,9 +563,321 @@ def main(cfg: Mapping[str, Any] | None = None) -> int:
                             max_points=max_points,
                         )
 
-    meta = build_meta(cfg)
-    writer.write_manifest(meta=meta, steps=steps.to_list(), extra={"preprocessing_run_dir": preprocess_dir})
-    writer.write_steps(steps.to_list())
+            # Optional field-space diagnostics (requires decomposition artifacts).
+            field_eval_cfg = cfg_get(viz_cfg, "field_eval", {}) or {}
+            if bool(cfg_get(field_eval_cfg, "enabled", True)) and decomposition_dir is not None and coeff_meta is not None:
+                try:
+                    split = str(cfg_get(field_eval_cfg, "split", "val")).strip().lower()
+                    max_samples = int(cfg_get(field_eval_cfg, "max_samples", 32))
+                    scatter_max_points = int(cfg_get(field_eval_cfg, "scatter_max_points", 200000))
+                    k_list = cfg_get(field_eval_cfg, "k_list", [1, 2, 4, 8, 16])
+                    per_pixel = bool(cfg_get(field_eval_cfg, "per_pixel_r2", True))
+
+                    # Select eval indices.
+                    if split == "val" and val_idx.size > 0:
+                        eval_idx = val_idx
+                        prefix = "val"
+                    else:
+                        eval_idx = train_idx
+                        prefix = "train"
+                    eval_idx = np.asarray(eval_idx, dtype=int)
+                    if eval_idx.size == 0:
+                        raise ValueError("field_eval has no samples to evaluate")
+                    eval_idx = eval_idx[: min(max_samples, eval_idx.size)]
+
+                    # Load decomposition config to build domain_spec.
+                    dec_cfg = _load_run_config(decomposition_dir)
+                    # IMPORTANT: decomposition runs may store a placeholder domain_cfg (e.g. rectangle),
+                    # and rely on dataset manifest via resolve_domain_cfg() to get the true domain.
+                    dataset_cfg2 = cfg_get(dec_cfg, "dataset", {}) or {}
+                    domain_cfg = cfg_get(dec_cfg, "domain", {}) or {}
+                    domain_cfg, _ = resolve_domain_cfg(dataset_cfg2, domain_cfg)
+                    field_shape = tuple(coeff_meta.get("field_shape", []))
+                    if not field_shape:
+                        raise ValueError("coeff_meta.field_shape missing for field_eval")
+                    domain_spec = build_domain_spec(domain_cfg, field_shape)
+                    domain_mask = domain_spec.mask
+                    weights = domain_spec.integration_weights()
+
+                    # Load components (decomposer/codec/preprocess/coeff_post) to reconstruct in field space.
+                    decomposer = BaseDecomposer.load_state(
+                        Path(decomposition_dir) / "outputs" / "states" / "decomposer" / "state.pkl"
+                    )
+                    codec = BaseCoeffCodec.load_state(
+                        Path(decomposition_dir) / "outputs" / "states" / "coeff_codec" / "state.pkl"
+                    )
+                    preprocess = load_preprocess_state_from_run(decomposition_dir)
+                    coeff_post = BaseCoeffPost.load_state(
+                        Path(preprocess_dir) / "outputs" / "states" / "coeff_post" / "state.pkl"
+                    )
+
+                    raw_meta = coeff_meta.get("raw_meta") if isinstance(coeff_meta, Mapping) else None
+                    raw_meta = raw_meta if isinstance(raw_meta, Mapping) else coeff_meta
+
+                    # Convert to a-space for reconstruction.
+                    y_true = targets[eval_idx]
+                    y_pred = model.predict(conds[eval_idx])
+                    if target_space == "z":
+                        coeff_a_true = coeff_post.inverse_transform(y_true)
+                        coeff_a_pred = coeff_post.inverse_transform(y_pred)
+                    else:
+                        coeff_a_true = np.asarray(y_true)
+                        coeff_a_pred = np.asarray(y_pred)
+
+                    def _reconstruct(coeff_a: np.ndarray) -> np.ndarray:
+                        fields = []
+                        for i in range(coeff_a.shape[0]):
+                            raw_coeff = codec.decode(np.asarray(coeff_a[i]).reshape(-1), raw_meta)
+                            fields.append(decomposer.inverse_transform(raw_coeff, domain_spec=domain_spec))
+                        field_proc = np.stack(fields, axis=0)
+                        field_out, _ = preprocess.inverse_transform(field_proc, None)
+                        return field_out
+
+                    field_true_hat = _reconstruct(coeff_a_true)
+                    field_pred_hat = _reconstruct(coeff_a_pred)
+
+                    # Compute field-space metrics for the eval split and persist them in metrics.json.
+                    # This makes train leaderboards more comparable across decomposers/codecs.
+                    dataset_mask_eval = None
+                    try:
+                        dataset_root_value = cfg_get(dataset_cfg2, "root", None)
+                        if dataset_root_value is not None and str(dataset_root_value).strip():
+                            dataset_root = resolve_path(str(dataset_root_value))
+                            mask_file = str(cfg_get(dataset_cfg2, "mask_file", "mask.npy"))
+                            mask_path = dataset_root / mask_file
+                            if mask_path.exists():
+                                mask_arr = np.load(mask_path)
+                                mask_arr = np.asarray(mask_arr).astype(bool)
+                                if mask_arr.ndim == 2:
+                                    mask_arr = np.broadcast_to(mask_arr[None, ...], (conds.shape[0], *mask_arr.shape))
+                                if mask_arr.ndim == 3 and mask_arr.shape[0] == conds.shape[0]:
+                                    dataset_mask_eval = mask_arr[eval_idx]
+                    except Exception:
+                        dataset_mask_eval = None
+
+                    mask_eval = None
+                    if domain_mask is not None:
+                        mask_eval = np.broadcast_to(np.asarray(domain_mask).astype(bool), field_true_hat.shape[:3])
+                    if dataset_mask_eval is not None:
+                        if mask_eval is None:
+                            mask_eval = np.asarray(dataset_mask_eval).astype(bool)
+                        else:
+                            mask_eval = mask_eval & np.asarray(dataset_mask_eval).astype(bool)
+
+                    try:
+                        metrics[f"{prefix}_field_rmse"] = float(
+                            eval_field_rmse(field_true_hat, field_pred_hat, mask=mask_eval)
+                        )
+                        metrics[f"{prefix}_field_r2"] = float(eval_field_r2(field_true_hat, field_pred_hat, mask=mask_eval))
+                        metrics[f"{prefix}_field_eval_samples"] = int(field_true_hat.shape[0])
+                        writer.write_metrics(metrics)
+                    except Exception:
+                        pass
+
+                    out_dir = writer.plots_dir / "field_eval"
+                    out_dir.mkdir(parents=True, exist_ok=True)
+
+                    # Scatter plots (true vs pred) with R^2.
+                    ft = np.asarray(field_true_hat)
+                    fp = np.asarray(field_pred_hat)
+                    mask_s = mask_eval
+
+                    if ft.ndim == 4 and ft.shape[-1] > 1:
+                        for ch in range(ft.shape[-1]):
+                            x, y = sample_scatter_points(
+                                ft[..., ch],
+                                fp[..., ch],
+                                mask=mask_s,
+                                max_points=scatter_max_points,
+                                seed=0,
+                            )
+                            if x.size == 0:
+                                continue
+                            r2 = masked_weighted_r2(x, y)
+                            plot_scatter_true_pred(
+                                out_dir / f"field_scatter_true_vs_pred_ch{ch}.png",
+                                x,
+                                y,
+                                title=f"{prefix} field scatter ch{ch}",
+                                r2=r2,
+                                max_points=scatter_max_points,
+                            )
+                        mag_t = np.linalg.norm(ft, axis=-1)
+                        mag_p = np.linalg.norm(fp, axis=-1)
+                        x, y = sample_scatter_points(
+                            mag_t,
+                            mag_p,
+                            mask=mask_s,
+                            max_points=scatter_max_points,
+                            seed=0,
+                        )
+                        if x.size:
+                            r2 = masked_weighted_r2(x, y)
+                            plot_scatter_true_pred(
+                                out_dir / "field_scatter_true_vs_pred_mag.png",
+                                x,
+                                y,
+                                title=f"{prefix} field scatter magnitude",
+                                r2=r2,
+                                max_points=scatter_max_points,
+                            )
+                    else:
+                        ft_s = ft[..., 0] if ft.ndim == 4 else ft
+                        fp_s = fp[..., 0] if fp.ndim == 4 else fp
+                        x, y = sample_scatter_points(ft_s, fp_s, mask=mask_s, max_points=scatter_max_points, seed=0)
+                        if x.size:
+                            r2 = masked_weighted_r2(x, y)
+                            plot_scatter_true_pred(
+                                out_dir / "field_scatter_true_vs_pred_ch0.png",
+                                x,
+                                y,
+                                title=f"{prefix} field scatter",
+                                r2=r2,
+                                max_points=scatter_max_points,
+                            )
+
+                    # Per-pixel R^2 maps across the eval split.
+                    if per_pixel:
+                        if ft.ndim == 4 and ft.shape[-1] > 1:
+                            for ch in range(ft.shape[-1]):
+                                r2_map = per_pixel_r2_map(ft[..., ch], fp[..., ch], mask=mask_s, downsample=1)
+                                plot_field_grid(
+                                    out_dir / f"per_pixel_r2_map_ch{ch}.png",
+                                    [r2_map],
+                                    [f"r2_ch{ch}"],
+                                    mask=domain_mask,
+                                    suptitle=f"{prefix} per-pixel R^2 (ch{ch})",
+                                    cmap="magma",
+                                )
+                            r2_map = per_pixel_r2_map(
+                                np.linalg.norm(ft, axis=-1),
+                                np.linalg.norm(fp, axis=-1),
+                                mask=mask_s,
+                                downsample=1,
+                            )
+                            plot_field_grid(
+                                out_dir / "per_pixel_r2_map_mag.png",
+                                [r2_map],
+                                ["r2_mag"],
+                                mask=domain_mask,
+                                suptitle=f"{prefix} per-pixel R^2 (magnitude)",
+                                cmap="magma",
+                            )
+                        else:
+                            ft_s = ft[..., 0] if ft.ndim == 4 else ft
+                            fp_s = fp[..., 0] if fp.ndim == 4 else fp
+                            r2_map = per_pixel_r2_map(ft_s, fp_s, mask=mask_s, downsample=1)
+                            plot_field_grid(
+                                out_dir / "per_pixel_r2_map_ch0.png",
+                                [r2_map],
+                                ["r2"],
+                                mask=domain_mask,
+                                suptitle=f"{prefix} per-pixel R^2",
+                                cmap="magma",
+                            )
+
+                    # R^2 vs K (truncate predicted coeffs, compare in field space).
+                    if isinstance(k_list, (list, tuple)) and k_list:
+                        coeff_format = str(raw_meta.get("coeff_format", "")).strip().lower()
+                        coeff_layout = str(raw_meta.get("coeff_layout", "")).strip().upper()
+                        residual_raw_meta = raw_meta.get("residual_raw_meta") if coeff_format == "offset_residual_v1" else None
+                        if isinstance(residual_raw_meta, Mapping):
+                            coeff_layout = str(residual_raw_meta.get("coeff_layout", "")).strip().upper()
+                        if coeff_layout == "CK":
+                            k_vals = []
+                            mean_vals = []
+                            p10_vals = []
+                            p90_vals = []
+                            # Precompute full "true" field once; truncate only predictions.
+                            for k in k_list:
+                                k_int = int(k)
+                                if k_int <= 0:
+                                    continue
+                                fields_k = []
+                                for i in range(coeff_a_pred.shape[0]):
+                                    decoded = codec.decode(np.asarray(coeff_a_pred[i]).reshape(-1), raw_meta)
+                                    if coeff_format == "offset_residual_v1":
+                                        if not isinstance(decoded, Mapping):
+                                            raise ValueError("field_eval offset_residual decode did not return a mapping")
+                                        offset = decoded.get("offset")
+                                        residual = decoded.get("residual")
+                                        if offset is None or residual is None:
+                                            raise ValueError("field_eval offset_residual decode missing offset/residual")
+                                        if not isinstance(residual_raw_meta, Mapping):
+                                            raise ValueError("field_eval offset_residual missing residual_raw_meta")
+                                        coeff_shape = residual_raw_meta.get("coeff_shape")
+                                        order = str(residual_raw_meta.get("flatten_order", "C")).strip().upper() or "C"
+                                        arr = np.asarray(residual)
+                                        if arr.ndim == 1:
+                                            if isinstance(coeff_shape, (list, tuple)) and len(coeff_shape) == 2:
+                                                arr = arr.reshape((int(coeff_shape[0]), int(coeff_shape[1])), order=order)
+                                            else:
+                                                raise ValueError("field_eval offset_residual truncate requires CK coeff_shape")
+                                        if arr.ndim != 2:
+                                            raise ValueError("field_eval offset_residual truncate requires 2D CK coeff array")
+                                        arr_k = arr.copy()
+                                        if k_int < arr_k.shape[1]:
+                                            arr_k[:, k_int:] = 0.0
+                                        fields_k.append(
+                                            decomposer.inverse_transform({"offset": offset, "residual": arr_k}, domain_spec=domain_spec)
+                                        )
+                                    else:
+                                        if isinstance(decoded, Mapping):
+                                            raise ValueError("field_eval truncate does not support mapping coeffs")
+                                        arr = np.asarray(decoded)
+                                        if arr.ndim == 1:
+                                            coeff_shape = raw_meta.get("coeff_shape")
+                                            if isinstance(coeff_shape, (list, tuple)) and len(coeff_shape) == 2:
+                                                arr = arr.reshape((int(coeff_shape[0]), int(coeff_shape[1])), order="C")
+                                            else:
+                                                raise ValueError("field_eval truncate requires 2D CK coeff shape")
+                                        if arr.ndim != 2:
+                                            raise ValueError("field_eval truncate requires 2D CK coeff array")
+                                        arr_k = arr.copy()
+                                        if k_int < arr_k.shape[1]:
+                                            arr_k[:, k_int:] = 0.0
+                                        fields_k.append(decomposer.inverse_transform(arr_k, domain_spec=domain_spec))
+                                proc = np.stack(fields_k, axis=0)
+                                pred_k, _ = preprocess.inverse_transform(proc, None)
+
+                                r2_list = []
+                                for i in range(pred_k.shape[0]):
+                                    r2_list.append(
+                                        masked_weighted_r2(
+                                            field_true_hat[i],
+                                            pred_k[i],
+                                            mask=domain_mask,
+                                            weights=weights,
+                                        )
+                                    )
+                                r2_arr = np.asarray(r2_list, dtype=float)
+                                valid = np.isfinite(r2_arr)
+                                if not np.any(valid):
+                                    continue
+                                k_vals.append(k_int)
+                                mean_vals.append(float(np.nanmean(r2_arr)))
+                                p10_vals.append(float(np.nanpercentile(r2_arr[valid], 10)))
+                                p90_vals.append(float(np.nanpercentile(r2_arr[valid], 90)))
+                            if k_vals:
+                                plot_line_with_band(
+                                    out_dir / "mode_r2_vs_k.png",
+                                    k_vals,
+                                    mean_vals,
+                                    p10_vals,
+                                    p90_vals,
+                                    xlabel="K (modes kept)",
+                                    ylabel="R^2 (field pred)",
+                                )
+                except Exception:
+                    # Field eval is a diagnostic; do not fail training if it can't be rendered.
+                    pass
+
+    finalize_run(
+        writer=writer,
+        steps=steps,
+        cfg=cfg,
+        extra={"preprocessing_run_dir": preprocess_dir},
+    )
     return 0
 
 

@@ -23,3 +23,12 @@ viz:
   enabled: true
   max_dims: 6
   max_points: 2000
+
+  # Optional field-space evaluation using decomposition artifacts.
+  field_eval:
+    enabled: true
+    split: val
+    max_samples: 32
+    scatter_max_points: 200000
+    k_list: [1, 2, 4, 8, 16]
+    per_pixel_r2: true

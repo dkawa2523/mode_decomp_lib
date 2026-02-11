@@ -16,23 +16,6 @@ from .base import _combine_masks, _normalize_field, _normalize_mask
 _MASK_POLICIES = {"require"}
 
 
-
-def parse_bool(value: Any, *, default: bool) -> bool:
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, np.integer)):
-        return bool(value)
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"true", "1", "yes", "y"}:
-            return True
-        if lowered in {"false", "0", "no", "n"}:
-            return False
-    raise ValueError(f"Invalid boolean value: {value}")
-
-
 def _resolve_mode_weight(cfg: Mapping[str, Any]) -> dict[str, Any]:
     options = cfg_get(cfg, "options", None)
     mode_cfg = {}

@@ -17,3 +17,9 @@ viz:
   coeff_spectrum_scale: log
   field_stats:
     enabled: true
+  field_hist:
+    enabled: true
+    bins: 60
+  coeff_std_diag:
+    enabled: true
+    bins: 60

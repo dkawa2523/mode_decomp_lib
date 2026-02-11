@@ -1,0 +1,11 @@
+name: gappy_graph_fourier
+n_modes: 64
+connectivity: 4
+laplacian_type: combinatorial
+mask_policy: allow_full
+solver: auto
+dense_threshold: 2048
+eigsh_tol: 1.0e-6
+eigsh_maxiter: 2000
+ridge_alpha: 1.0e-6
+

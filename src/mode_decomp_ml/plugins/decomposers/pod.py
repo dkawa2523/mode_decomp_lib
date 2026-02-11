@@ -28,22 +28,6 @@ _RANK_SELECT_METHODS = {"energy"}
 _MODE_WEIGHT_METHODS = {"eigval_scale"}
 
 
-def parse_bool(value: Any, *, default: bool) -> bool:
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, np.integer)):
-        return bool(value)
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"true", "1", "yes", "y"}:
-            return True
-        if lowered in {"false", "0", "no", "n"}:
-            return False
-    raise ValueError(f"Invalid boolean value: {value}")
-
-
 def _resolve_rank_select(cfg: Mapping[str, Any]) -> dict[str, Any]:
     options = cfg_get(cfg, "options", None)
     rank_cfg = {}

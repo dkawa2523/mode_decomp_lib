@@ -1,0 +1,4 @@
+name: auto_codec_v1
+dtype_policy: float32
+complex_mode: real_imag
+

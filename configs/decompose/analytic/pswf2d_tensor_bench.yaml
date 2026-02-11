@@ -1,0 +1,9 @@
+name: pswf2d_tensor
+# DPSS time-half-bandwidth product. Smaller values focus on smoother, low-frequency structure.
+# For v1's rectangle patterns (few cycles over the domain), ~2 works much better than large values.
+c_x: 2.0
+c_y: 2.0
+n_x: 8
+n_y: 8
+mask_policy: error
+include_mean: true

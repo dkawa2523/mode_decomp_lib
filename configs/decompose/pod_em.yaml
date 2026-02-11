@@ -1,0 +1,5 @@
+# Source: configs/decompose/analytic/pod_em.yaml
+
+defaults:
+  - /decompose/analytic/pod_em
+

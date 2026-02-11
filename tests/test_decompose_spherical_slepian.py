@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import warnings
 
 import numpy as np
 import pytest
+from scipy import special
 
 from mode_decomp_ml.domain import build_domain_spec
 from mode_decomp_ml.plugins.codecs import build_coeff_codec
@@ -23,6 +25,32 @@ def _domain_cfg() -> dict[str, object]:
 
 def _cap_cfg() -> dict[str, float | str]:
     return {"lat": 0.0, "lon": 0.0, "radius": 90.0, "angle_unit": "deg"}
+
+
+def test_spherical_slepian_scipy_real_sh_basis_matches_deprecated_sph_harm() -> None:
+    # The SciPy backend uses `sph_harm_y` under the hood on SciPy 1.15+, which has different
+    # theta/phi conventions compared to the deprecated `sph_harm`. Ensure our wrapper preserves
+    # `sph_harm` semantics to avoid silent basis corruption.
+    field = np.ones((6, 12), dtype=np.float64)
+    domain = build_domain_spec(_domain_cfg(), field.shape)
+
+    import mode_decomp_ml.plugins.decomposers.spherical_slepian as mod
+
+    theta = np.asarray(domain.coords["theta"], dtype=np.float64)
+    phi = np.asarray(domain.coords["phi"], dtype=np.float64)
+    basis, lm_kind_list = mod._build_real_sh_basis(l_max=1, theta=theta, phi=phi)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        y11 = special.sph_harm(1, 1, theta, phi)
+    factor = np.sqrt(2.0) * (-1.0)
+    expected_cos = factor * y11.real
+    expected_sin = factor * y11.imag
+
+    idx_cos = lm_kind_list.index([1, 1, "cos"])
+    idx_sin = lm_kind_list.index([1, 1, "sin"])
+    assert np.allclose(basis[idx_cos], expected_cos, atol=1e-12)
+    assert np.allclose(basis[idx_sin], expected_sin, atol=1e-12)
 
 
 def test_spherical_slepian_roundtrip_constant() -> None:

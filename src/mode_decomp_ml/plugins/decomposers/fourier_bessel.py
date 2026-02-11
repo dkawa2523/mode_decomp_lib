@@ -66,12 +66,28 @@ class FourierBesselDecomposer(BaseDecomposer):
             raise ValueError(
                 f"decompose.mask_policy must be one of {_MASK_POLICIES}, got {self._mask_policy}"
             )
-        root_fn = jn_zeros if self._boundary_condition == "dirichlet" else jnp_zeros
-        self._radial_roots = [root_fn(m, self._n_max).astype(np.float64) for m in range(self._m_max + 1)]
+        if self._boundary_condition == "dirichlet":
+            self._radial_roots = [jn_zeros(m, self._n_max).astype(np.float64) for m in range(self._m_max + 1)]
+        else:
+            # Neumann BC includes a DC mode at root=0 for m=0 (constant radial component).
+            roots: list[np.ndarray] = []
+            for m in range(self._m_max + 1):
+                if m == 0:
+                    if self._n_max == 1:
+                        arr = np.array([0.0], dtype=np.float64)
+                    else:
+                        arr = np.concatenate(
+                            [np.array([0.0], dtype=np.float64), jnp_zeros(0, self._n_max - 1).astype(np.float64)]
+                        )
+                    roots.append(arr)
+                else:
+                    roots.append(jnp_zeros(m, self._n_max).astype(np.float64))
+            self._radial_roots = roots
         self._mode_list: list[tuple[int, int, str, float]] = []
         for m in range(self._m_max + 1):
             roots = self._radial_roots[m]
-            for n_idx, root in enumerate(roots, start=1):
+            start = 0 if (self._boundary_condition == "neumann" and m == 0) else 1
+            for n_idx, root in enumerate(roots, start=start):
                 if m == 0:
                     self._mode_list.append((m, n_idx, "cos", float(root)))
                 else:

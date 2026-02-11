@@ -37,6 +37,20 @@
       ]
     },
     {
+      "id": "320",
+      "priority": "P2",
+      "status": "todo",
+      "title": "Decomposer: Hodge/Poisson（任意mask上div/curl）",
+      "path": "work/tasks_p2/320_decompose_hodge_poisson_mask.md",
+      "skills": [],
+      "contracts": [
+        "docs/00_INVARIANTS.md",
+        "work/rfcs/RFC_hodge_poisson_mask.md"
+      ],
+      "depends_on": [],
+      "unblocks": []
+    },
+    {
       "id": "310",
       "priority": "P2",
       "status": "todo",
@@ -54,5 +68,5 @@
       "unblocks": []
     }
   ],
-  "updated_at": "2025-12-28T12:57:07Z"
+  "updated_at": "2026-02-08T09:30:06Z"
 }
