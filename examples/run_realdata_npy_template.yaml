@@ -1,0 +1,91 @@
+# Real-data template (npy_dir + manifest.json preferred).
+# Data layout assumption:
+#   <dataset.root>/
+#     cond.npy
+#     field.npy
+#     mask.npy          # optional (depends on mask_policy)
+#     manifest.json     # strongly recommended
+
+seed: 123
+
+dataset:
+  name: npy_dir
+  root: data/your_real_dataset
+  cond_file: cond.npy
+  field_file: field.npy
+  mask_file: mask.npy
+  mask_policy: allow_none  # require | allow_none | forbid
+
+task: pipeline
+
+pipeline:
+  # Baseline for rectangle-like scalar data:
+  #   rectangle_scalar: dct2 or fft2
+  #   disk_scalar: pseudo_zernike
+  #   annulus_scalar: annular_zernike
+  #   arbitrary_mask: gappy_graph_fourier_bench or rbf_expansion_k64
+  #   sphere_grid: spherical_harmonics_scipy_bench
+  #   mesh: laplace_beltrami
+  decomposer: dct2
+  codec: auto
+  coeff_post: none
+  model: ridge
+
+output:
+  root: runs
+  name: realdata_trial_v1
+
+params:
+  # Fallback only when manifest.json is missing.
+  domain:
+    name: rectangle
+    x_range: [-1.0, 1.0]
+    y_range: [-1.0, 1.0]
+
+  # Must match the selected decomposer.
+  decompose:
+    name: dct2
+    disk_policy: error
+
+  # Recommended for offset-dominant datasets.
+  offset_split:
+    enabled: auto
+    f_offset: 5.0
+    max_samples: 128
+    seed: ${seed}
+
+  coeff_post:
+    name: none
+
+  model:
+    name: ridge
+    target_space: a
+    alpha: 1.0
+    fit_intercept: true
+    cond_scaler: standardize
+    seed: ${seed}
+
+  train:
+    eval:
+      enabled: true
+      metrics: [rmse, mae, r2]
+      val_ratio: 0.2
+      shuffle: true
+      seed: ${seed}
+    cv:
+      enabled: false
+      folds: 5
+      shuffle: true
+      seed: ${seed}
+    tuning:
+      enabled: false
+      metric: rmse
+      maximize: false
+      param_grid: {}
+
+  eval:
+    metrics: [field_rmse, coeff_rmse_a, energy_cumsum]
+
+  viz:
+    max_samples: 8
+

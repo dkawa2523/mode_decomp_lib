@@ -1,0 +1,63 @@
+# Real-data template (csv_fields).
+# Data layout assumption:
+#   <dataset_root>/
+#     conditions.csv
+#     fields/
+#       <id>.csv            # scalar (x,y,f)
+#       <id>_fx.csv         # vector component x (optional)
+#       <id>_fy.csv         # vector component y (optional)
+
+seed: 123
+
+dataset:
+  name: csv_fields
+  conditions_csv: data/your_real_dataset/conditions.csv
+  fields_dir: data/your_real_dataset/fields
+  id_column: id
+  feature_columns: null
+  # field_components: [fx, fy]   # uncomment for vector field
+  mask_policy: allow_none
+  grid:
+    H: 64
+    W: 64
+    x_range: [-1.0, 1.0]
+    y_range: [-1.0, 1.0]
+
+task: pipeline
+
+pipeline:
+  decomposer: dct2
+  codec: auto
+  coeff_post: none
+  model: ridge
+
+output:
+  root: runs
+  name: realdata_csv_trial_v1
+
+params:
+  domain:
+    name: rectangle
+    x_range: [-1.0, 1.0]
+    y_range: [-1.0, 1.0]
+
+  decompose:
+    name: dct2
+    disk_policy: error
+
+  offset_split:
+    enabled: auto
+    f_offset: 5.0
+    max_samples: 128
+    seed: ${seed}
+
+  coeff_post:
+    name: none
+
+  model:
+    name: ridge
+    target_space: a
+    alpha: 1.0
+    cond_scaler: standardize
+    seed: ${seed}
+
