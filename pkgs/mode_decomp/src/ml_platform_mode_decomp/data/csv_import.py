@@ -43,7 +43,15 @@ def _axis_positions(values: np.ndarray, expected: np.ndarray, tolerance: float, 
 
 def _read_field(path: Path, config: dict[str, Any], geometry: Any, shape: tuple, tolerance: float) -> np.ndarray:
     frame = _table(path)
-    coordinate_columns = _mapping(config.get("coordinates"), "fields.coordinates")
+    coordinate_columns = _mapping(
+        config.get("coordinates"),
+        "fields.coordinates",
+        keys={"vertex_index"}
+        if geometry.name == "mesh"
+        else {"lon", "lat"}
+        if geometry.name == "sphere_grid"
+        else {"x", "y"},
+    )
     if geometry.name == "mesh":
         column = coordinate_columns.get("vertex_index")
         if not isinstance(column, str) or not column:
@@ -134,9 +142,15 @@ def import_csv_field_dataset(
     )
     if observation is not None and observation.shape not in (shape[:-1], (len(samples), *shape[:-1])):
         raise ValueError("masks.observation must be spatial or sample-by-spatial.")
-    tolerance = float(fields.get("coordinate_atol", 0.0))
-    if not np.isfinite(tolerance) or tolerance < 0:
+    tolerance = fields.get("coordinate_atol", 0.0)
+    if (
+        isinstance(tolerance, (bool, np.bool_))
+        or not isinstance(tolerance, (int, float, np.integer, np.floating))
+        or not np.isfinite(tolerance)
+        or tolerance < 0
+    ):
         raise ValueError("fields.coordinate_atol must be finite and non-negative.")
+    tolerance = float(tolerance)
     output: dict[str, Any] = {
         "schema": "field_dataset_v1",
         "samples": {"path": "samples.csv", "id_column": id_column, "index_column": index_column},

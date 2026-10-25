@@ -47,6 +47,15 @@ def test_unknown_run_settings_are_rejected_before_defaults_can_hide_them(setting
             {"import": {"format": "csv", "output_dir": "converted", "condition_columns": ["ignored"]}},
         ),
         ("mode_decomp_pipeline", {"stage_inputs": {"split": "unused.json"}}),
+        ("mode_decomp_pipeline", {"split": {"valid_filter_column": "official_split", "valid_filter_value": "test"}}),
+        ("mode_decomp_pipeline", {"split": {"method": "fixed", "valid_size": 0.3}}),
+        ("mode_decomp_analysis", {"split": {"selection_size": 0.3}}),
+        ("mode_decomp_pipeline", {"split": {"selection_method": "random"}}),
+        ("mode_decomp_pipeline", {"split": {"group_column": "experiment"}}),
+        (
+            "mode_decomp_pipeline",
+            {"tuning": {"enabled": True, "cv": {"method": "random", "time_column": "measured_at"}}},
+        ),
     ],
 )
 def test_settings_for_another_task_do_not_produce_a_successful_different_operation(task, settings):

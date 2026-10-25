@@ -765,7 +765,7 @@ requires-dist = [
 
 [[package]]
 name = "ml-platform-mode-decomp"
-version = "0.11.0"
+version = "0.11.1"
 source = { editable = "pkgs/mode_decomp" }
 dependencies = [
     { name = "ml-platform-core" },

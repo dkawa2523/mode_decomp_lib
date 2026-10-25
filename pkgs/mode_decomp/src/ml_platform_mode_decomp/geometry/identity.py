@@ -70,6 +70,9 @@ _NUMERICAL_META = {
 
 def geometry_fingerprint(geometry: Any) -> str:
     """Exact numerical identity after canonical dtype normalization."""
+    from . import _domain_mask
+
+    _domain_mask(geometry)
     digest = hashlib.sha256()
     name = "arbitrary_mask" if geometry.name == "mask" else geometry.name
     digest.update(str(name).encode())

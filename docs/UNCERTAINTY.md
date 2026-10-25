@@ -58,6 +58,8 @@ metadata = calibrator.summary()
 
 `fit_batches()`はcalibrationと同じsample順の予測batchを一度だけ消費します。既に予測配列がある場合は`fit(calibration, predictions, training=proper_train)`を使えます。通常の`surrogate.calibrate()`とYAMLからの較正もbatch経路を使い、全較正予測を保持しません。追加のYAML設定は不要です。
 
+`surrogate.calibrate(..., training=proper_train)`へ渡すtraining ID集合は、そのモデルのfit ID集合と一致させます。別caseや評価caseをchannel規格化に混ぜません。較正・coverage参照はgeometry・field kind・成分・単位が一致する場に限定します。保存済み旧モデルの較正stateは、モデルが持つtarget kindを引き継いで読み込みます。
+
 simultaneousはsampleごとの最大残差だけを保持します。pointwiseは正確な順位kを得るため、各地点・成分につき`min(k, n-k+1)`個のscoreと作業batchを保持します。90%指定ならおおむねnの10%、中間のcoverageではおおむね半数のscoreが必要です。近似分位点・再推論・一時diskへ変更せず、固定supportと較正数に比例する容量は残ります。coverage評価は全件の上下限を保持せず、保存時に各batchの帯を生成します。
 
 形状は元のNHWCまたはmesh NVCで、帯は元fieldの単位です。supportはgeometry mask内かつ面積重みが正の固定地点です。両scopeとも校正・coverage評価にその全地点の既知truthを要求し、未観測地点の残差を0として埋めません。support外の上下限はNaNです。geometry・成分・単位が異なる場へ校正を流用しません。
@@ -70,20 +72,6 @@ simultaneousはsampleごとの最大残差だけを保持します。pointwise�
 
 per_sample CSVには全場を覆ったか、sample内の面積・channel加重coverage、channel別coverageを保存します。既存の等sample同時被覆率と、明示sample重みによる値を区別します。これらは一回の帯評価から得る結果で、追加の予測/較正を行いません。
 
-## 被覆率と幅の数値確認（0.7.1、2026-10-24）
+## 配布後の受入
 
-同梱の非線形生成例の保存NPZ・正解・splitから独立再計算しました。proper train 72 / calibration 18 / test 30、90%指定の同時帯は24/30 fieldを覆い、実測80%です。点の面積加重被覆率は約98.691%、全幅は2成分で3.09303 / 3.09278 arbでした。幅はsample間で一定で、trainだけから求めたchannel scale・保存指標との一致を確認しています。
-
-この30件を独立同分布の将来sampleとみなす条件下で、固定した帯の全場被覆率の95%二項区間は61.43–92.29%です。90%を含みますが、安定した90%被覆を実証した結果ではありません。較正18件ではrankは最大値の18となり、較正集合による幅の変動も大きくなります。有限testの被覆率だけを見て帯幅を変更しません。
-
-別の制御実験ではDCT2＋Ridgeを一度だけfitし、独立calibrationと将来1000 sampleを128回生成しました。calibration 99件の同時帯は次の結果です。列の幅はそれぞれの成分の全幅で、異なる物理単位の平均幅を作りません。
-
-| 指定被覆率 | 全場被覆率の反復平均 | 成分1の幅 [m] | 成分2の幅 [Pa] |
-| --- | --- | --- | --- |
-| 80% | 80.303% | 1.580 | 19.150 |
-| 90% | 90.570% | 1.790 | 21.698 |
-| 95% | 95.482% | 1.977 | 23.963 |
-
-90%同時帯の全場被覆率の反復標準偏差は、calibration 19 / 99 / 399件で6.63 / 2.91 / 1.82 percentage pointsでした。これは異なる較正集合による変動を含みます。同じ帯の多数の空間点を独立sample数として数えていません。
-
-同じ条件の90%pointwise帯は点被覆率90.073%でしたが、全場被覆率は49.994%でした。また、90%同時帯でも難しい条件だけへ入力分布を変えると80.984%、noiseを2倍にすると50.257%でした。既存帯は条件難度や分布変化へ自動適応しません。これらは合成データの受入であり、実測データへの保証ではありません。再現手順・全反復値は検証記録の`physical_acceptance.uncertainty`から参照できます。
+`scripts/verify_wheels.py`は同梱例で学習・独立較正・別process推論を実行し、`report.json`の`extensions.uncertainty`へ実測coverage・幅・sample数を保存します。指定coverageと有限testの実測値を区別して確認してください。用途の異なる実測dataへの保証にはなりません。

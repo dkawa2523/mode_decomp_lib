@@ -1,4 +1,4 @@
-# Mode Decomposition 0.11.0
+# Mode Decomposition 0.11.1
 
 場の分解、条件からの場の予測、欠測復元を扱うPythonパッケージです。実行YAML一つ、または配列APIから利用できます。Python 3.11以上を使います。利用先にGit、uv、基盤repository、ClearML、実行SDKは不要です。
 
@@ -10,14 +10,14 @@ Windows PowerShell:
 
 ```powershell
 python -m venv .venv
-.venv/Scripts/python.exe -m pip install wheels/ml_platform_core-0.2.1-py3-none-any.whl wheels/ml_platform_mode_decomp-0.11.0-py3-none-any.whl
+.venv/Scripts/python.exe -m pip install wheels/ml_platform_core-0.2.1-py3-none-any.whl wheels/ml_platform_mode_decomp-0.11.1-py3-none-any.whl
 ```
 
 macOS / Linux:
 
 ```sh
 python3 -m venv .venv
-.venv/bin/python -m pip install wheels/ml_platform_core-0.2.1-py3-none-any.whl wheels/ml_platform_mode_decomp-0.11.0-py3-none-any.whl
+.venv/bin/python -m pip install wheels/ml_platform_core-0.2.1-py3-none-any.whl wheels/ml_platform_mode_decomp-0.11.1-py3-none-any.whl
 ```
 
 以降のコマンド例はWindows用です。macOS / Linuxでは`.venv/Scripts/python.exe`を`.venv/bin/python`に置き換えます。venvを有効化している場合は、どちらも`python`だけで実行できます。
@@ -99,7 +99,7 @@ restored = model.inverse_transform(coefficients)
 通常のFFT/DCT・POD SVD・Ridge・散布点・Hodgeはbaseインストールで使えます。必要なbackendだけextraを追加します。
 
 ```powershell
-.venv/Scripts/python.exe -m pip install --find-links wheels "ml-platform-mode-decomp[wavelet]==0.11.0"
+.venv/Scripts/python.exe -m pip install --find-links wheels "ml-platform-mode-decomp[wavelet]==0.11.1"
 ```
 
 `wavelet`はPyWavelets、`pod`はmodredを使うPOD方式、`torch`はautoencoder、`mtgp`は多出力GP、`gbdt`はXGBoost・LightGBM・CatBoostです。`pod_svd`のために`pod` extraを導入する必要はありません。
@@ -108,7 +108,7 @@ restored = model.inverse_transform(coefficients)
 
 ```powershell
 .venv/Scripts/python.exe -m pip install --upgrade "pip>=25.3"
-.venv/Scripts/python.exe -m pip install --find-links wheels --build-constraint build-constraints.txt "ml-platform-mode-decomp[pod]==0.11.0"
+.venv/Scripts/python.exe -m pip install --find-links wheels --build-constraint build-constraints.txt "ml-platform-mode-decomp[pod]==0.11.1"
 ```
 
 通常のextra指定だけではこの制約は自動適用されません。制約は隔離したbuild環境のsetuptoolsにだけ適用し、利用先のruntime依存を古い版へ固定しません。

@@ -20,7 +20,6 @@ from test_search import payloads, settings, write_input
 
 def calibrated_settings(root, output, *, tuned=True):
     cfg = settings(root, output)
-    cfg["split"]["selection_method"] = "random"
     cfg["uncertainty"] = {
         "enabled": True,
         "coverage": 0.9,
@@ -31,6 +30,7 @@ def calibrated_settings(root, output, *, tuned=True):
     }
     if not tuned:
         cfg["tuning"] = {"enabled": False}
+        cfg["split"]["selection_method"] = "random"
     return cfg
 
 

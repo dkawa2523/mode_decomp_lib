@@ -21,6 +21,10 @@ class DomainSpec:
     meta: Dict[str, Any]
     _mass_matrix: np.ndarray | None = None
 
+    def __post_init__(self) -> None:
+        if self.mask is not None:
+            _domain_mask(self)
+
     @property
     def grid_shape(self) -> tuple[int, int]:
         if self.name == "mesh":
@@ -42,6 +46,7 @@ class DomainSpec:
         return int(sample.shape[0]), int(sample.shape[1])
 
     def integration_weights(self) -> np.ndarray | None:
+        active = _domain_mask(self)
         if self.weights is None:
             return None
         weights = np.asarray(self.weights)
@@ -50,16 +55,10 @@ class DomainSpec:
             weights = weights[:, 0]
         if weights.shape != expected or weights.dtype.kind not in "fiu":
             raise ValueError("Geometry weights must be real numeric values matching the spatial shape")
-        if self.mask is None:
+        if active is None:
             if not np.isfinite(weights).all() or np.any(weights < 0):
                 raise ValueError("Active geometry weights must be finite and non-negative")
             return weights
-        mask = np.asarray(self.mask)
-        if self.name == "mesh" and mask.shape == self.grid_shape:
-            mask = mask[:, 0]
-        if mask.shape != expected or mask.dtype.kind not in "bui" or not np.isin(mask, (0, 1)).all():
-            raise ValueError("Geometry mask must be boolean or 0/1 and match the spatial shape")
-        active = mask.astype(bool, copy=False)
         if not np.isfinite(weights).all(where=active) or np.any(weights < 0, where=active):
             raise ValueError("Active geometry weights must be finite and non-negative")
         return np.where(active, weights, 0.0)
@@ -73,6 +72,18 @@ class DomainSpec:
             raise ValueError("Radial fit weights require disk or annulus geometry.")
         weights = self.integration_weights()
         return np.asarray(weights) * self.coords["r"]
+
+
+def _domain_mask(domain: DomainSpec) -> np.ndarray | None:
+    if domain.mask is None:
+        return None
+    mask = np.asarray(domain.mask)
+    expected = (domain.grid_shape[0],) if domain.name == "mesh" else domain.grid_shape
+    if domain.name == "mesh" and mask.shape == domain.grid_shape:
+        mask = mask[:, 0]
+    if mask.shape != expected or mask.dtype.kind not in "bui" or not np.isin(mask, (0, 1)).all():
+        raise ValueError("Geometry mask must be boolean or 0/1 and match the spatial shape")
+    return mask.astype(bool, copy=False)
 
 
 def _normalize_field_shape(field_shape: tuple[int, ...]) -> tuple[int, int]:

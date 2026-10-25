@@ -13,7 +13,8 @@ import numpy as np
 import yaml
 from ml_platform_core.config import deep_merge
 from ml_platform_core.paths import resolve_path_within
-from ._sources import _geometry_files
+from ..config import integer_parameter
+from ._sources import _columns, _geometry_files
 
 
 def _geometry(base: dict[str, Any], override: Mapping[str, Any]) -> dict[str, Any]:
@@ -60,15 +61,34 @@ def import_legacy_npy_dataset(
     conditions = np.load(source / "cond.npy", allow_pickle=False, mmap_mode="r")
     if fields.ndim != 4 or fields.shape[-1] not in (1, 2) or conditions.ndim != 2 or len(conditions) != len(fields):
         raise ValueError("Legacy import requires NHWC fields and matching (N,P) conditions.")
-    columns = list(condition_columns or [f"x{index + 1}" for index in range(conditions.shape[1])])
-    if len(columns) != conditions.shape[1] or len(set(columns)) != len(columns):
+    columns = list(
+        _columns(
+            [f"x{index + 1}" for index in range(conditions.shape[1])]
+            if condition_columns is None
+            else condition_columns,
+            "condition_columns",
+        )
+    )
+    if len(columns) != conditions.shape[1]:
         raise ValueError("condition_columns must uniquely name all condition dimensions.")
     old_grid, old_domain = manifest["grid"], dict(manifest["domain"])
     domain_name = old_domain.pop("type", old_domain.pop("name", ""))
     domain_axes = old_domain.pop("axes", None)
     height, width = fields.shape[1:3]
-    if (height, width) != (int(old_grid["H"]), int(old_grid["W"])):
+    if (height, width) != (
+        integer_parameter(old_grid["H"], "legacy grid.H"),
+        integer_parameter(old_grid["W"], "legacy grid.W"),
+    ):
         raise ValueError("Legacy field shape disagrees with manifest grid.")
+    kind = manifest.get("field_kind", "scalar" if fields.shape[-1] == 1 else "vector")
+    if (
+        kind not in {"scalar", "vector", "multichannel"}
+        or (kind == "scalar" and fields.shape[-1] != 1)
+        or (kind == "vector" and fields.shape[-1] != 2)
+    ):
+        raise ValueError(
+            "Legacy field_kind must agree with the stored scalar, two-component vector, or multichannel field."
+        )
     axes = {}
     for name, count, key in (("x", width, "x_range"), ("y", height, "y_range")):
         lower, upper = old_grid[key]
@@ -93,8 +113,12 @@ def import_legacy_npy_dataset(
         "fields": {
             "path": "field.npy",
             "layout": "NHWC",
-            "kind": "scalar" if fields.shape[-1] == 1 else "vector",
-            "components": ["value"] if fields.shape[-1] == 1 else ["fx", "fy"],
+            "kind": kind,
+            "components": ["fx", "fy"]
+            if kind == "vector"
+            else ["value"]
+            if kind == "scalar"
+            else [f"component_{index}" for index in range(fields.shape[-1])],
         },
         "geometry": geometry,
         "imported_from": {

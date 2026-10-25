@@ -5,7 +5,7 @@ A standalone package for field decomposition, condition-to-field prediction and 
 The same `FieldSurrogate` also accepts paired fields with `fit(target, inputs=source)` and an `input_representation` alongside the target `representation`. The two fixed geometries may differ. `data.input` selects fields or checked saved Z coefficients for the existing pipeline, surrogate analysis and inference tasks. Source/target IDs must match exactly; field input representations are fitted inside each training partition. Saved coefficient inputs instead use their fixed external representation. The consumer ZIP includes `docs/FIELD_MAPPING.md` and a field mapping example.
 
 ```shell
-python -m pip install ml_platform_core-0.2.1-py3-none-any.whl ml_platform_mode_decomp-0.11.0-py3-none-any.whl
+python -m pip install ml_platform_core-0.2.1-py3-none-any.whl ml_platform_mode_decomp-0.11.1-py3-none-any.whl
 python -m ml_platform_mode_decomp run.yaml
 ```
 

@@ -18,6 +18,17 @@ def _resolve_coeff_shape(raw_meta: Mapping[str, Any] | None) -> tuple[int, ...] 
     return None
 
 
+def _real_values(values: Any, *, dtype=None, name: str = "vector_coeff") -> np.ndarray:
+    """Packed coordinates are real and finite before and after dtype conversion."""
+    array = np.asarray(values)
+    if array.dtype.kind not in "fiu" or not np.isfinite(array).all():
+        raise ValueError(f"{name} must contain finite real numeric values")
+    converted = np.asarray(array, dtype=dtype)
+    if converted is not array and not np.isfinite(converted).all():
+        raise ValueError(f"{name} overflows the requested coefficient dtype")
+    return converted
+
+
 FlattenOrder = Literal["A", "C", "F"]
 
 
@@ -116,10 +127,10 @@ class NoOpCoeffCodec(BaseCoeffCodec):
 
     def encode(self, raw_coeff: Any, raw_meta: Mapping[str, Any]) -> np.ndarray:
         vec = _vectorize_raw(raw_coeff, raw_meta)
-        return np.asarray(vec, dtype=self._float_dtype).reshape(-1)
+        return _real_values(vec, dtype=self._float_dtype, name="raw_coeff").reshape(-1)
 
     def decode(self, vector_coeff: np.ndarray, raw_meta: Mapping[str, Any]) -> Any:
-        vec = np.asarray(vector_coeff, dtype=self._float_dtype).reshape(-1)
+        vec = _real_values(vector_coeff, dtype=self._float_dtype).reshape(-1)
         return _devectorize_raw(vec, raw_meta)
 
     def encode_batch(self, raw_coefficients, raw_meta: Mapping[str, Any]) -> np.ndarray:
@@ -132,12 +143,12 @@ class NoOpCoeffCodec(BaseCoeffCodec):
         if shape is not None and int(np.prod(values.shape[1:])) != int(np.prod(shape)):
             raise ValueError("raw_coeff size does not match raw_meta.coeff_shape")
         dimension = int(np.prod(values.shape[1:]))
-        return np.asarray(values, dtype=self._float_dtype).reshape(len(values), dimension)
+        return _real_values(values, dtype=self._float_dtype, name="raw_coeff").reshape(len(values), dimension)
 
     def decode_batch(self, vector_coefficients: np.ndarray, raw_meta: Mapping[str, Any]):
         if _resolve_flatten_order(raw_meta) != "C":
             return super().decode_batch(vector_coefficients, raw_meta)
-        values = np.asarray(vector_coefficients, dtype=self._float_dtype)
+        values = _real_values(vector_coefficients, dtype=self._float_dtype)
         shape = _resolve_coeff_shape(raw_meta)
         if shape is None:
             return values

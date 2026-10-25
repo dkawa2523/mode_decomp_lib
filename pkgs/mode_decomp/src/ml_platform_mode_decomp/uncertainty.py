@@ -94,8 +94,11 @@ class FieldCalibrator:
             or geometry_fingerprint(data.geometry) != self.geometry_sha256
             or tuple(data.components) != self.components
             or data.field_units != self.field_units
+            or data.field_kind != self.field_kind
         ):
-            raise ValueError("Calibration and prediction reference must use the same field geometry/components/units")
+            raise ValueError(
+                "Calibration and prediction reference must use the same field geometry/components/units and kind"
+            )
         if complete:
             _require_complete_truth(data, self.support)
 
@@ -148,6 +151,7 @@ class FieldCalibrator:
     def _prepare_fit(self, calibration: FieldDataset, training: FieldDataset | None) -> None:
         self._fitted = False
         self.field_shape = tuple(calibration.fields.shape[1:])
+        self.field_kind = calibration.field_kind
         self.geometry_sha256 = geometry_fingerprint(calibration.geometry)
         self.components, self.field_units = tuple(calibration.components), tuple(calibration.field_units or ())
         self.support, self.area = _support(calibration)
@@ -309,6 +313,7 @@ class FieldCalibrator:
             "threshold_max": float(threshold.max()),
             "support_points": int(self.support.sum()),
             "field_shape": list(self.field_shape),
+            "field_kind": getattr(self, "field_kind", None),
             "field_components": list(self.components),
             "field_units": list(self.field_units),
             "geometry_sha256": self.geometry_sha256,

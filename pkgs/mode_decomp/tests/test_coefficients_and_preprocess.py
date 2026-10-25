@@ -62,6 +62,20 @@ def test_auto_codec_alias_and_complex_roundtrip():
     np.testing.assert_allclose(codec.decode(packed, meta), raw, atol=1e-12)
 
 
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"phase_unwrap": True},
+        {"mode": "mag_phase", "phase_clip": -1.0},
+        {"mode": "logmag_phase", "log_epsilon": 0.0},
+        {"mode": "mag_phase", "log_epsilon": 0.01},
+    ],
+)
+def test_phase_options_cannot_be_ignored_or_change_sign(options):
+    with pytest.raises(ValueError):
+        build_coeff_codec({"name": "fft_complex_codec_v1", **options})
+
+
 @pytest.mark.parametrize("name,raw", [("none", np.ones((2, 2))), ("fft_complex_codec_v1", np.ones((2, 2)) + 1j)])
 def test_short_coefficients_are_rejected_instead_of_repaired(name, raw):
     codec = build_coeff_codec({"name": name})
@@ -106,13 +120,44 @@ def test_inplace_backend_options_never_modify_caller_arrays(name):
     assert not np.shares_memory(z, recovered)
 
 
-def test_pca_full_energy_is_full_rank_roundtrip():
+@pytest.mark.parametrize("solver", ["full", "randomized"])
+def test_pca_full_energy_is_full_rank_roundtrip(solver):
     a = np.random.default_rng(4).normal(size=(12, 4))
     a[:, -1] = 3.0
-    post = build_coeff_post({"name": "pca", "params": {"energy_threshold": 1.0}})
+    post = build_coeff_post({"name": "pca", "params": {"energy_threshold": 1.0, "svd_solver": solver}})
     post.fit(a)
     np.testing.assert_allclose(post.inverse_transform(post.transform(a)), a, atol=1e-12)
     assert post.latent_dim == 4
+    with pytest.raises(ValueError, match="complete spectrum"):
+        build_coeff_post({"name": "pca", "params": {"energy_threshold": 1.0, "svd_solver": "arpack"}})
+
+
+@pytest.mark.parametrize("options", [{"per_channel": "false"}, {"per_chanel": False}, {"eps": True}])
+def test_nested_preprocess_options_cannot_silently_change_standardization(options):
+    with pytest.raises(ValueError):
+        build_preprocess({"name": "basic", "ops": [{"name": "field_standardize", **options}]})
+
+
+def test_coefficient_dictionary_rejects_a_field_mask_policy_without_effect():
+    with pytest.raises(ValueError, match="Unknown dict_learning parameters.*mask_policy"):
+        build_coeff_post({"name": "dict_learning", "mask_policy": "error"})
+
+
+@pytest.mark.parametrize("invalid", [np.array([1 + 2j, 3 + 4j]), np.array([1.0, np.nan])])
+def test_packed_coordinates_cannot_discard_invalid_values(invalid):
+    codec = build_coeff_codec({"name": "none"})
+    meta = {"coeff_shape": [2], "complex_format": "real"}
+    with pytest.raises(ValueError, match="finite real"):
+        codec.decode(invalid, meta)
+    with pytest.raises(ValueError, match="finite real"):
+        codec.decode_batch(invalid[None], meta)
+    for name in ("none", "standardize"):
+        post = build_coeff_post({"name": name})
+        with pytest.raises(ValueError, match="finite real"):
+            post.fit(invalid[None])
+        post.fit(np.array([[1.0, 2.0], [3.0, 4.0]]))
+        with pytest.raises(ValueError, match="finite real"):
+            post.inverse_transform(invalid[None])
 
 
 def test_power_inverse_domain_failure_is_explicit():

@@ -16,6 +16,8 @@ def _ensure_2d(array: np.ndarray, name: str) -> np.ndarray:
     array = np.asarray(array)
     if array.ndim != 2:
         raise ValueError(f"{name} must be 2D, got shape {array.shape}")
+    if array.dtype.kind not in "fiu" or not np.isfinite(array).all():
+        raise ValueError(f"{name} must contain finite real numeric coefficients")
     return array
 
 
@@ -71,6 +73,7 @@ class NoOpCoeffPost(BaseCoeffPost):
         self._state = {"method": self.name}
 
     def fit(self, A: np.ndarray) -> "NoOpCoeffPost":
+        _ensure_2d(A, "A")
         self._mark_fitted()
         return self
 
@@ -96,6 +99,8 @@ class StandardizeCoeffPost(BaseCoeffPost):
         mean = A.mean(axis=0)
         std = A.std(axis=0)
         scale = np.where(std == 0.0, 1.0, std)
+        if not np.isfinite(mean).all() or not np.isfinite(scale).all():
+            raise ValueError("Coefficient standardization statistics overflow; rescale the coefficients")
         self._mean = mean
         self._scale = scale
         self._state = {"method": self.name, "mean": mean, "scale": scale}
@@ -109,7 +114,7 @@ class StandardizeCoeffPost(BaseCoeffPost):
         A = _ensure_2d(A, "A")
         if A.shape[1] != self._mean.shape[0]:
             raise ValueError("A feature dimension does not match standardize state")
-        return (A - self._mean) / self._scale
+        return _ensure_2d((A - self._mean) / self._scale, "Z")
 
     def inverse_transform(self, Z: np.ndarray) -> np.ndarray:
         self._require_fitted()
@@ -118,7 +123,7 @@ class StandardizeCoeffPost(BaseCoeffPost):
         Z = _ensure_2d(Z, "Z")
         if Z.shape[1] != self._mean.shape[0]:
             raise ValueError("Z feature dimension does not match standardize state")
-        return Z * self._scale + self._mean
+        return _ensure_2d(Z * self._scale + self._mean, "A")
 
 
 class QuantileCoeffPost(BaseCoeffPost):
@@ -299,6 +304,10 @@ class PCACoeffPost(BaseCoeffPost):
             threshold = float(self._energy_threshold)
             if not (0.0 < threshold <= 1.0):
                 raise ValueError("energy_threshold must be in (0, 1]")
+            if threshold == 1.0 and self._svd_solver == "arpack":
+                raise ValueError(
+                    "PCA energy_threshold=1.0 requires a complete spectrum; arpack always omits a component"
+                )
             return None if threshold == 1.0 else threshold
         if self._n_components is not None:
             n_components = integer_parameter(self._n_components, "n_components")
@@ -369,7 +378,6 @@ class DictLearningCoeffPost(BaseCoeffPost):
         transform_algorithm: Any = "lasso_cd",
         positive_code: Any = False,
         positive_dict: Any = False,
-        mask_policy: Any = "error",
     ) -> None:
         cfg = constructor_config(cfg, locals(), name="dict_learning")
         super().__init__(cfg=cfg)

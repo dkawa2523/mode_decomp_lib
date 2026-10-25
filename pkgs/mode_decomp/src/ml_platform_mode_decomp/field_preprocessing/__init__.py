@@ -173,18 +173,16 @@ class BasicPreprocess(BasePreprocess):
         self._ops_state = {}
         for op in self._ops:
             name = op["name"]
-            if name != "field_standardize":
-                raise ValueError(f"Unknown preprocess op: {name}")
-            eps = float(op.get("eps", 1e-8))
-            if not np.isfinite(eps) or eps < 0:
-                raise ValueError("field_standardize.eps must be finite and non-negative")
-            per_channel = bool(op.get("per_channel", True))
+            eps = op["eps"]
+            per_channel = op["per_channel"]
             if per_channel:
                 statistics = [_moments(fields[..., channel], valid) for channel in range(self._channels)]
                 mean, std = np.asarray(statistics).T
             else:
                 mean, std = _moments(fields, None if valid is None else valid[..., None])
             scale = np.where(std == 0.0, 1.0, std) + eps
+            if not np.isfinite(mean).all() or not np.isfinite(scale).all():
+                raise ValueError("field_standardize statistics overflow; rescale fields or eps")
             if per_channel:
                 mean = np.asarray(mean).reshape(1, 1, 1, -1)
                 scale = scale.reshape(1, 1, 1, -1)
@@ -230,7 +228,7 @@ def _normalize_ops(ops: Any) -> list[dict[str, Any]]:
     names = set()
     for op in ops:
         if isinstance(op, str):
-            item = {"name": op.strip()}
+            item: dict[str, Any] = {"name": op.strip()}
         elif isinstance(op, Mapping):
             item = dict(op)
         else:
@@ -238,6 +236,23 @@ def _normalize_ops(ops: Any) -> list[dict[str, Any]]:
         name = item.get("name")
         if not isinstance(name, str) or not name:
             raise ValueError("preprocess op requires name")
+        if name != "field_standardize":
+            raise ValueError(f"Unknown preprocess op: {name}")
+        unknown = set(item) - {"name", "eps", "per_channel"}
+        if unknown:
+            raise ValueError(f"Unknown {name} parameters: {sorted(unknown)}")
+        per_channel = item.get("per_channel", True)
+        if not isinstance(per_channel, bool):
+            raise ValueError("field_standardize.per_channel must be boolean")
+        eps = item.get("eps", 1e-8)
+        if (
+            isinstance(eps, (bool, np.bool_))
+            or not isinstance(eps, (int, float, np.integer, np.floating))
+            or not np.isfinite(eps)
+            or eps < 0
+        ):
+            raise ValueError("field_standardize.eps must be a finite non-negative real number")
+        item.update(per_channel=per_channel, eps=float(eps))
         if name in names:
             raise ValueError(f"duplicate preprocess op: {name}")
         names.add(name)

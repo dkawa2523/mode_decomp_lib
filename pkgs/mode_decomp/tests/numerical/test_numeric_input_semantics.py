@@ -152,6 +152,8 @@ def test_nonbinary_masks_cannot_become_observations_by_truthiness(graph, value):
         model.transform(np.ones(domain.grid_shape), mask, domain)
     with pytest.raises(ValueError, match="0/1"):
         build_preprocess({"name": "none"}).fit(np.ones((*domain.grid_shape, 1)), mask)
+    with pytest.raises(ValueError, match="0/1"):
+        replace(domain, mask=mask, weights=None)
 
 
 def test_exact_binary_float_masks_preserve_observation_meaning(graph):

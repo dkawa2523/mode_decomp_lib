@@ -317,6 +317,8 @@ def load_model(
         bundle.input_kind = "conditions"
         bundle.input_dimension = len(bundle.condition_columns)
         bundle.input_model_sha256 = None
+    if isinstance(bundle, FieldSurrogate) and bundle.calibrator is not None:
+        bundle.calibrator.field_kind = bundle.representation.field_kind
     return bundle
 
 

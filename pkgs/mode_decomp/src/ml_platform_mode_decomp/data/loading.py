@@ -59,7 +59,7 @@ def load_field_dataset(
             for key in ("fields", "geometry", "samples", "conditions", "masks", "observations", "interpolation")
         ):
             raise ValueError("Pass one inline or referenced input specification, not both.")
-        format_name, reference = "npy", source_manifest
+        format_name, reference = config.get("format", "npy"), source_manifest
     else:
         format_name, reference = field_input_spec(config)
     if format_name != "npy":

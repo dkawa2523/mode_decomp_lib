@@ -85,6 +85,23 @@ def _tables(result):
     return {key: pd.read_csv(value) for key, value in result.tables.items()}
 
 
+def test_field_input_study_does_not_give_the_linear_baseline_extra_conditions(tmp_path):
+    root = tmp_path / "input"
+    _input(root, conditions=True)
+    cfg = _settings(root, tmp_path / "outputs")
+    cfg["data"]["input"] = {"kind": "field", "local_path": str(root)}
+    cfg["report"] = {"enabled": False}
+    cfg["analysis"]["bootstrap_samples"] = 0
+    for candidate in cfg["model"]["candidates"]:
+        candidate["input_representation"] = {"decomposition": {"name": "pod_svd", "params": {"n_modes": 2}}}
+    result = run_task(cfg)
+    comparison = pd.read_csv(result.tables["comparison"])
+    assert "baseline_mean" in set(comparison.candidate_id)
+    assert "baseline_linear" not in set(comparison.candidate_id)
+    assert comparison.loc[comparison.candidate_id == "baseline_mean", "prediction_input_kind"].tolist() == ["none"]
+    assert set(comparison.loc[comparison.method != "baseline", "prediction_input_kind"]) == {"field"}
+
+
 @pytest.mark.parametrize("kind", ["representation", "surrogate", "imputation"])
 def test_analysis_kinds_write_shared_holdout_reports_without_publication(tmp_path, kind):
     root = tmp_path / "input"

@@ -26,7 +26,7 @@ from typing import Any, Mapping
 import numpy as np
 
 
-from .basic import BaseCoeffCodec, NoOpCoeffCodec
+from .basic import BaseCoeffCodec, NoOpCoeffCodec, _real_values
 from .fft_complex import FFTComplexCodecV1
 from .real_fft import RealFFTCodec
 from .wavelet_pack import WaveletPackCodecV1
@@ -128,7 +128,7 @@ class OffsetResidualPackCodecV1(BaseCoeffCodec):
         offset_dim = _require_int(raw_meta.get("offset_dim"), label="raw_meta.offset_dim")
         residual_raw_meta = _require_mapping(raw_meta.get("residual_raw_meta"), label="raw_meta.residual_raw_meta")
 
-        offset = np.asarray(raw_coeff_map["offset"], dtype=self._float_dtype).reshape(-1)
+        offset = _real_values(raw_coeff_map["offset"], dtype=self._float_dtype, name="offset").reshape(-1)
         if offset.size != int(offset_dim):
             raise ValueError("offset_residual_pack_v1 offset vector size does not match raw_meta.offset_dim")
 
@@ -148,7 +148,7 @@ class OffsetResidualPackCodecV1(BaseCoeffCodec):
         offset_dim = _require_int(raw_meta.get("offset_dim"), label="raw_meta.offset_dim")
         residual_raw_meta = _require_mapping(raw_meta.get("residual_raw_meta"), label="raw_meta.residual_raw_meta")
 
-        vec = np.asarray(vector_coeff, dtype=self._float_dtype).reshape(-1)
+        vec = _real_values(vector_coeff, dtype=self._float_dtype).reshape(-1)
         if vec.size < int(offset_dim):
             raise ValueError("offset_residual_pack_v1 vector_coeff is shorter than offset_dim")
 
@@ -168,7 +168,7 @@ class OffsetResidualPackCodecV1(BaseCoeffCodec):
         offset_dim = _require_int(base_raw.get("offset_dim"), label="raw_meta.offset_dim")
         residual_raw_meta = _require_mapping(base_raw.get("residual_raw_meta"), label="raw_meta.residual_raw_meta")
 
-        vec = np.asarray(vector_coeff, dtype=self._float_dtype).reshape(-1)
+        vec = _real_values(vector_coeff, dtype=self._float_dtype).reshape(-1)
         residual_vec = vec[int(offset_dim) :].astype(self._float_dtype, copy=False)
         residual_codec = self._select_residual_for_decode(residual_raw_meta)
         residual_coeff_meta = residual_codec.coeff_meta(residual_raw_meta, residual_vec)

@@ -12,6 +12,7 @@ from ml_platform_core.paths import resolve_path_within
 
 from .data import import_csv_field_dataset, import_legacy_npy_dataset
 from .data.input_spec import field_input_spec
+from .data._sources import _mapping
 from .data.scattered_import import import_scattered_field_dataset
 
 
@@ -20,19 +21,31 @@ def convert_field_input(data, destination, *, format_name=None, condition_column
         raise ValueError("data.format and import.format must select the same input format")
     settings = {**data, **({"format": format_name} if format_name is not None else {})}
     selected, reference = field_input_spec(settings)
-    source = settings["local_path"]
+    source = settings.get("local_path", settings.get("path"))
+    if source is None:
+        raise ValueError("Input conversion requires data.local_path")
     if selected == "legacy-npy":
         if isinstance(reference, str) and reference != "manifest.json":
             raise ValueError("legacy-npy reads the source manifest.json; use data.geometry for coordinate overrides")
         if isinstance(reference, dict) and set(reference) - {"schema", "geometry", "conditions"}:
             raise ValueError("legacy-npy supports geometry and condition-column overrides; use npy for new inputs")
+        condition_sources = [
+            value for value in (condition_columns, settings.get("condition_columns")) if value is not None
+        ]
+        if "conditions" in settings:
+            conditions = _mapping(settings["conditions"], "legacy-npy conditions", keys={"columns"})
+            if "columns" not in conditions or conditions["columns"] is None:
+                raise ValueError("legacy-npy conditions accepts only explicit columns for the fixed source cond.npy")
+            condition_sources.append(conditions["columns"])
+        if len(condition_sources) > 1:
+            raise ValueError("Specify legacy condition columns once, through import or data")
+        if geometry is not None and settings.get("geometry") is not None:
+            raise ValueError("Specify legacy geometry once, through import or data")
         return import_legacy_npy_dataset(
             source,
             destination,
-            condition_columns=condition_columns
-            or settings.get("condition_columns")
-            or settings.get("conditions", {}).get("columns"),
-            geometry_override=geometry or settings.get("geometry"),
+            condition_columns=condition_sources[0] if condition_sources else None,
+            geometry_override=geometry if geometry is not None else settings.get("geometry"),
         )
     importers = {"csv": import_csv_field_dataset, "scattered": import_scattered_field_dataset}
     if selected not in importers:

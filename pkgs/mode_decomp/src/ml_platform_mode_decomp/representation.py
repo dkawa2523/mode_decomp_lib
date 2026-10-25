@@ -36,6 +36,21 @@ def _observation_mask(mask, shape):
     return values.astype(bool, copy=False)
 
 
+def _coefficient_matrix(values, sample_count, dimension=None):
+    values = np.asarray(values)
+    if (
+        values.dtype.kind not in "fiu"
+        or values.ndim != 2
+        or values.shape[0] != sample_count
+        or (dimension is not None and values.shape[1] != dimension)
+        or not np.isfinite(values).all()
+    ):
+        raise ValueError(
+            "Coefficient postprocessing must return a finite real matrix with the fitted sample/dimension shape"
+        )
+    return values
+
+
 class FieldRepresentation:
     """A fixed geometry, field transform, decomposer, codec and target transform.
 
@@ -90,9 +105,7 @@ class FieldRepresentation:
         if packed.shape[1] == 0 and self.post.name != "none":
             raise ValueError("A constant field has no coefficient targets; use coeff_post.name: none")
         self.post.fit(packed)
-        targets = np.asarray(self.post.transform(packed))
-        if targets.ndim != 2 or not np.isfinite(targets).all():
-            raise ValueError("Fitted coefficient targets must be finite and two dimensional")
+        targets = _coefficient_matrix(self.post.transform(packed), len(packed))
         self.packed_dim, self.target_dim = packed.shape[1], targets.shape[1]
         self.layout = CoefficientLayout.from_meta(self.raw_meta, self.packed_dim, self.decomposer.synthesis_kind)
         self.fit_sample_ids = tuple(str(x) for x in dataset.sample_ids)
@@ -173,7 +186,9 @@ class FieldRepresentation:
             raise ValueError("space must be 'a' or 'z'")
         fields, masks = self._inputs(fields, masks)
         packed = self._encode(fields, masks, preprocess=True)
-        return packed if space == "a" else np.asarray(self.post.transform(packed))
+        return (
+            packed if space == "a" else _coefficient_matrix(self.post.transform(packed), len(packed), self.target_dim)
+        )
 
     def inverse_transform(self, coefficients: np.ndarray, *, space: str = "z") -> np.ndarray:
         self._require_fitted()
@@ -194,9 +209,11 @@ class FieldRepresentation:
         sample_bytes = max(int(np.prod(self.field_shape)) * 16, self.packed_dim * 16) * 6
         for section in _batch_slices(len(values), sample_bytes):
             coefficients = values[section]
-            packed = coefficients if space == "a" else np.asarray(self.post.inverse_transform(coefficients))
-            if not np.isfinite(packed).all():
-                raise ValueError("Coefficient inverse produced values outside its finite domain")
+            packed = (
+                coefficients
+                if space == "a"
+                else _coefficient_matrix(self.post.inverse_transform(coefficients), len(coefficients), self.packed_dim)
+            )
             raw = self.codec.decode_batch(packed, self.raw_meta)
             batch = self.decomposer.inverse_transform_batch(raw, self.geometry)
             if batch.ndim == 3:

@@ -453,6 +453,8 @@ def test_training_baseline_undefined_is_reported_without_inventing_skill(tmp_pat
     ]
     if missing_scope == "selection":
         cfg["model"]["candidates"].append({**deepcopy(cfg["model"]["candidates"][0]), "id": "gappy_other"})
+    else:
+        cfg["split"].pop("selection_size")
     dataset = load_field_dataset(root)
     split = split_dataset(dataset, cfg["split"], cfg["run"]["seed"], nested=missing_scope == "selection")
     mask = np.ones(dataset.fields.shape[:-1], dtype=bool)
@@ -489,6 +491,7 @@ def test_surrogate_r2_uses_original_fields_when_representation_is_constant(tmp_p
     pattern = np.tile(np.asarray([-1.0, -1.0, 1.0, 1.0]), (4, 1))[..., None]
     np.save(root / "field.npy", conditions[:, None, None, None] * pattern[None])
     cfg = settings(root, tmp_path / "training")
+    cfg["split"].pop("selection_size")
     cfg["metrics"] = {"names": ["field_rmse", "field_r2"]}
     cfg["model"]["candidates"] = [
         {
@@ -513,6 +516,7 @@ def test_single_fixed_candidate_loads_once_and_fits_once_without_selection(tmp_p
     tiny_input(root)
     cfg = settings(root, tmp_path / "training")
     cfg["model"]["candidates"] = cfg["model"]["candidates"][:1]
+    cfg["split"].pop("selection_size")
     fitted, loaded = [], []
     fit, load = FieldSurrogate.fit, preparation.load_field_dataset
 

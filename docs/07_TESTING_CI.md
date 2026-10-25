@@ -43,7 +43,7 @@ uv sync --locked --all-packages --extra torch --extra mtgp --extra wavelet --ext
 ```powershell
 uv run --no-project python scripts/build_wheels.py
 uv venv --python 3.12 work/wheel_env
-uv pip install --python work/wheel_env/Scripts/python.exe dist/0.11.0/ml_platform_core-0.2.1-py3-none-any.whl dist/0.11.0/ml_platform_mode_decomp-0.11.0-py3-none-any.whl
+uv pip install --python work/wheel_env/Scripts/python.exe dist/0.11.1/ml_platform_core-0.2.1-py3-none-any.whl dist/0.11.1/ml_platform_mode_decomp-0.11.1-py3-none-any.whl
 work/wheel_env/Scripts/python.exe scripts/verify_wheels.py --work-dir work/wheel_acceptance
 ```
 
@@ -55,7 +55,7 @@ release受入では、wheelのPython source集合・bytes、installed CLI、固�
 
 ```powershell
 uv run --no-project python scripts/build_distribution.py
-uv run --no-project python scripts/verify_distribution.py --bundle dist/0.11.0/ml_platform_mode_decomp-0.11.0.zip --work-dir work/distribution-acceptance
+uv run --no-project python scripts/verify_distribution.py --bundle dist/0.11.1/ml_platform_mode_decomp-0.11.1.zip --work-dir work/distribution-acceptance
 ```
 
 この検査はZIP内のwheel・例・設定だけを参照し、新しい標準venv一つへ通常pipで導入します。開発package/PYTHONPATHを使わないisolated Pythonで、配列API、単一YAML、学習・保存、訓練入力を隠した後のfresh推論を確認します。通常利用者がこの開発用検査を実行する必要はありません。sdistからwheelを構築し、tests/fixtures/cacheが配布へ混入しないことも受入で確認します。

@@ -9,7 +9,7 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 
 
-from .basic import BaseCoeffCodec, FlattenOrder, _resolve_flatten_order
+from .basic import BaseCoeffCodec, FlattenOrder, _real_values, _resolve_flatten_order
 
 
 def _resolve_float_dtype(policy: str) -> np.dtype:
@@ -137,7 +137,7 @@ class WaveletPackCodecV1(BaseCoeffCodec):
         for coeffs in channel_coeffs:
             vecs.append(_flatten_coeffs(coeffs, approx, details, order=order))
         vector = np.concatenate(vecs, axis=0) if vecs else np.zeros(0, dtype=self._float_dtype)
-        return np.asarray(vector, dtype=self._float_dtype).reshape(-1)
+        return _real_values(vector, dtype=self._float_dtype).reshape(-1)
 
     def decode(self, vector_coeff: np.ndarray, raw_meta: Mapping[str, Any]) -> Any:
         if raw_meta is None:
@@ -148,7 +148,7 @@ class WaveletPackCodecV1(BaseCoeffCodec):
         per_channel = _coeff_size(approx, details)
         expected = per_channel * max(channels, 1)
 
-        vec = np.asarray(vector_coeff, dtype=self._float_dtype).reshape(-1)
+        vec = _real_values(vector_coeff, dtype=self._float_dtype).reshape(-1)
         if vec.size > expected:
             raise ValueError("wavelet_pack_v1 vector_coeff is larger than expected")
         if vec.size < expected:

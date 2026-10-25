@@ -1,6 +1,6 @@
 # 現在の実装と次の工程
 
-現在の開発sourceはmode 0.11.0です。単一YAML／配列APIによる場の分解、条件・別の場・保存係数からの予測、欠測復元を扱います。共通依存はcore 0.2.1で、SDKやClearMLなしで動作します。
+現在の開発sourceはmode 0.11.1です。単一YAML／配列APIによる場の分解、条件・別の場・保存係数からの予測、欠測復元を扱います。共通依存はcore 0.2.1で、SDKやClearMLなしで動作します。
 
 ## 到達点
 
@@ -19,17 +19,19 @@
 
 利用仕様は[設定](CONFIGURATION.md)、[入力形式](DATA_FORMAT.md)、[手法](METHODS.md)、[場と係数の対応学習](FIELD_MAPPING.md)へ集約しています。内部の責務は[アーキテクチャ](ARCHITECTURE.md)、検査方法は[品質検査](07_TESTING_CI.md)を参照してください。
 
+0.11.1では、分割の実利用roleに応じた設定へ整理し、前処理の入れ子parameter・100%保持PCA・実数係数の入口を揃えています。field入力baselineへの追加条件混入、指定NPYから別配列への読込置換、supportの暗黙True化、要求出力の失敗を成功にするfallbackを修正しました。新しい実行frameworkや設定section、core変更は追加していません。
+
 TuckerとQuadratic manifoldは追加依存なしで使えます。学習時は固定domain上の完全観測が必要で、学習後の部分観測queryは対応するsolverで扱います。Hodgeのnativeな辺内積、非線形modeの基準点依存、較正帯の固定supportなど、既存の数値規約を維持します。
 
 保存schemaは4です。入力kindとoptionalなsource表現を検証し、旧schema1〜3のモデルも元のschema／runtime条件で読み込みます。旧producerの実bundle fixtureは互換性検査のため維持します。
 
 ## 配布済みsnapshotとの区別
 
-`dist/`のmode 0.10.4 wheel・source archive・ZIPは、これらのsource追加前に作成したrelease snapshotです。現行sourceの到達点をそのまま表す配布物として扱いません。既存の配布物やユーザー入力dataは保持しています。開発環境のeditable mode packageは0.11.0へ更新し、他の依存packageは変更していません。
+`dist/`のmode 0.10.4 wheel・source archive・ZIPは、これらのsource追加前に作成したrelease snapshotです。現行sourceの到達点をそのまま表す配布物として扱いません。既存の配布物やユーザー入力dataは保持しています。開発環境のeditable mode packageは0.11.1へ更新し、他の依存packageは変更していません。
 
-現行sourceのbuild出力は`dist/0.11.0/`です。`scripts/build_distribution.py`はpackage version別の出力先を既定とし、cleanなsdist→wheel→consumer ZIPを作成します。旧root配布物とSHA256SUMSは保持します。新規配布物は配布先だけのvenv／pip環境で受け入れ、外部公開は別操作です。[配布ガイド](DISTRIBUTION.md)を参照してください。
+現行sourceのbuild出力は`dist/0.11.1/`です。`scripts/build_distribution.py`はpackage version別の出力先を既定とし、cleanなsdist→wheel→consumer ZIPを作成します。旧root配布物とSHA256SUMSは保持します。新規配布物は配布先だけのvenv／pip環境で受け入れ、外部公開は別操作です。[配布ガイド](DISTRIBUTION.md)を参照してください。
 
-remote CIはLinux／Windowsの品質検査と配布受入が成功しました。公開Darcy定常計算benchmarkでも、公式testを保持して未知case誤差・表現残差・容量を測定しています。[評価結果と再実行](PAIRED_ACCEPTANCE.md)に出典・保存尺度・分割・CI証跡をまとめています。ユーザー実用途での精度確認、外部registry公開、現行版のSDK統合、実ClearML環境での受入は別工程です。core wheelの来歴と再構築手順は[integration](../integration/README.md)に保持します。
+0.11.0のremote CIはLinux／Windowsの品質検査と配布受入が成功しました。公開Darcy定常計算benchmarkでも、公式testを保持して未知case誤差・表現残差・容量を測定しています。[評価結果と再実行](PAIRED_ACCEPTANCE.md)に、その版の出典・保存尺度・分割・CI証跡をまとめています。現行版の受入結果は検証branchの最新Actionsと生成reportで確認します。ユーザー実用途での精度確認、外部registry公開、現行版のSDK統合、実ClearML環境での受入は別工程です。core wheelの来歴と再構築手順は[integration](../integration/README.md)に保持します。
 
 ## 現行の制約
 

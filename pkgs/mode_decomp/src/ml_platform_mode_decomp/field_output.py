@@ -11,6 +11,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 import numpy as np
 
 from .data.schema import _field_units, _ids
+from .data._sources import _binary_mask
 
 
 def _field_schema(shape, kind, components, units):
@@ -101,16 +102,16 @@ def field_descriptor(field_spec, geometry=None, *, observation_mask=None, calibr
         arrays.update({f"geometry_{name}": np.asarray(value) for name, value in geometry.coords.items()})
         _validate_geometry(metadata, arrays, tuple(field_spec.shape))
         if geometry.mask is not None:
-            arrays["domain_mask"] = np.asarray(geometry.mask, dtype=bool).reshape(field_spec.shape[:-1])
+            arrays["domain_mask"] = _binary_mask(geometry.mask, "domain_mask").reshape(field_spec.shape[:-1])
             metadata["support"]["domain"] = "domain_mask"
         if geometry.weights is not None:
             arrays["geometry_weights"] = np.asarray(geometry.weights).reshape(field_spec.shape[:-1])
             metadata["geometry"]["weights"] = "geometry_weights"
     if observation_mask is not None:
-        arrays["observation_mask"] = np.asarray(observation_mask, dtype=bool)
+        arrays["observation_mask"] = _binary_mask(observation_mask, "observation_mask")
         metadata["support"]["observations"] = "observation_mask"
     if calibration_support is not None:
-        arrays["calibration_support"] = np.asarray(calibration_support, dtype=bool)
+        arrays["calibration_support"] = _binary_mask(calibration_support, "calibration_support")
         metadata["support"]["calibration"] = "calibration_support"
     return metadata, arrays
 
@@ -122,6 +123,32 @@ def _validate_support_shapes(arrays, count, shape):
             raise ValueError(f"Field output {name} must match the declared spatial shape")
     if "observation_mask" in arrays and arrays["observation_mask"].shape not in (spatial, (count, *spatial)):
         raise ValueError("Field output observation_mask must be spatial or sample-by-spatial")
+
+
+def _validate_support(metadata, arrays):
+    roles = {"domain": "domain_mask", "observations": "observation_mask", "calibration": "calibration_support"}
+    support = metadata.get("support")
+    if support is None and metadata["schema"] == "field_output_v1":
+        raise ValueError("Field output must declare its output support")
+    if support is not None:
+        if (
+            not isinstance(support, dict)
+            or set(support) - {"output", *roles}
+            or support.get("output") != "finite_values_per_sample_and_component"
+        ):
+            raise ValueError("Field output support must declare the supported output and mask roles")
+        for role, name in roles.items():
+            if role in support and (support[role] != name or name not in arrays):
+                raise ValueError(f"Field output {role} support is missing its declared {name}")
+            if name in arrays and support.get(role) != name:
+                raise ValueError(f"Field output {name} must declare its {role} support role")
+    for name in roles.values():
+        if name in arrays:
+            _binary_mask(arrays[name], name)
+    geometry = metadata.get("geometry")
+    if isinstance(geometry, dict) and "weights" in geometry:
+        if geometry["weights"] != "geometry_weights" or "geometry_weights" not in arrays:
+            raise ValueError("Field output geometry is missing its declared geometry_weights")
 
 
 def _validate_field_arrays(metadata, arrays):
@@ -165,6 +192,7 @@ def _validate_field_arrays(metadata, arrays):
     if any(arrays[name].shape != fields.shape for name in bands):
         raise ValueError("Prediction bands must match the primary field shape")
     _validate_support_shapes(arrays, count, shape)
+    _validate_support(metadata, arrays)
     _validate_geometry(metadata, arrays, shape)
 
 
@@ -310,6 +338,10 @@ def read_field_output(path):
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         if not isinstance(metadata, dict) or not isinstance(metadata.get("arrays"), dict):
             raise ValueError("Field metadata must declare its associated array files")
+        if path.suffix == ".npy":
+            reference = metadata["arrays"].get(metadata.get("primary_array", "predictions"))
+            if not isinstance(reference, str) or (metadata_path.parent / reference).resolve() != path.resolve():
+                raise ValueError("Field metadata primary array differs from the requested NPY file")
         arrays = {}
         try:
             for name, reference in metadata["arrays"].items():

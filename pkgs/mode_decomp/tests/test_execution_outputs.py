@@ -34,7 +34,7 @@ def test_preview_selects_an_evaluated_sample_instead_of_an_inactive_nan_row():
     np.testing.assert_array_equal(previews["one"]["prediction"], prediction[1])
 
 
-@pytest.mark.parametrize("failure", ["save", "mode"])
+@pytest.mark.parametrize("failure", ["save", "mode", "mode_not_implemented"])
 def test_requested_output_failure_keeps_scored_candidate(tmp_path, monkeypatch, failure):
     from ml_platform_mode_decomp import analysis_task
 
@@ -51,6 +51,12 @@ def test_requested_output_failure_keeps_scored_candidate(tmp_path, monkeypatch, 
         monkeypatch.setattr(analysis_task, "save_model", unavailable)
     else:
         cfg["analysis"]["modes"] = {"enabled": True, "indices": [999999]}
+        if failure == "mode_not_implemented":
+
+            def unavailable(*args, **kwargs):
+                raise NotImplementedError("requested mode synthesis is unavailable")
+
+            monkeypatch.setattr(analysis_task, "write_mode_report", unavailable)
     with pytest.raises(RunError, match="requested analysis outputs") as caught:
         run_task(cfg)
     result = caught.value.result
@@ -70,7 +76,7 @@ def test_all_numeric_failures_keep_empty_table_headers_and_causes(tmp_path, monk
     cfg = _settings(root, tmp_path / "runs", kind="representation")
     cfg["analysis"]["allow_failures"] = True
     cfg["report"] = {"enabled": False}
-    monkeypatch.setattr(analysis_task, "_baseline_reports", lambda *args: [])
+    monkeypatch.setattr(analysis_task, "_baseline_reports", lambda *args, **kwargs: [])
 
     def unavailable(*args, **kwargs):
         raise ValueError("no valid candidate support")
@@ -421,6 +427,77 @@ def test_writer_rejects_support_for_a_different_field_before_consuming_batches(t
             observation_mask=np.ones((3, 3, 4), dtype=bool),
         )
     assert not path.exists()
+
+
+@pytest.mark.parametrize("role", ["observation_mask", "calibration_support"])
+def test_writer_never_turns_nonbinary_support_values_into_observations(tmp_path, role):
+    data = FieldDataset.from_arrays(np.ones((2, 2, 2, 1)))
+
+    def unexpected():
+        pytest.fail("Invalid support must fail before consuming predictions")
+        yield data.fields
+
+    path = tmp_path / "fields.npy"
+    for invalid in (np.nan, 0.2):
+        with pytest.raises(ValueError, match="boolean or 0/1"):
+            write_field_batches(
+                path,
+                data.sample_ids,
+                unexpected(),
+                FieldSpec.from_dataset(data),
+                **{role: np.full((2, 2), invalid)},
+            )
+    assert not path.exists()
+
+
+def test_npy_reader_cannot_redirect_the_requested_field_through_its_sidecar(tmp_path):
+    data = FieldDataset.from_arrays(np.ones((2, 2, 2, 1)))
+    path = tmp_path / "fields.npy"
+    write_field_batches(path, data.sample_ids, [data.fields], FieldSpec.from_dataset(data))
+    np.save(tmp_path / "other.npy", data.fields * 99)
+    metadata_path = tmp_path / "fields_metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["arrays"]["predictions"] = "other.npy"
+    metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+    with pytest.raises(ValueError, match="requested NPY"):
+        read_field_output(path)
+    # An explicitly selected JSON describes its named collection instead.
+    output = read_field_output(metadata_path)
+    np.testing.assert_array_equal(output["arrays"]["predictions"], data.fields * 99)
+
+
+@pytest.mark.parametrize("suffix", ["npz", "npy"])
+@pytest.mark.parametrize("mismatch", ["missing_support", "nonbinary_support", "missing_weights"])
+def test_reader_preserves_declared_support_and_measure_instead_of_ignoring_missing_arrays(tmp_path, suffix, mismatch):
+    data = FieldDataset.from_arrays(np.ones((2, 2, 2, 1)))
+    path = tmp_path / f"fields.{suffix}"
+    write_field_batches(
+        path,
+        data.sample_ids,
+        [data.fields],
+        FieldSpec.from_dataset(data),
+        data.geometry,
+        observation_mask=np.ones((2, 2), dtype=bool),
+    )
+    if suffix == "npz":
+        with np.load(path, allow_pickle=False) as archive:
+            arrays = {name: archive[name] for name in archive.files}
+        if mismatch == "missing_support":
+            arrays.pop("observation_mask")
+        elif mismatch == "nonbinary_support":
+            arrays["observation_mask"] = np.full((2, 2), 0.2)
+        else:
+            arrays.pop("geometry_weights")
+        np.savez_compressed(path, **arrays)
+    elif mismatch == "nonbinary_support":
+        np.save(tmp_path / "fields_observation_mask.npy", np.full((2, 2), 0.2))
+    else:
+        metadata_path = tmp_path / "fields_metadata.json"
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        metadata["arrays"].pop("observation_mask" if mismatch == "missing_support" else "geometry_weights")
+        metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+    with pytest.raises(ValueError, match="support|boolean or 0/1|geometry_weights"):
+        read_field_output(path)
 
 
 def test_linear_baseline_retains_missing_value_ols_across_spatial_blocks():

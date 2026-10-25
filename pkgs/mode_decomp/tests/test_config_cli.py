@@ -132,7 +132,6 @@ def test_single_yaml_legacy_cli_and_dictionary_execute_the_same_model_with_cwd_p
             "method": "fixed",
             "valid_filter_column": "role",
             "valid_filter_value": "test",
-            "selection_method": "random",
         },
         "model": {
             "candidates": [

@@ -104,6 +104,9 @@ def main():
             },
         )
         cfg["model"]["candidates"] = cfg["model"]["candidates"][:1]
+        # This acceptance fixes one candidate, so no inner holdout is requested.
+        cfg["split"].pop("selection_size", None)
+        cfg["split"].pop("selection_method", None)
         if name == "cv":
             cfg["tuning"].update(n_trials=1, search_spaces={})
             cfg["tuning"]["cv"]["n_splits"] = 2

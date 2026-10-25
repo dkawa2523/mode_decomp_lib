@@ -86,6 +86,8 @@ idは候補名、nameは手法、paramsはその手法の数値設定です。CL
 
 `analysis.kind: representation / imputation`の候補には回帰器や`input_representation`を置きません。観測mask・乱数による欠測設定はimputationだけへ指定します。同じYAMLを別用途へ変更する場合は、その用途で使わない設定も取り除きます。
 
+`field_preprocess: basic`の`ops`内も同じ規則で検査します。`per_channel`はbooleanで、誤記したkeyや`"false"`、booleanの`eps`を別の標準化設定へ変換しません。係数PCAで`energy_threshold: 1.0`を使う場合、全成分を保持できない`svd_solver: arpack`との併用はエラーです。係数後処理`dict_learning`の未使用parameterだった`mask_policy`は削除しました。場の分解器が持つ観測maskの指定は引き続き利用できます。
+
 ## 選択とON/OFFの区別
 
 Task、data.format、analysis.kind、split.method、各component.nameは処理の選択です。独立した追加処理だけenabledで切り替えます。
@@ -176,6 +178,8 @@ methodの既定はhodge。周期場には明示的にhelmholtzを指定し、par
 固定1候補・tuning無効のpipelineは、selection分割を作らずproper trainへ1回fitします。最終summaryは `selection_scope: fixed_configuration`、`selection_score: null` となり、候補順位表はありません。複数候補はinner holdout、tuning有効なら候補数に関わらず共通CVを使います。
 
 outerがgroup/timeならinner selectionもその分離とgapを維持します。outerがfixedで複数候補のholdout選択をする場合だけ `selection_method` を明示します。固定1候補では不要です。group/time/fixedを選ぶ場合は対応metadata列を指定します。splitやfoldファイルは実行側が生成するので、利用者が別ファイルとして用意する必要はありません。
+
+分割は実際に使う設定だけを受け付けます。fixed outerに`valid_size`、固定1候補・CV選択・比較解析に`selection_size`を置いても作用しないため、0.11.1からエラーになります。filterはfixedだけ、group/time列はouter・inner holdout・較正で使うものだけを`split`へ指定します。CV専用の列は`tuning.cv`へ置きます。保存configにも無作用の既定値を注入しません。旧run YAMLを再実行するときは、これらの未使用指定を削除してください。
 
 run.seedはseedを受け付ける手法の既定値、split.seedは分割、analysis.split_seeds/model_seedsは分割とモデル乱数の反復です。analysis.split_seedsを明示する場合はsplit.seedを省略し、studyの分割seedを一箇所で指定します。componentに明示したseed/random_stateは優先されます。`pod_svd` など乱数parameterを持たない手法にseedは渡しません。物理的意味を持つ列を分割の都合で自動的に条件featureへ追加しません。
 

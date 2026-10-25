@@ -222,7 +222,7 @@ def test_seeded_random_search_uses_unique_equal_budgets(tmp_path):
 @pytest.mark.parametrize("outer", ["group", "time"])
 def test_tuning_cannot_silently_replace_group_or_time_with_random_cv(tmp_path, outer):
     raw = settings(tmp_path / "input", tmp_path / "runs")
-    raw["split"].update(method=outer, **{f"{outer}_column": outer})
+    raw["split"] = {"method": outer, f"{outer}_column": outer}
     with pytest.raises(ValueError, match="preserve"):
         resolve_config(raw)
     raw["tuning"]["cv"].update(method=outer, **{f"{outer}_column": "another_column"})

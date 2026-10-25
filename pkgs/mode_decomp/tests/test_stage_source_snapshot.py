@@ -83,6 +83,7 @@ def test_source_stages_are_self_contained_and_reject_other_source_candidates_or_
     }
     if kind == "coefficients":
         config["tuning"] = {"enabled": True, "n_trials": 1, "cv": {"n_splits": 3}}
+        config["split"].pop("selection_size")
     prepared = run_task(config)
     snapshot = prepared.artifacts["canonical_dataset"]
     record = json.loads((snapshot / "stage_input.json").read_text(encoding="utf-8"))

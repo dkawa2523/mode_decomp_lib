@@ -183,6 +183,8 @@ class FieldSurrogate:
         The automatic batch size limits intermediate arrays; a single large field
         and the fitted regressor's state remain in memory.
         """
+        if not isinstance(intervals, bool):
+            raise ValueError("intervals must be boolean")
         if intervals and self.calibrator is None:
             raise ValueError("This model has no calibrated field intervals; enable uncertainty during training")
         for coefficients in self._iter_coefficient_batches(conditions, batch_size=batch_size):
@@ -226,6 +228,8 @@ class FieldSurrogate:
             raise ValueError("Surrogate must be fitted before calibration")
         if set(self.fit_sample_ids).intersection(str(x) for x in calibration.sample_ids):
             raise ValueError("Calibration sample IDs must be disjoint from model fitting IDs")
+        if training is not None and set(training.sample_ids) != set(self.fit_sample_ids):
+            raise ValueError("Calibration normalization training IDs must match the model fitting IDs")
         if getattr(self, "input_kind", "conditions") != "conditions" and inputs is None:
             raise ValueError("Field or coefficient models require explicit calibration inputs")
         inputs = align_inputs(inputs, calibration)

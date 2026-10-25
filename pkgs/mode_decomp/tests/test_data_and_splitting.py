@@ -243,6 +243,25 @@ def test_group_split_separates_outer_and_inner_groups(tmp_path):
     assert not parts[0] & parts[1] and not parts[0] & parts[2] and not parts[1] & parts[2]
 
 
+def test_group_metadata_used_only_by_calibration_is_preserved(tmp_path):
+    root = tmp_path / "input"
+    write_dataset(root)
+    dataset = load_field_dataset(root)
+    split = split_dataset(
+        dataset,
+        {"method": "random", "group_column": "experiment_id"},
+        nested=False,
+        calibration={
+            "enabled": True,
+            "calibration_method": "group",
+            "calibration_size": 0.3,
+            "calibration_seed": 13,
+        },
+    )
+    groups = dataset.sample_metadata["experiment_id"]
+    assert set(groups[split["train_indices"]]).isdisjoint(groups[split["calibration_indices"]])
+
+
 @pytest.mark.parametrize("missing", [np.nan, pd.NaT, pd.NA])
 def test_group_metadata_rejects_missing_scalars(tmp_path, missing):
     root = tmp_path / "input"
@@ -278,19 +297,18 @@ def test_outer_only_split_accepts_two_samples_without_inner_selection(tmp_path, 
             "is_test": np.array([0, 1]),
         },
     )
-    config = {
-        "method": method,
-        "group_column": "group",
-        "time_column": "time",
-        "valid_filter_column": "is_test",
-        "valid_filter_value": 1,
-        "selection_size": "unused",
-    }
+    config = {"method": method}
+    if method in {"group", "time"}:
+        config[f"{method}_column"] = method
+    if method == "fixed":
+        config.update(valid_filter_column="is_test", valid_filter_value=1)
     split = split_dataset(dataset, config, nested=False)
     assert len(split["train_indices"]) == len(split["test_indices"]) == 1
     assert not set(split["train_ids"]) & set(split["test_ids"])
     assert split["nested"] is False
     assert not {"selection_method", "fit_indices", "selection_indices"} & set(split)
+    with pytest.raises(ValueError, match="not used without inner holdout"):
+        split_dataset(dataset, {**config, "selection_size": 0.5}, nested=False)
 
 
 def test_time_split_orders_equal_timestamps_and_rejects_insufficient_times(tmp_path):
@@ -314,7 +332,9 @@ def test_fixed_outer_requires_explicit_selection_method(tmp_path):
     config = {"method": "fixed", "valid_filter_column": "is_test", "valid_filter_value": 1}
     with pytest.raises(ValueError, match="selection_method"):
         split_dataset(dataset, config)
-    split = split_dataset(dataset, {**config, "selection_method": "random", "valid_size": "unused"})
+    with pytest.raises(ValueError, match="valid_size is not used"):
+        split_dataset(dataset, {**config, "selection_method": "random", "valid_size": 0.5})
+    split = split_dataset(dataset, {**config, "selection_method": "random"})
     assert split["test_indices"] == [10, 11]
     assert split["valid_size"] is None
 

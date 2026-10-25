@@ -229,7 +229,7 @@ def _resolve_tuning(cfg: dict, seed: int) -> dict:
         raise ValueError("tuning.cv.seed must be an integer in [0,2**32)")
     if method in {"group", "time"}:
         column = f"{method}_column"
-        cv[column] = cv.get(column, cfg["split"].get(column))
+        cv[column] = cv.get(column, cfg["split"].get(column) if outer_method == method else None)
         if not isinstance(cv[column], str) or not cv[column].strip():
             raise ValueError(f"tuning.cv.{column} is required")
         if outer_method == method and cv[column] != cfg["split"].get(column):
@@ -448,7 +448,7 @@ def resolve_config(cfg: dict) -> dict:
         "output": {},
     }
     if training or comparing:
-        defaults["split"] = {"method": "random", "valid_size": 0.2, "selection_size": 0.2}
+        defaults["split"] = {"method": "random"}
         defaults["model"] = {"selection_metric": selection_metric} if training else {}
     if training or comparing or direct:
         metric_defaults: dict[str, Any] = {"reference": reference, "names": requested_names}
@@ -572,6 +572,13 @@ def resolve_config(cfg: dict) -> dict:
         cfg["tuning"] = _resolve_tuning(cfg, seed)
     _resolve_input(cfg)
     cfg["uncertainty"] = _resolve_uncertainty(cfg, seed)
+    if training or comparing:
+        nested = training and len(cfg["model"]["candidates"]) > 1 and not cfg["tuning"]["enabled"]
+        validate_split_settings(cfg["split"], nested=nested, calibration=cfg["uncertainty"])
+        if cfg["split"]["method"] != "fixed":
+            cfg["split"].setdefault("valid_size", 0.2)
+        if nested:
+            cfg["split"].setdefault("selection_size", 0.2)
     if cfg["task"] != "mode_decomp_stage" or cfg["run"].get("stage") != "train_candidate":
         cfg.pop("candidate", None)  # A shorthand was consumed into model.candidates; it is not another active choice.
     if cfg["task"] == "mode_decomp_import":

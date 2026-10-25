@@ -2,6 +2,26 @@
 
 単体利用では入力仕様をrun.yamlのdataへ直接書きます。別manifest・schema宣言・samples.csvは常に必要なものではありません。起動は `python -m ml_platform_mode_decomp run.yaml` です。[設定ガイド](CONFIGURATION.md)に最小の実行例があります。
 
+## 公開APIの入出力
+
+`N`はsample数、`K_A`は実数packing後の係数数、`K_Z`は係数後処理後の学習座標数です。sourceとtargetでこれらの次元を一致させる必要はありません。
+
+| 操作 | 入力 | 出力と順序 |
+| --- | --- | --- |
+| `FieldDataset.from_arrays` | 明示layoutのfield、任意の条件・ID・geometry・成分・単位 | sample対応を保持したDataset。学習・分割は実行しない |
+| `representation.fit_transform(data)` | 同じgeometryの訓練場 | 全入力でfitした有限実数`(N,K_Z)`。`space="a"`なら`(N,K_A)` |
+| `representation.transform(query)` | fit時と同じgeometry・kind・成分・単位の場、任意の追加観測mask | query順の有限実数Z。追加maskは既知supportを狭める |
+| `representation.inverse_transform(z)` | この表現の有限実数Z | fit時のfield shape・保存単位へ戻した場。`space="a"`も明示可 |
+| `surrogate.fit(target, inputs=source)` | 同じcase ID集合のsource／target | IDでtarget順へ整列してfitしたモデル。両側の空間shapeは独立 |
+| `surrogate.predict_coefficients(query)` | モデルが要求する条件／source場／識別済みsource Z | query順のtarget Z。sourceの係数ではない |
+| `surrogate.predict(query)` | 同上 | query順のtarget場。shape・kind・成分・単位はtarget側 |
+| `surrogate.iter_predict(query, intervals=True)` | 同上、較正済みモデル | batchごとの`(prediction, lower, upper)`。`intervals`はboolean |
+| `read_field_output(path)` | 保存したNPZ、NPY、またはcollectionのJSON | `arrays`と`metadata`。NPY指定時はそのファイル自体を読む |
+
+返される裸の係数配列はID・表現identityを内包しません。保存係数を別モデルへ接続する場合は、ID・Z空間・元モデルhashを持つ`CoefficientBatch`／係数NPZを使います。再構成・予測の有効領域は保存metadataのdomain／観測／較正supportで解釈します。
+
+有限な入力でも係数後処理でoverflowする場合は、無限大のZを返さずエラーにします。packing／係数後処理の直接APIも、複素数の虚部を捨てて実数Aとして受け付けません。
+
 ## NPYの最小入力とshape
 
 ```yaml
@@ -105,6 +125,8 @@ sample表はsample_id,field_csv,pressure等を持ち、1 sample 1 field CSVへ�
 
 付属の旧NPYは `data: {format: legacy-npy, local_path: data/mode_decomp_eval_dataset_v1/scalar_annulus}` で自動変換できます。field.npy/cond.npyは変えず、座標・maskの意味を付けます。旧manifest.jsonを読み、任意の別manifest名は使いません。旧geometryが不十分ならdata.geometryへ明示します。位置名x1等を物理条件名と推測しません。
 
+legacy条件は既存`cond.npy`へ付ける列名だけを指定します。`conditions.path`等で別入力を選んだように見せず、未対応の指定はエラーにします。列名・geometryの上書きはdataまたはimportの一箇所へ置き、空の列名一覧を既定名へ戻しません。旧manifestが明示したfield kindを維持し、grid寸法の小数を切り捨てません。
+
 CSV/scattered/legacy-npyの変換先は実行側が生成し、`result.artifacts["input_dataset_manifest"]` に保存します。元入力は変更しません。変換だけを別に再利用したい場合には、任意でmode_decomp_importやscripts/import_dataset.pyも使えます。
 
 ## 再利用用の外部manifestは任意
@@ -183,5 +205,7 @@ fields = saved["arrays"]["predictions"]
 NPYのreaderは配列をmmapで読みます。NPY出力は関連sidecarも一緒に移動してください。旧出力も配列として読み、保存されていなかったgeometryはunknownとして扱います。架空の物理座標や単位を補いません。
 
 readerはfield用metadataか、宣言と配列のshape・sample ID軸・成分・帯・supportが対応するかを確認します。別用途のJSONや壊れたNPYを物理fieldとして成功扱いしません。field値の全面走査や別のhash契約は追加せず、NPYの部分読込を維持します。旧NPY metadataのgeometry未記録はNoneに統一します。
+
+明示したsupportはbooleanまたは0/1整数に限定し、NaNや0.2を有効地点へ変換しません。sidecarが宣言したsupport配列の欠落もエラーです。NPYに付随するsidecarが別のprimary配列を指す場合は拒否します。複数配列のcollectionを明示的に読む場合は、そのJSONを指定します。
 
 source場／保存source係数を入力にする場合も、targetの通常Dataset定義と出力形式を維持します。`data.input`のroot、source/target IDの完全一致、係数NPZの`space`とモデルhash、保存bundleだけでの係数推論は[対応学習ガイド](FIELD_MAPPING.md)を参照してください。

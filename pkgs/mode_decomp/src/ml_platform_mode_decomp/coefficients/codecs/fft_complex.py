@@ -9,7 +9,7 @@ from typing import Any, Mapping
 import numpy as np
 
 
-from .basic import BaseCoeffCodec, FlattenOrder, _resolve_coeff_shape, _resolve_flatten_order
+from .basic import BaseCoeffCodec, FlattenOrder, _real_values, _resolve_coeff_shape, _resolve_flatten_order
 
 
 def _normalize_mode(mode: str) -> str:
@@ -98,8 +98,20 @@ class FFTComplexCodecV1(BaseCoeffCodec):
         self.mode = _normalize_mode(cfg["mode"])
         self.phase_unwrap = bool(cfg["phase_unwrap"])
         phase_clip = cfg["phase_clip"]
-        self.phase_clip = None if phase_clip in (None, "", "null") else float(phase_clip)
-        self.log_epsilon = float(cfg["log_epsilon"])
+        self.phase_clip = None
+        if phase_clip is not None:
+            clip = np.asarray(phase_clip)
+            if clip.ndim or clip.dtype.kind not in "fiu" or not np.isfinite(clip) or clip < 0:
+                raise ValueError("phase_clip must be a finite non-negative real number or null")
+            self.phase_clip = float(clip)
+        epsilon = np.asarray(cfg["log_epsilon"])
+        if epsilon.ndim or epsilon.dtype.kind not in "fiu" or not np.isfinite(epsilon) or epsilon <= 0:
+            raise ValueError("log_epsilon must be a finite positive real number")
+        self.log_epsilon = float(epsilon)
+        if self.mode == "real_imag" and (self.phase_unwrap or self.phase_clip is not None):
+            raise ValueError("phase_unwrap and phase_clip require mag_phase or logmag_phase mode")
+        if self.mode != "logmag_phase" and self.log_epsilon != 1e-12:
+            raise ValueError("A nondefault log_epsilon requires logmag_phase mode")
         self.dtype_policy = str(cfg["dtype_policy"])
         self._float_dtype = _resolve_float_dtype(self.dtype_policy)
         self._complex_dtype = np.complex64 if self._float_dtype == np.float32 else np.complex128
@@ -184,13 +196,15 @@ class FFTComplexCodecV1(BaseCoeffCodec):
                 comp_b = np.clip(comp_b, -self.phase_clip, self.phase_clip)
 
         vector_tensor = np.stack((comp_a, comp_b), axis=-1)
-        return np.asarray(vector_tensor, dtype=self._float_dtype).reshape(-1, order=order)
+        return _real_values(vector_tensor, dtype=self._float_dtype).reshape(-1, order=order)
 
     def decode(self, vector_coeff: np.ndarray, raw_meta: Mapping[str, Any]) -> Any:
         order = _resolve_flatten_order(raw_meta)
         complex_shape, raw_shape = _complex_shape_from_meta(raw_meta)
         vector_shape = complex_shape + (2,)
-        vec = _reshape_vector(vector_coeff, vector_shape, order, name="vector_coeff")
+        vec = _reshape_vector(
+            _real_values(vector_coeff, dtype=self._float_dtype), vector_shape, order, name="vector_coeff"
+        )
         comp_a = vec[..., 0]
         comp_b = vec[..., 1]
 
@@ -203,6 +217,8 @@ class FFTComplexCodecV1(BaseCoeffCodec):
             complex_arr = mag * np.exp(1j * comp_b)
 
         complex_arr = np.asarray(complex_arr, dtype=self._complex_dtype)
+        if not np.isfinite(complex_arr).all():
+            raise ValueError("Decoded complex coefficients overflow; rescale the packed coordinates")
         complex_format = str(raw_meta.get("complex_format", "")).strip().lower() if raw_meta else ""
         if complex_format == "real_imag":
             raw_arr = np.stack((complex_arr.real, complex_arr.imag), axis=-1)

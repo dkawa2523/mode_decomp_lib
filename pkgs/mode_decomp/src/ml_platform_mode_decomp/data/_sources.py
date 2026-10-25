@@ -226,6 +226,10 @@ def _resolve_geometry(
                 raise ValueError("geometry.mask_source must be inline or file.")
             if mask_path is not None and mask_inline is not None:
                 raise ValueError("Provide a geometry mask array or path, not both.")
+            if source == "file" and not mask_path:
+                raise ValueError("geometry.mask_source: file requires geometry.mask_path.")
+            if source == "inline" and mask_inline is None:
+                raise ValueError("geometry.mask_source: inline requires geometry.mask.")
             mask = _array(_path(root, mask_path, "geometry.mask_path", paths)) if mask_path else mask_inline
             if mask is None:
                 mask = domain_mask

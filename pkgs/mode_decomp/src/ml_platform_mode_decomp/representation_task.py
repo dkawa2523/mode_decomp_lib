@@ -44,23 +44,18 @@ def _additional_analysis(cfg, result, model, dataset, packed, options, prepared)
 
     modes = mode_options(settings.get("modes"))
     if modes is not None:
-        try:
-            paths = write_mode_report(
-                model, packed, dataset, options, modes, result.run_dir / "modes", prepared=prepared
-            )
-            for key, path in paths.items():
-                (result.tables if path.suffix == ".csv" else result.artifacts)[key] = path
-            summary["mode_analysis"] = {
-                "status": "ok",
-                "coefficient_source": "input_fields",
-                "report": paths["mode_report"].relative_to(result.run_dir).as_posix(),
-            }
-        except NotImplementedError as exc:
-            summary["mode_analysis"] = {"status": "unavailable", "reason": str(exc)}
+        paths = write_mode_report(model, packed, dataset, options, modes, result.run_dir / "modes", prepared=prepared)
+        for key, path in paths.items():
+            (result.tables if path.suffix == ".csv" else result.artifacts)[key] = path
+        summary["mode_analysis"] = {
+            "status": "ok",
+            "coefficient_source": "input_fields",
+            "report": paths["mode_report"].relative_to(result.run_dir).as_posix(),
+        }
     return summary
 
 
-def _write_report(result, summary):
+def _write_report(result):
     metrics = "".join(f"<tr><th>{escape(name)}</th><td>{value:.6g}</td></tr>" for name, value in result.metrics.items())
     links = []
     for key, path in {**result.artifacts, **result.tables}.items():
@@ -69,17 +64,12 @@ def _write_report(result, summary):
         links.append(
             f'<li><a href="{escape(path.relative_to(result.run_dir).as_posix(), quote=True)}">{escape(key)}</a></li>'
         )
-    unavailable = "".join(
-        f"<p>{escape(key)}: {escape(value['reason'])}</p>"
-        for key, value in summary.items()
-        if isinstance(value, dict) and value.get("status") == "unavailable"
-    )
     document = '<!doctype html><html lang="en"><meta charset="utf-8"><title>Direct field decomposition</title>'
     document += (
         "<body><h1>Direct field decomposition</h1><p>All supplied samples were used to fit this representation. "
     )
     document += "These metrics measure fitted-input reconstruction, not held-out or unknown-sample performance.</p>"
-    document += f"<p>Scope: {_SCOPE}</p><table>{metrics}</table>{unavailable}<h2>Outputs</h2><ul>{''.join(links)}</ul></body></html>"
+    document += f"<p>Scope: {_SCOPE}</p><table>{metrics}</table><h2>Outputs</h2><ul>{''.join(links)}</ul></body></html>"
     path = result.run_dir / "representation.html"
     path.write_text(document, encoding="utf-8")
     return path
@@ -154,7 +144,7 @@ def _fit(cfg, result):
         write_json(report.summary, result.run_dir / "analysis_summary.json")
         raise
     if cfg.get("report", {}).get("enabled", False):
-        result.artifacts["representation_report"] = _write_report(result, report.summary)
+        result.artifacts["representation_report"] = _write_report(result)
 
 
 def run_representation(cfg):

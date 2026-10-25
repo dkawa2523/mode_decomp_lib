@@ -14,7 +14,13 @@ import pandas as pd
 from .schema import FieldDataset
 
 
-def validate_split_settings(config: Mapping[str, Any], *, cross_validation: bool = False) -> float:
+def validate_split_settings(
+    config: Mapping[str, Any],
+    *,
+    cross_validation: bool = False,
+    nested: bool | None = None,
+    calibration: Mapping[str, Any] | None = None,
+) -> float:
     """Validate the small split vocabulary and return the time gap in seconds."""
     allowed = {"method", "seed", "group_column", "time_column", "gap_seconds"}
     allowed |= (
@@ -25,6 +31,33 @@ def validate_split_settings(config: Mapping[str, Any], *, cross_validation: bool
     unknown = set(config) - allowed
     if unknown:
         raise ValueError(f"Unsupported {'CV' if cross_validation else 'split'} settings: {sorted(unknown)}")
+    method = config.get("method", "random")
+    methods = {"random", "group", "time"} | (set() if cross_validation else {"fixed"})
+    if not isinstance(method, str) or method not in methods:
+        raise ValueError(f"Split method must be one of {sorted(methods)}")
+    if not cross_validation:
+        if method == "fixed" and "valid_size" in config:
+            raise ValueError(
+                "split.valid_size is not used by a fixed split; membership comes from valid_filter_column/value"
+            )
+        if method != "fixed" and {"valid_filter_column", "valid_filter_value"}.intersection(config):
+            raise ValueError("split.valid_filter_column/value require method: fixed")
+        if "selection_method" in config and (
+            not isinstance(config["selection_method"], str)
+            or config["selection_method"] not in {"random", "group", "time"}
+        ):
+            raise ValueError("split.selection_method must be random, group, or time")
+        if nested is False and {"selection_size", "selection_method"}.intersection(config):
+            raise ValueError("split.selection_size/selection_method are not used without inner holdout selection")
+    if cross_validation or nested is not None:
+        used_methods = {method}
+        if nested:
+            used_methods.add(config.get("selection_method", method))
+        if calibration and calibration.get("enabled", False):
+            used_methods.add(calibration["calibration_method"])
+        for selection in ("group", "time"):
+            if selection not in used_methods and f"{selection}_column" in config:
+                raise ValueError(f"split.{selection}_column is not used by the configured split methods")
     if "seed" in config:
         _seed(config["seed"], "split seed")
     if cross_validation:
@@ -162,12 +195,13 @@ def split_dataset(
         raise ValueError(
             "Nested holdout requires at least three samples." if nested else "Holdout requires at least two samples."
         )
-    method = str(config.get("method", "random"))
-    selection_method = str(config.get("selection_method") or (method if method != "fixed" else ""))
+    method = config.get("method", "random")
+    selection_method = config.get("selection_method", method if method != "fixed" else "")
     if nested and selection_method not in {"random", "group", "time"}:
         raise ValueError("split.selection_method must explicitly be random/group/time for a fixed outer split.")
     if nested and method in {"group", "time"} and selection_method != method:
         raise ValueError("Selection must preserve the outer group/time split method")
+    validate_split_settings(config, nested=nested, calibration=calibration)
     outer_fraction = None if method == "fixed" else _fraction(config.get("valid_size", 0.2), "split.valid_size")
     train, test = _partition(dataset, np.arange(len(dataset)), config, method, outer_fraction, int(seed))
     result: dict[str, Any] = {

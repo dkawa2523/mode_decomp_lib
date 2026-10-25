@@ -66,11 +66,11 @@ def _linear_baseline(train, reference):
     return predicted.reshape(reference.fields.shape), int(values.shape[1] * values.shape[2] * design.shape[1])
 
 
-def _baseline_reports(train, reference, kind, prepared):
+def _baseline_reports(train, reference, kind, prepared, *, condition_inputs=True):
     evaluator = prepared.hidden if kind == "imputation" else prepared
     mean = evaluator.baseline
     candidates = [("baseline_mean", mean, 0, int(np.prod(train.fields.shape[1:])))]
-    if kind == "surrogate" and train.conditions is not None and reference.conditions is not None:
+    if kind == "surrogate" and condition_inputs and train.conditions is not None and reference.conditions is not None:
         linear, parameters = _linear_baseline(train, reference)
         candidates.append(("baseline_linear", linear, 0, parameters))
     for name, predictions, target_dim, parameters in candidates:
@@ -86,6 +86,8 @@ def _baseline_reports(train, reference, kind, prepared):
             fitted_parameters=parameters,
             coefficient_to_field_ratio=0.0,
             decomposition="baseline",
+            prediction_input_kind="conditions" if name == "baseline_linear" else "none",
+            prediction_input_dimension=train.conditions.shape[1] if name == "baseline_linear" else 0,
         )
         yield name, report
 
@@ -199,7 +201,7 @@ def _study(cfg, result):
         scattered = None
         if study["scattered"]["enabled"]:
             scattered = getattr(prepared, "observations", None) or prepare_scattered_report(cfg["data"], reference)
-        baseline_reports = list(_baseline_reports(train, reference, kind, prepared))
+        baseline_reports = list(_baseline_reports(train, reference, kind, prepared, condition_inputs=inputs is None))
         if scattered is not None:
             for _, report in baseline_reports:
                 add_scattered_report(cfg["data"], report, reference, options, prepared=scattered)
@@ -330,38 +332,35 @@ def _study(cfg, result):
                             },
                         }
                     if selected_modes is not None:
-                        try:
-                            evaluation_mask = None
-                            if isinstance(model, FieldSurrogate):
-                                coefficient_source = prediction_source
-                            elif observed is not None:
-                                evaluation_mask = reference.effective_mask & ~observed
-                                coefficient_source = "input_observations_only"
-                            else:
-                                coefficient_source = "heldout_fields"
-                            prefix = f"{candidate['id']}_{split_seed}_{model_seed}"
-                            outputs = write_mode_report(
-                                representation,
-                                report.packed_coefficients,
-                                reference,
-                                options,
-                                selected_modes,
-                                result.run_dir / "modes" / prefix,
-                                evaluation_mask=evaluation_mask,
-                                full_predictions=report.predictions if isinstance(model, FieldSurrogate) else None,
-                                prepared=prepared.hidden if isinstance(prepared, ImputationReference) else prepared,
-                            )
-                            result.artifacts[f"mode_report_{prefix}"] = outputs["mode_report"]
-                            result.tables.update(
-                                {f"{name}_{prefix}": path for name, path in outputs.items() if name != "mode_report"}
-                            )
-                            report.summary["mode_analysis"] = {
-                                "status": "ok",
-                                "coefficient_source": coefficient_source,
-                                "report": outputs["mode_report"].relative_to(result.run_dir).as_posix(),
-                            }
-                        except NotImplementedError as exc:
-                            report.summary["mode_analysis"] = {"status": "unavailable", "reason": str(exc)}
+                        evaluation_mask = None
+                        if isinstance(model, FieldSurrogate):
+                            coefficient_source = prediction_source
+                        elif observed is not None:
+                            evaluation_mask = reference.effective_mask & ~observed
+                            coefficient_source = "input_observations_only"
+                        else:
+                            coefficient_source = "heldout_fields"
+                        prefix = f"{candidate['id']}_{split_seed}_{model_seed}"
+                        outputs = write_mode_report(
+                            representation,
+                            report.packed_coefficients,
+                            reference,
+                            options,
+                            selected_modes,
+                            result.run_dir / "modes" / prefix,
+                            evaluation_mask=evaluation_mask,
+                            full_predictions=report.predictions if isinstance(model, FieldSurrogate) else None,
+                            prepared=prepared.hidden if isinstance(prepared, ImputationReference) else prepared,
+                        )
+                        result.artifacts[f"mode_report_{prefix}"] = outputs["mode_report"]
+                        result.tables.update(
+                            {f"{name}_{prefix}": path for name, path in outputs.items() if name != "mode_report"}
+                        )
+                        report.summary["mode_analysis"] = {
+                            "status": "ok",
+                            "coefficient_source": coefficient_source,
+                            "report": outputs["mode_report"].relative_to(result.run_dir).as_posix(),
+                        }
                     _append_report(report, {**metadata, **group}, rows, samples, details, previews, reference)
                 except (
                     ValueError,
