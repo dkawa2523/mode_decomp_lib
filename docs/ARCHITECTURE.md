@@ -124,4 +124,4 @@ bundleはgeometry・全変換・係数layout・field意味・条件schema・回�
 
 新規のPOD表現はbasis・mean等の数値状態だけを保存するため、fit時にだけ使うsklearnの版を必須条件から外します。回帰器・PCA係数後処理等が保存するsklearn estimatorの要件と、既存bundleに記録済みの要件は維持します。
 
-`pkgs/mode_decomp/` が配布単位です。通常の環境構築とmode wheel buildは固定core artifactを使い、基盤checkoutやpatch適用を要求しません。core再構築と旧SDK資材はintegration側へ分離しています。0.5時点のSDK検証は歴史的証拠であり、現行版の基盤統合完了を意味しません。[実装状況](IMPLEMENTATION_STATUS.md)と[integration](../integration/README.md)を参照してください。
+`pkgs/mode_decomp/` が配布単位です。通常の環境構築とmode wheel buildは固定core artifactを使い、基盤checkoutやpatch適用を要求しません。core再構築の手順とpatchはintegration側へ分離しています。未使用の旧SDK資材は削除済みで、現行版のSDK統合は後続工程です。[実装状況](IMPLEMENTATION_STATUS.md)と[integration](../integration/README.md)を参照してください。

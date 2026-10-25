@@ -5,7 +5,7 @@ from ml_platform_core.io import write_json
 from ..data import load_condition_batch
 from ..inputs import load_surrogate_inputs
 from ..model_artifact import load_model
-from ..stage_result import execute_stage, write_prediction_batches
+from ..stage_result import execute_stage, write_prediction_batches, write_prediction_coefficients
 from ..surrogate import FieldSurrogate
 
 
@@ -42,6 +42,7 @@ def _predict(cfg, result):
         model.representation,
         uncertainty=uncertainty,
     )
+    write_prediction_coefficients(cfg, result, batch.sample_ids, model, prediction_inputs, model_cfg["artifact_path"])
     result.artifacts["result_summary"] = write_json(
         {
             "sample_count": len(batch),

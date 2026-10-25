@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import platform
 from dataclasses import replace
 from importlib.metadata import version
 
@@ -12,7 +13,7 @@ from ml_platform_core.io import read_json
 
 from ml_platform_mode_decomp.data import FieldDataset
 from ml_platform_mode_decomp.geometry import build_domain_spec
-from ml_platform_mode_decomp.model_artifact import bundle_schema, load_model, save_model
+from ml_platform_mode_decomp.model_artifact import bundle_schema, load_model, model_requirements_path, save_model
 from ml_platform_mode_decomp.representation import FieldRepresentation
 from ml_platform_mode_decomp.surrogate import FieldSurrogate
 
@@ -51,6 +52,12 @@ def test_disabled_offset_bundle_roundtrip_excludes_nan_diagnostics(tmp_path, sur
     path, info_path = save_model(model, tmp_path / "model.joblib")
     info = read_json(info_path)
     assert info["input_schema"] == bundle_schema(model)
+    requirements = model_requirements_path(path).read_text(encoding="utf-8").splitlines()
+    assert requirements[0].startswith(f"# Use Python {'.'.join(platform.python_version_tuple()[:2])}.")
+    assert requirements[1:] == [
+        f"{name}=={version(name)}"
+        for name in sorted(set(info["required_packages"]) | {"ml-platform-core", "ml-platform-mode-decomp"})
+    ]
     restored = load_model(path, info_path)
     actual = restored.predict(dataset.conditions) if surrogate else restored.reconstruct(dataset)
     np.testing.assert_array_equal(actual, expected)
@@ -164,7 +171,8 @@ def test_backend_compatibility_is_separate_from_package_provenance(tmp_path, sol
         load_model(path)
 
 
-def test_save_refuses_overwrite_and_rolls_back_an_incomplete_pair(tmp_path, monkeypatch):
+@pytest.mark.parametrize("failed_companion", ["_info.json", "_requirements.txt"])
+def test_save_refuses_overwrite_and_rolls_back_an_incomplete_bundle(tmp_path, monkeypatch, failed_companion):
     import ml_platform_mode_decomp.model_artifact as artifacts
 
     model = FieldRepresentation({"decomposition": {"name": "dct2"}}).fit(_dataset())
@@ -175,13 +183,20 @@ def test_save_refuses_overwrite_and_rolls_back_an_incomplete_pair(tmp_path, monk
     assert path.read_bytes() == original
     link = artifacts.os.link
 
-    def fail_sidecar(source, destination):
-        if str(destination).endswith("_info.json"):
-            raise OSError("simulated sidecar installation failure")
+    def fail_companion(source, destination):
+        if str(destination).endswith(failed_companion):
+            raise OSError("simulated companion installation failure")
         return link(source, destination)
 
-    monkeypatch.setattr(artifacts.os, "link", fail_sidecar)
-    with pytest.raises(OSError, match="sidecar"):
+    monkeypatch.setattr(artifacts.os, "link", fail_companion)
+    with pytest.raises(OSError, match="companion"):
         save_model(model, tmp_path / "new.joblib")
     assert not (tmp_path / "new.joblib").exists()
     assert not (tmp_path / "new_info.json").exists()
+    assert not (tmp_path / "new_requirements.txt").exists()
+    occupied = tmp_path / "occupied_requirements.txt"
+    occupied.write_text("keep existing requirements\n", encoding="utf-8")
+    with pytest.raises(FileExistsError):
+        save_model(model, tmp_path / "occupied.joblib")
+    assert occupied.read_text(encoding="utf-8") == "keep existing requirements\n"
+    assert not (tmp_path / "occupied.joblib").exists()

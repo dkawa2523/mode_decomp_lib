@@ -132,7 +132,7 @@ class _GappyPODScalarDecomposer(BaseDecomposer[np.ndarray]):
             sqrt_w = np.sqrt(w_flat)
             phi_obs = phi_obs * sqrt_w[:, None]
             y_obs = y_obs * sqrt_w.reshape((-1,) + (1,) * (vec.ndim - 1))
-        return solve_ridge(phi_obs, y_obs, self._reg_lambda, method="gappy_pod")
+        return solve_ridge(phi_obs, y_obs, self._reg_lambda, method="gappy_pod", require_full_rank=True)
 
     def transform(self, field: np.ndarray, mask: np.ndarray | None, domain_spec: DomainSpec) -> np.ndarray:
         return self.transform_batch(np.asarray(field)[None, ...], mask, domain_spec)[0]

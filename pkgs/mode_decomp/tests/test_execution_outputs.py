@@ -17,6 +17,80 @@ from ml_platform_mode_decomp.field_output import read_field_output, write_field_
 from test_analysis import _input, _settings
 
 
+def test_pipeline_and_inference_coefficients_reuse_the_existing_frozen_input(tmp_path):
+    from ml_platform_core.artifacts import file_hash
+
+    from ml_platform_mode_decomp import FieldSurrogate, load_model
+    from ml_platform_mode_decomp.data import load_field_dataset
+    from ml_platform_mode_decomp.inputs import load_surrogate_inputs
+    from test_search import write_input
+
+    source = tmp_path / "input"
+    write_input(source)
+    result = run_task(
+        {
+            "task": "mode_decomp_pipeline",
+            "data": {"local_path": str(source)},
+            "split": {"method": "fixed", "valid_filter_column": "role", "valid_filter_value": "test"},
+            "model": {
+                "candidates": [
+                    {
+                        "id": "pod",
+                        "representation": {"decomposition": {"name": "pod_svd", "params": {"n_modes": 2}}},
+                        "regression": {"name": "ridge", "params": {"alpha": 0.0, "solver": "svd"}},
+                    }
+                ]
+            },
+            "output": {"coefficients_name": "target_z.npz"},
+            "runtime": {"output_dir": str(tmp_path / "train")},
+        }
+    )
+    model = load_model(result.artifacts["model"])
+    dataset = load_field_dataset(source)
+    split = read_json(result.artifacts["split"])
+    test = dataset.subset(split["test_indices"])
+    coefficients = load_surrogate_inputs(
+        {
+            "input": {
+                "kind": "coefficients",
+                "local_path": str(result.run_dir),
+                "path": "target_z.npz",
+                "model_artifact": str(result.artifacts["model"]),
+            }
+        }
+    )
+    assert coefficients is not None and coefficients.model_sha256 == file_hash(result.artifacts["model"])
+    np.testing.assert_array_equal(coefficients.sample_ids, test.sample_ids)
+    np.testing.assert_array_equal(coefficients.coefficients, model.predict_coefficients(test))
+    with np.load(result.artifacts["predictions"]) as fields:
+        np.testing.assert_array_equal(
+            model.representation.inverse_transform(coefficients.coefficients), fields["predictions"]
+        )
+    downstream = FieldSurrogate(
+        {
+            "representation": {"decomposition": {"name": "pod_svd", "params": {"n_modes": 2}}},
+            "regression": {"name": "ridge", "params": {"alpha": 0.0, "solver": "svd"}},
+        }
+    ).fit(test, inputs=coefficients)
+    np.testing.assert_allclose(downstream.predict(coefficients), test.fields, atol=1e-12)
+    inference = run_task(
+        {
+            "task": "mode_decomp_infer",
+            "data": {"local_path": str(source), "dataset_file": "samples.csv"},
+            "model": {"artifact_path": str(result.artifacts["model"])},
+            "output": {"coefficients_name": "new_z.npz"},
+            "runtime": {"output_dir": str(tmp_path / "infer")},
+        }
+    )
+    query = load_surrogate_inputs(
+        {"input": {"kind": "coefficients", "local_path": str(inference.run_dir), "path": "new_z.npz"}}, model=downstream
+    )
+    assert query is not None
+    np.testing.assert_array_equal(query.coefficients, model.predict_coefficients(dataset))
+    with np.load(inference.artifacts["coefficients"]) as saved:
+        assert saved["coefficient_source"].item() == "surrogate_prediction"
+
+
 def test_preview_selects_an_evaluated_sample_instead_of_an_inactive_nan_row():
     from ml_platform_mode_decomp.analysis_task import _append_report
     from ml_platform_mode_decomp.evaluation import prepare_objective

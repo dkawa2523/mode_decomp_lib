@@ -63,7 +63,7 @@ def test_constant_profile_uses_baseline_without_a_regressor_or_dummy_coordinate(
 
     assert "scikit-learn" not in read_json(info)["required_packages"]
     np.testing.assert_allclose(load_model(artifact).predict(np.array([[0.5]])), data.fields[:1], atol=1e-12)
-    with pytest.raises(ValueError, match="finite matrix"):
+    with pytest.raises(ValueError, match="finite"):
         model.predict(np.array([[np.nan]]))
 
 

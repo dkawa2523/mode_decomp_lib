@@ -2,8 +2,6 @@
 
 from html import escape
 
-import numpy as np
-from ml_platform_core.artifacts import file_hash
 from ml_platform_core.io import write_json, write_table
 
 from .data import load_field_dataset
@@ -11,7 +9,8 @@ from .evaluation.objectives import prepare_objective
 from .field_output import write_field_batches
 from .data.schema import FieldSpec
 from .evaluation.analysis import representation_size
-from .model_artifact import save_model
+from .model_artifact import save_model, model_requirements_path
+from .inputs import write_coefficient_archive
 from .representation import FieldRepresentation
 from .stage_result import execute_stage
 
@@ -113,17 +112,18 @@ def _fit(cfg, result):
         model_path, info_path = save_model(
             model, result.run_dir / "model.joblib", provenance=cfg["runtime"].get("execution_context")
         )
-        result.artifacts.update(model=model_path, model_info=info_path)
-        coefficients = result.run_dir / "coefficients.npz"
-        np.savez_compressed(
-            coefficients,
-            sample_ids=dataset.sample_ids,
-            coefficients=targets,
-            space=np.asarray("z"),
-            packed_a=packed,
-            model_sha256=np.asarray(file_hash(model_path)),
+        result.artifacts.update(
+            model=model_path, model_info=info_path, model_requirements=model_requirements_path(model_path)
         )
-        result.artifacts["coefficients"] = coefficients
+        result.artifacts["coefficients"] = write_coefficient_archive(
+            result.run_dir / "coefficients.npz",
+            targets,
+            dataset.sample_ids,
+            model,
+            model_path,
+            source="field_transform",
+            packed_a=packed,
+        )
         reconstruction_path = result.run_dir / "reconstructed_fields.npz"
         paths = write_field_batches(
             reconstruction_path,

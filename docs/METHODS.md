@@ -136,6 +136,32 @@ python -m ml_platform_mode_decomp config/tasks/mode_decomp_tucker.yaml
 python -m ml_platform_mode_decomp config/tasks/mode_decomp_quadratic_manifold.yaml
 ```
 
+## 保存した表現で実際の欠測を復元する
+
+完全なtraining fieldでfitしたGappy POD等の表現bundleと、同じ座標・成分・単位の部分観測を使います。surrogateのinfer taskとは入力が異なるため、表現の`reconstruct()`を呼びます。
+
+```python
+import numpy as np
+from ml_platform_mode_decomp import FieldDataset, load_model
+
+representation = load_model("outputs/表現run/model.joblib")
+partial = np.load("partial_fields.npy", allow_pickle=False)  # (N,H,W,C)
+observed = np.load("observed.npy", allow_pickle=False)  # (H,W) または (N,H,W)、boolean
+query = FieldDataset.from_arrays(
+    partial,
+    geometry=representation.geometry,
+    components=representation.components,
+    field_kind=representation.field_kind,
+    field_units=representation.field_units,
+    observation_mask=observed,
+)
+restored = representation.reconstruct(query)
+```
+
+この例は入力の座標順・物理量が保存表現と同じ場合です。別geometryの観測をこの宣言だけで整列・変換はしません。mask外はNaNでも構いませんが、観測位置は有限値が必要です。出力は全fieldのモデル近似で、観測位置も射影値になります。観測値をそのまま残す用途では、格子場なら`np.where(np.broadcast_to(observed, partial.shape[:-1])[..., None], partial, restored)`で明示的に合成します。この合成場は通常、元のモード空間上にはありません。
+
+Gappy PODの`reg_lambda: 0`は、観測上の基底がfull column rankの場合だけ係数を返します。観測配置で識別できない係数を最小norm解として成功扱いしません。`reg_lambda > 0`は明示した正則化解であり、欠測の正解が観測から一意に分かったことは意味しません。EM学習内の途中の最小二乗はこのquery条件とは別です。
+
 ## 残る適用制約
 
 `real_fft`の独立実座標とnorm保存はFFT係数の性質です。masked domain上での自由度や物理面積のnorm、offsetと残差を合わせた全体の非冗長性まで保証するものではありません。明示的に選ぶ旧`fft_complex_codec_v1`やmag/phase表現には、任意の回帰出力の共役保証がありません。mag/phaseは位相の周期性も考慮する必要があります。

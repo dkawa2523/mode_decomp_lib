@@ -19,6 +19,6 @@ uv lock --refresh-package ml-platform-core
 
 旧0.5時点のSDK／core patchと過去の受入logは現行buildで使わないため整理しました。現在のmode sourceと旧SDK設定を混在させるprepare scriptも提供しません。
 
-SDK再開時は対象基盤revisionを定め、inline入力・自動取込・両側の入力表現・field schema 4・較正モデル・追加成果物・local/外部Stage分離を一体で反映します。source入力の外部snapshot契約を定義するまでは、`data.input`を伴う外部Stage実行を扱いません。
+SDK再開時は対象基盤revisionを定め、inline入力・自動取込・両側の入力表現・field schema 4・較正モデル・追加成果物・local/外部Stage分離を一体で反映します。単体packageの外部Stageはsource場・係数・表現モデルを含むsnapshotに対応済みです。SDK側のadapterと実ClearML環境で、この受渡しを確認する工程が残っています。
 
 基盤ブランチへのmerge、実ClearML/Agent/Registry/Draftの受入は未実施です。単体wheelの受入結果と区別します。[現在地](../docs/IMPLEMENTATION_STATUS.md)を参照してください。

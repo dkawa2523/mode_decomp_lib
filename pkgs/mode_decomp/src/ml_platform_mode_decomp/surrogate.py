@@ -8,7 +8,7 @@ import numpy as np
 
 from .catalog import build_regressor
 from .representation import FieldRepresentation
-from .data.schema import ConditionBatch, FieldDataset
+from .data.schema import ConditionBatch, FieldDataset, _condition_array
 from .inputs import CoefficientBatch, align_inputs
 from .policy import candidate_config
 from .uncertainty import FieldCalibrator
@@ -87,7 +87,7 @@ class FieldSurrogate:
             or not len(values)
         ):
             raise ValueError("Conditions must be a finite matrix with the fitted column order")
-        return values
+        return _condition_array(conditions, len(values), self.condition_columns)
 
     def _query_inputs(self, inputs):
         if not self._fitted:

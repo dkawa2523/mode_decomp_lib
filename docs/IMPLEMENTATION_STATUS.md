@@ -1,49 +1,50 @@
 # 現在の実装と次の工程
 
-現在の開発sourceはmode 0.11.1です。単一YAML／配列APIによる場の分解、条件・別の場・保存係数からの予測、欠測復元を扱います。共通依存はcore 0.2.1で、SDKやClearMLなしで動作します。
+現在のsourceはmode 0.11.2、共通依存はcore 0.2.1です。定常場の分解・条件や別の場からの予測・欠測復元を、実行YAML一つまたは配列APIで扱います。SDK／ClearMLは単体利用の前提ではありません。
 
 ## 到達点
 
-| 項目 | 現在の動作 |
+| 計画 | 現在の動作 |
 | --- | --- |
-| 入力 | inline定義または任意manifest。NPY・CSV・散布点を既存taskで扱い、元入力を変更しない |
-| 表現 | FFT/DCT・POD等に加え、定常場用TuckerとQuadratic manifold。共通A/Z codecとmode APIを使用 |
-| 条件予測 | 従来の`FieldSurrogate.fit(dataset_with_conditions)`を維持 |
-| 場の対応学習 | `fit(target, inputs=source)`。sourceとtargetは独立した固定geometry、完全なsample ID対応 |
-| 保存係数入力 | Z空間・sourceモデルhash・次元を照合し、既学習のsource表現を固定して利用 |
-| 分割と評価 | 共通holdout/CV、field入力表現のfold内fit、独立test、任意の独立較正。原target fieldで評価 |
-| 設定と入出力 | 未知・無作用指定、曖昧な値の変換を拒否。grid／hidden／元観測の指標名と採点supportを一致させる |
-| 保存と推論 | bundleに両表現と入力契約を保存。新しいsource場／係数だけでtarget係数・fieldを予測 |
-| 外部Stage | targetとsourceの必要参照をsnapshotし、元入力を移動した後も候補評価・finalizeを再開 |
-| 出力 | target座標・成分・単位・supportを持つNPZ／部分読込NPY、CSV・JSON、任意HTML |
+| 共通表現 | field → 前処理 → raw → 実数A → 学習座標Z。逆変換は保存したfieldの成分・単位へ戻す |
+| 定常分布の手法 | POD等に加えTuckerとQuadratic manifold。同じcodec・mode・評価APIを利用 |
+| 条件／場／係数入力 | 同じFieldSurrogateでtarget Zを学習。sourceとtargetは独立した固定geometry |
+| case対応 | sourceとtargetは同じID集合。IDで整列し、欠落・余分・重複caseを拒否 |
+| 学習・評価 | 両表現をfold内fit。独立test・任意較正。保存source Zは固定表現を条件とした評価 |
+| 入出力の明確化 | 名前付き条件表の列名整列、有限なRidge学習状態、Gappyの観測rank、保存fieldの有効重みを検証 |
+| 再利用 | 両表現を含むbundle、runtime固定requirements、任意の予測target Z出力 |
+| CLI | 成否・run・metrics・artifacts・tables・plotsのJSON。失敗時も途中成果物と失敗段階を保持 |
+| 外部Stage | source場／係数／表現を含む必要参照のsnapshotで再開可能 |
 
-利用仕様は[設定](CONFIGURATION.md)、[入力形式](DATA_FORMAT.md)、[手法](METHODS.md)、[場と係数の対応学習](FIELD_MAPPING.md)へ集約しています。内部の責務は[アーキテクチャ](ARCHITECTURE.md)、検査方法は[品質検査](07_TESTING_CI.md)を参照してください。
+利用仕様は[設定](CONFIGURATION.md)、[入力と出力](DATA_FORMAT.md)、[手法](METHODS.md)、[場・係数の対応学習](FIELD_MAPPING.md)へ集約しています。責務は[アーキテクチャ](ARCHITECTURE.md)、配布は[導入ガイド](DISTRIBUTION.md)、検証は[品質検査](07_TESTING_CI.md)を参照してください。
 
-0.11.1では、分割の実利用roleに応じた設定へ整理し、前処理の入れ子parameter・100%保持PCA・実数係数の入口を揃えています。field入力baselineへの追加条件混入、指定NPYから別配列への読込置換、supportの暗黙True化、要求出力の失敗を成功にするfallbackを修正しました。新しい実行frameworkや設定section、core変更は追加していません。
+## 今回の整理
 
-TuckerとQuadratic manifoldは追加依存なしで使えます。学習時は固定domain上の完全観測が必要で、学習後の部分観測queryは対応するsolverで扱います。Hodgeのnativeな辺内積、非線形modeの基準点依存、較正帯の固定supportなど、既存の数値規約を維持します。
+条件DataFrameの列順による予測意味の入替え、重複caseを生成するbatch選択、非有限のRidgeを学習済みとする状態を修正しました。正則化なしGappyで係数を識別できない観測配置は明示的な失敗とします。正則化を勝手に追加したり、指定solverを別手法に変更したりしません。
 
-保存schemaは4です。入力kindとoptionalなsource表現を検証し、旧schema1〜3のモデルも元のschema／runtime条件で読み込みます。旧producerの実bundle fixtureは互換性検査のため維持します。
+CLIのCSV出力漏れと失敗時のrun参照漏れを解消し、予測target Zを既存の保存係数入力へ接続できるようにしました。係数NPZ書込を共通化し、重複処理・tolの重複検証・古い仕様に依存する試験ケースを削除しました。package READMEの重複した内部説明や版ごとの履歴を短くし、SDK説明の矛盾も解消しました。追加調査で判明した無作用の条件ID指定・空manifest指定・不正な保存空間重みも共通境界で拒否します。
 
-## 配布済みsnapshotとの区別
+数値の正しさ、sample分離、旧bundleの読込、実際の配布受入を確認する検証は維持します。不要な診断framework・schema更新・core変更は追加していません。旧producerの実bundle fixtureとcoreの再構築patchには互換性確認・来歴の役割があり、維持します。未使用SDK資材や旧RFCは既に削除済みで、生成data・過去の配布物は現行実行の依存にしません。
 
-`dist/`のmode 0.10.4 wheel・source archive・ZIPは、これらのsource追加前に作成したrelease snapshotです。現行sourceの到達点をそのまま表す配布物として扱いません。既存の配布物やユーザー入力dataは保持しています。開発環境のeditable mode packageは0.11.1へ更新し、他の依存packageは変更していません。
+## 検証と配布
 
-現行sourceのbuild出力は`dist/0.11.1/`です。`scripts/build_distribution.py`はpackage version別の出力先を既定とし、cleanなsdist→wheel→consumer ZIPを作成します。旧root配布物とSHA256SUMSは保持します。新規配布物は配布先だけのvenv／pip環境で受け入れ、外部公開は別操作です。[配布ガイド](DISTRIBUTION.md)を参照してください。
+現行build先は`dist/0.11.2/`です。旧versionの配布物はその時点のsnapshotです。新規buildはsdistからwheel、consumer ZIPを作り、fresh pip環境で利用を確認します。同じ保存モデルをrequirementsから構築した別venvへ移し、再学習なしで同じ予測になることも配布受入に含めます。外部registry公開は別操作です。
 
-0.11.0のremote CIはLinux／Windowsの品質検査と配布受入が成功しました。公開Darcy定常計算benchmarkでも、公式testを保持して未知case誤差・表現残差・容量を測定しています。[評価結果と再実行](PAIRED_ACCEPTANCE.md)に、その版の出典・保存尺度・分割・CI証跡をまとめています。現行版の受入結果は検証branchの最新Actionsと生成reportで確認します。ユーザー実用途での精度確認、外部registry公開、現行版のSDK統合、実ClearML環境での受入は別工程です。core wheelの来歴と再構築手順は[integration](../integration/README.md)に保持します。
+公開Darcy定常計算benchmarkの出典・保存尺度・独立testを保った評価は[評価記録](PAIRED_ACCEPTANCE.md)にあります。この記録は0.11.0時点の測定で、0.11.1でも同じ分割と精度を再現済みです。ユーザーの実測／実用途dataでの受入に読み替えません。0.11.2のlocal検証は855件成功・3件skip、Ruff・型検査・依存方向検査が成功しました。installed wheelでは109 source fileの一致、固定候補・CV・3種類の解析・fresh推論・散布点・較正・Hodge出力を確認済みです。Darcyも同じcase分割・勝者を保持し、RMSE 0.10190444、target表現残差RMSE 0.03468200を再現しました。remote CIはこのbranchの最新Actionsと保存artifactを参照します。
 
-## 現行の制約
+## 改良中に明確になった制約
 
-- sourceは一つ、targetも一つ。両側のgeometryはそれぞれsample間で固定です。
-- 保存係数入力は固定表現を条件とした評価です。表現のfitを含むCVにはfield入力を使います。
-- 複数source、補助conditionsとの結合、可変geometry、未ペア学習、target部分観測との同時推定は未対応です。
-- 全件arrayを返すAPI、dense SVD・GP、厳密pointwise較正等には問題規模に応じた容量が必要です。
+- 非線形decoderで平均Zを復号したfieldは、一般にfieldの条件付き平均ではありません。原field誤差と平均baselineへのskillで判断します。
+- 欠測復元はモデルによる全field近似です。観測位置の値も変わり得ます。観測値を保持する合成は利用側で明示します。
+- 予測Zと正解fieldを符号化したZは別です。連鎖学習では上流学習へのcase混入も評価設計に含めます。
+- 係数追加出力はN×K行列を保持し、係数予測をもう一度計算します。通常のfield出力はbatchで書き込みます。
+- bundleの移送には記録されたPython minorと数値backendが必要です。requirementsはOS／GPU driverを含む完全な環境imageではありません。
+- 保存の公開処理にはhard link対応の出力filesystemが必要です。
 
-## 次の工程
+## 次に進める工程
 
-1. 公開benchmarkの保存値での評価を、ユーザー実用途のpaired data・物理尺度・group分割へ置き換え、用途別の精度・容量閾値を確認する。
-2. 成功したremote CIのartifactを確認し、配布channelへの公開を判断する。
-3. 実際に必要になった入力の拡張だけを追加する。複数sourceや可変geometryは用途と評価方法が明確になった時点で検討する。
+1. **実用途の受入**：ユーザーpaired data、物理尺度、未知group/caseの分割、許容誤差と容量閾値を使って評価する。公開benchmarkだけではこの工程は完了しません。
+2. **配布先の確定**：確認済みwheel／ZIPを実際の利用先へ渡し、必要な配布channelへの公開を判断する。
+3. **必要な統合だけ追加**：SDK adapterと実ClearML環境の受入は別工程。複数source、補助条件結合、可変geometry、未ペア学習、target部分観測との同時推定は具体的な用途と評価方法が決まってから扱う。
 
-旧計画IDの一覧、生成済み監査JSON／log、旧SDK patchと検討途中のRFCは現行実行の依存ではないため整理しました。現在の仕様と受入手順を上記guideへ一本化します。
+現在は「共通基盤と入出力の意味をそろえる」工程を実装・検証し、配布受入を行う位置です。次の主工程は実用途dataでの受入です。

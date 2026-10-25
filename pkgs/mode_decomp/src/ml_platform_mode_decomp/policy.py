@@ -77,7 +77,7 @@ def _validate_boundary(cfg: dict) -> None:
     vocabularies = {
         "run": {"name", "seed", "stage"},
         "runtime": {"output_dir", "execution_context", "use_clearml"},
-        "output": {"prediction_name", "upload_plots"},
+        "output": {"prediction_name", "coefficients_name", "upload_plots"},
         "report": {"enabled"},
         "metrics": {"reference", "names", "channel_scales", "channel_weights", "sample_weight_column"},
         "analysis": {
@@ -456,6 +456,23 @@ def resolve_config(cfg: dict) -> dict:
     if training or task == "mode_decomp_infer":
         defaults["output"]["prediction_name"] = "predictions.npz"
     cfg = deep_merge(defaults, cfg)
+    if training or task == "mode_decomp_infer":
+        from ml_platform_core.paths import resolve_path_within
+
+        for key, suffixes in (("prediction_name", {".npy", ".npz"}), ("coefficients_name", {".npz"})):
+            if key not in cfg["output"]:
+                continue
+            path = resolve_path_within(
+                Path.cwd(),
+                cfg["output"][key],
+                setting=f"output.{key}",
+                root_description="the run directory",
+                allow_nested=False,
+            )
+            if path.suffix not in suffixes:
+                raise ValueError(f"output.{key} must end in {' or '.join(sorted(suffixes))}")
+        if cfg["output"].get("coefficients_name") == cfg["output"]["prediction_name"]:
+            raise ValueError("output.coefficients_name and output.prediction_name must name different files")
     seed = cfg["run"]["seed"]
     if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed < 2**32:
         raise ValueError("run.seed must be an integer in [0, 2**32)")

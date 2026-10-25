@@ -4,7 +4,7 @@
 
 `ml-platform-core>=0.2.1,<0.3`へ依存し、ClearML／実行SDKなしで動きます。基盤への統合は単体パッケージの受入後に扱います。
 
-配布先では[配布用の導入手順](docs/DISTRIBUTION.md)を使います。`dist/0.11.1/ml_platform_mode_decomp-0.11.1.zip`に実行用wheel、設定例、入力生成例、利用guideをまとめており、利用先ではGit・uv・基盤checkoutを要求しません。
+配布先では[配布用の導入手順](docs/DISTRIBUTION.md)を使います。`dist/0.11.2/ml_platform_mode_decomp-0.11.2.zip`に実行用wheel、設定例、入力生成例、利用guideをまとめており、利用先ではGit・uv・基盤checkoutを要求しません。
 
 ## 最初の実行
 
@@ -21,7 +21,7 @@ uv run python -m ml_platform_mode_decomp config/tasks/mode_decomp_representation
 配布一式は `uv run --no-project python scripts/build_distribution.py` で生成します。modeのsource archiveからwheelをbuildし、固定core wheel、自己完結した例と利用guide、SHA256SUMSをまとめます。wheel/source archiveだけなら `scripts/build_wheels.py` も使えます。配布先では生成済み2wheelをインストールします。
 
 ```powershell
-python -m pip install dist/0.11.1/ml_platform_core-0.2.1-py3-none-any.whl dist/0.11.1/ml_platform_mode_decomp-0.11.1-py3-none-any.whl
+python -m pip install dist/0.11.2/ml_platform_core-0.2.1-py3-none-any.whl dist/0.11.2/ml_platform_mode_decomp-0.11.2-py3-none-any.whl
 python -m ml_platform_mode_decomp run.yaml
 ```
 

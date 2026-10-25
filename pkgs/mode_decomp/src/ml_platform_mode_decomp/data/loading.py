@@ -156,9 +156,11 @@ def load_condition_batch(
         if expected_columns is not None and declared != expected_columns:
             raise ValueError("data.condition_columns disagrees with the trained model column order.")
         expected_columns = declared
-    if config.get("source_manifest"):
+    if config.get("source_manifest") is not None:
         if config.get("dataset_file"):
             raise ValueError("Choose dataset_file or source_manifest for inference, not both.")
+        if "id_column" in config:
+            raise ValueError("data.id_column is not used with source_manifest; set samples.id_column in the manifest.")
         manifest = read_input_spec(root, config["source_manifest"], paths)
         if manifest.get("schema") != "condition_batch_v1":
             raise ValueError("Condition-only manifest must use schema: condition_batch_v1.")
@@ -175,6 +177,10 @@ def load_condition_batch(
     path = root if root.is_file() else _path(root, config.get("dataset_file"), "dataset_file", paths)
     columns = _columns(expected_columns, "condition_columns")
     if path.suffix.lower() == ".npy":
+        if "id_column" in config:
+            raise ValueError(
+                "data.id_column is available for CSV/table condition inputs; NPY uses positional sample IDs."
+            )
         values = _array(path)
         ids = np.asarray([f"sample_{index:06d}" for index in range(len(values))])
         return ConditionBatch(values, ids, columns)

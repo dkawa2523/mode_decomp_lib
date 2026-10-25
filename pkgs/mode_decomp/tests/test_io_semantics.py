@@ -153,6 +153,66 @@ def test_integration_weights_reject_invalid_active_measure_and_keep_masked_locat
     assert dataset.components == ("component_0",)
 
 
+@pytest.mark.parametrize("invalid", ["negative", "nan", "complex", "zero", "positive_only_outside_domain"])
+def test_field_output_weights_must_define_a_valid_active_measure_before_write_and_after_read(tmp_path, invalid):
+    from ml_platform_mode_decomp.data.schema import FieldSpec
+    from ml_platform_mode_decomp.field_output import read_field_output, write_field_batches
+
+    data = FieldDataset.from_arrays(np.ones((1, 2, 2, 1)))
+    geometry = replace(data.geometry, mask=np.array([[False, True], [True, True]]), weights=np.ones((2, 2)))
+    weights = np.ones((2, 2))
+    if invalid == "complex":
+        weights = weights.astype(complex)
+        weights[0, 1] = 1j
+    elif invalid in {"zero", "positive_only_outside_domain"}:
+        weights[:] = 0
+        if invalid == "positive_only_outside_domain":
+            weights[0, 0] = 1
+    else:
+        weights[0, 1] = -1 if invalid == "negative" else np.nan
+
+    def unexpected():
+        pytest.fail("Invalid geometry must fail before field batches are consumed")
+        yield data.fields
+
+    with pytest.raises(ValueError, match="weights"):
+        write_field_batches(
+            tmp_path / "invalid.npz",
+            data.sample_ids,
+            unexpected(),
+            FieldSpec.from_dataset(data),
+            replace(geometry, weights=weights),
+        )
+    path = tmp_path / "fields.npz"
+    write_field_batches(path, data.sample_ids, [data.fields], FieldSpec.from_dataset(data), geometry)
+    with np.load(path, allow_pickle=False) as archive:
+        saved = {name: archive[name] for name in archive.files}
+    saved["geometry_weights"] = weights
+    np.savez(path, **saved)
+    with pytest.raises(ValueError, match="weights"):
+        read_field_output(path)
+
+
+def test_field_output_keeps_invalid_weights_outside_the_domain_inactive(tmp_path):
+    from ml_platform_mode_decomp.data.schema import FieldSpec
+    from ml_platform_mode_decomp.field_output import read_field_output, write_field_batches
+
+    data = FieldDataset.from_arrays(np.ones((1, 2, 2, 1)))
+    geometry = replace(
+        data.geometry, mask=np.array([[False, True], [True, True]]), weights=np.array([[np.nan, 1], [2, 3]])
+    )
+    path = tmp_path / "fields.npy"
+    write_field_batches(path, data.sample_ids, [data.fields], FieldSpec.from_dataset(data), geometry)
+    output = read_field_output(path)
+    try:
+        assert isinstance(output["arrays"]["predictions"], np.memmap)
+        np.testing.assert_allclose(output["arrays"]["geometry_weights"], geometry.weights, equal_nan=True)
+    finally:
+        for value in output["arrays"].values():
+            if getattr(value, "_mmap", None) is not None:
+                value._mmap.close()
+
+
 def test_explicit_model_provenance_expectations_are_all_checked(tmp_path):
     data = FieldDataset.from_arrays(np.ones((2, 2, 2, 1)))
     model = FieldRepresentation({"decomposition": {"name": "dct2"}}).fit(data)

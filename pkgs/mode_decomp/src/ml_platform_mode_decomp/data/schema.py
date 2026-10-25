@@ -72,6 +72,17 @@ def _condition_array(value: Any, count: int, columns: Sequence[str]) -> np.ndarr
         or len(set(columns)) != len(columns)
     ):
         raise ValueError("condition_columns must uniquely name all condition columns in order.")
+    names = getattr(value, "columns", None)
+    if names is not None:
+        names = tuple(names)
+        if (
+            any(not isinstance(name, str) for name in names)
+            or len(set(names)) != len(names)
+            or set(names) != set(columns)
+        ):
+            raise ValueError("Named conditions must contain exactly the condition_columns, without duplicates.")
+        if names != tuple(columns):
+            array = array[:, [names.index(name) for name in columns]]
     return array
 
 
@@ -142,7 +153,7 @@ class ConditionBatch:
         if isinstance(self.condition_columns, (str, bytes)):
             raise ValueError("condition_columns must be a sequence of column names, not one string.")
         columns = tuple(self.condition_columns)
-        object.__setattr__(self, "conditions", _condition_array(array, len(array), columns))
+        object.__setattr__(self, "conditions", _condition_array(self.conditions, len(array), columns))
         object.__setattr__(self, "sample_ids", _ids(self.sample_ids, len(array)))
         object.__setattr__(self, "condition_columns", columns)
         for name, values in self.metadata.items():
@@ -216,10 +227,14 @@ class FieldDataset(Sequence[FieldSample]):
         columns = (
             tuple(condition_columns)
             if condition_columns is not None
+            else tuple(conditions.columns)
+            if hasattr(conditions, "columns")
             else tuple(f"condition_{index}" for index in range(condition_values.shape[1]))
             if condition_values is not None and condition_values.ndim == 2
             else ()
         )
+        if hasattr(conditions, "columns"):
+            condition_values = _condition_array(conditions, len(values), columns)
         names = (
             tuple(f"component_{index}" for index in range(values.shape[-1]))
             if components is None
@@ -431,5 +446,7 @@ class FieldDataset(Sequence[FieldSample]):
         selected = np.asarray(indices)
         if selected.ndim != 1 or selected.dtype.kind not in "iu":
             raise ValueError("Batch indices must be a one-dimensional integer array.")
+        if len(set(self.sample_ids[selected])) != len(selected):
+            raise ValueError("Batch indices must select unique sample IDs.")
         for start in range(0, len(selected), batch_size):
             yield self._subset_validated(selected[start : start + batch_size])

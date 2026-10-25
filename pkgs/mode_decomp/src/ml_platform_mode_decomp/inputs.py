@@ -79,6 +79,36 @@ class CoefficientBatch:
 SurrogateInputs = FieldDataset | CoefficientBatch
 
 
+def write_coefficient_archive(
+    path: str | Path,
+    coefficients: np.ndarray,
+    sample_ids,
+    representation: FieldRepresentation,
+    model_artifact: str | Path,
+    *,
+    source: str,
+    packed_a: np.ndarray | None = None,
+) -> Path:
+    """Save reusable target Z with the artifact that owns its frozen coordinates."""
+    path = Path(path)
+    if path.suffix != ".npz":
+        raise ValueError("Coefficient output must end in .npz")
+    batch = CoefficientBatch(coefficients, sample_ids, representation, file_hash(Path(model_artifact)))
+    arrays = {
+        "coefficients": batch.coefficients,
+        "sample_ids": batch.sample_ids,
+        "space": np.asarray("z"),
+        "model_sha256": np.asarray(batch.model_sha256),
+        "coefficient_source": np.asarray(source),
+    }
+    if packed_a is not None:
+        arrays["packed_a"] = packed_a
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("xb") as handle:
+        np.savez_compressed(handle, **arrays)
+    return path
+
+
 def normalize_input_settings(data: Mapping[str, Any], *, require_artifact: bool = True) -> dict[str, Any] | None:
     """Validate the optional input section without changing legacy data settings."""
     settings = data.get("input")

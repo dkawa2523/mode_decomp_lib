@@ -8,6 +8,22 @@ from ml_platform_mode_decomp.geometry import build_domain_spec
 from ml_platform_mode_decomp.decomposition import build_decomposer
 
 
+def test_unregularized_gappy_query_requires_observations_that_identify_the_modes():
+    from ml_platform_mode_decomp import FieldDataset, FieldRepresentation
+
+    fields = np.array([[1.0, 2.0], [1.0, -2.0], [-1.0, 2.0], [-1.0, -2.0]])[:, None, :, None]
+    training = FieldDataset.from_arrays(fields)
+    observed = np.array([[True, False]])
+    config = {"decomposition": {"name": "gappy_pod", "params": {"n_modes": 2, "reg_lambda": 0}}}
+    model = FieldRepresentation(config).fit(training)
+    with pytest.raises(ValueError, match="does not identify all fitted modes"):
+        model.transform(fields[:1], observed)
+    np.testing.assert_allclose(model.reconstruct(training), fields, atol=1e-12)
+    config["decomposition"]["params"]["reg_lambda"] = 0.1
+    regularized = FieldRepresentation(config).fit(training)
+    assert np.isfinite(regularized.transform(fields[:1], observed)).all()
+
+
 @pytest.mark.parametrize("varying", [False, True])
 @pytest.mark.parametrize("regularization", [0.0, 0.2])
 def test_gappy_batch_keeps_weighted_partial_observation_solution(varying, regularization):

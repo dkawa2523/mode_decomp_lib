@@ -1,11 +1,13 @@
 """Public compositions preserve coefficient domains and calibration roles."""
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from ml_platform_mode_decomp import FieldDataset, FieldRepresentation, FieldSurrogate, load_model
 from ml_platform_mode_decomp.model_artifact import save_model
 from ml_platform_mode_decomp.uncertainty import FieldCalibrator
+from ml_platform_mode_decomp.regressors.sklearn import RidgeRegressor
 
 
 def _fields(values, prefix):
@@ -15,6 +17,48 @@ def _fields(values, prefix):
         conditions=values[:, None],
         sample_ids=[f"{prefix}_{index}" for index in range(len(values))],
     )
+
+
+def test_named_conditions_keep_the_same_meaning_during_construction_and_prediction():
+    from ml_platform_mode_decomp.data.schema import ConditionBatch
+
+    conditions = pd.DataFrame({"a": [0.0, 1, 0, 1], "b": [0.0, 0, 1, 1]})
+    data = FieldDataset.from_arrays((10 * conditions.a + conditions.b).to_numpy()[:, None, None, None], conditions)
+    assert data.condition_columns == ("a", "b")
+    reordered = FieldDataset.from_arrays(data.fields, conditions[["b", "a"]], condition_columns=["a", "b"])
+    batch = ConditionBatch(conditions[["b", "a"]], data.sample_ids, ("a", "b"))
+    np.testing.assert_array_equal(reordered.conditions, data.conditions)
+    np.testing.assert_array_equal(batch.conditions, data.conditions)
+    model = FieldSurrogate(
+        {
+            "representation": {"decomposition": {"name": "pod_svd", "params": {"n_modes": 1}}},
+            "regression": {"name": "ridge", "params": {"alpha": 0, "solver": "svd"}},
+        }
+    ).fit(data)
+    query = pd.DataFrame({"b": [2.0], "a": [1.0]})
+    np.testing.assert_allclose(model.predict(query), [[[[12.0]]]], atol=1e-12)
+    for invalid in (pd.DataFrame([[1.0, 2.0]], columns=["a", "a"]), query.rename(columns={"b": "c"})):
+        with pytest.raises(ValueError, match="Named conditions"):
+            model.predict(invalid)
+        with pytest.raises(ValueError, match="Named conditions"):
+            FieldDataset.from_arrays(data.fields[:1], invalid, condition_columns=["a", "b"])
+
+
+def test_nonfinite_ridge_fit_cannot_retain_a_previously_fitted_model(monkeypatch):
+    model = RidgeRegressor(solver="svd").fit(np.arange(6.0)[:, None], np.arange(6.0)[:, None])
+
+    def invalid_fit(estimator, features, targets):
+        estimator.coef_ = np.full((targets.shape[1], features.shape[1]), np.nan)
+        estimator.intercept_ = np.zeros(targets.shape[1])
+        return estimator
+
+    monkeypatch.setattr("ml_platform_mode_decomp.regressors.sklearn.Ridge.fit", invalid_fit)
+    with pytest.raises(ValueError, match="non-finite coefficients"):
+        model.fit(np.zeros((6, 1)), np.arange(6.0)[:, None])
+    with pytest.raises(ValueError, match="must be fit"):
+        model.predict(np.zeros((1, 1)))
+    with pytest.raises(ValueError, match="before fit"):
+        model.state()
 
 
 def test_encoding_never_returns_overflowed_latent_coordinates():

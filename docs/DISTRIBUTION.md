@@ -1,4 +1,4 @@
-# Mode Decomposition 0.11.1
+# Mode Decomposition 0.11.2
 
 場の分解、条件からの場の予測、欠測復元を扱うPythonパッケージです。実行YAML一つ、または配列APIから利用できます。Python 3.11以上を使います。利用先にGit、uv、基盤repository、ClearML、実行SDKは不要です。
 
@@ -10,14 +10,14 @@ Windows PowerShell:
 
 ```powershell
 python -m venv .venv
-.venv/Scripts/python.exe -m pip install wheels/ml_platform_core-0.2.1-py3-none-any.whl wheels/ml_platform_mode_decomp-0.11.1-py3-none-any.whl
+.venv/Scripts/python.exe -m pip install wheels/ml_platform_core-0.2.1-py3-none-any.whl wheels/ml_platform_mode_decomp-0.11.2-py3-none-any.whl
 ```
 
 macOS / Linux:
 
 ```sh
 python3 -m venv .venv
-.venv/bin/python -m pip install wheels/ml_platform_core-0.2.1-py3-none-any.whl wheels/ml_platform_mode_decomp-0.11.1-py3-none-any.whl
+.venv/bin/python -m pip install wheels/ml_platform_core-0.2.1-py3-none-any.whl wheels/ml_platform_mode_decomp-0.11.2-py3-none-any.whl
 ```
 
 以降のコマンド例はWindows用です。macOS / Linuxでは`.venv/Scripts/python.exe`を`.venv/bin/python`に置き換えます。venvを有効化している場合は、どちらも`python`だけで実行できます。
@@ -67,6 +67,16 @@ representation:
 
 推論には保存bundleと新条件だけを使い、訓練入力は不要です。モデルbundleはjoblib形式なので、信頼できる提供元のものだけを読み込んでください。再利用時は保存したPython minor・数値backendの互換条件も確認します。
 
+モデル保存時には`model.joblib`、`model_info.json`と`model_requirements.txt`を生成します。別環境で同じモデルを使う場合、requirements冒頭に記録されたPython minorを用意し、対応するcore／mode wheelと一緒に固定依存を導入します。
+
+```powershell
+python -m pip install --find-links wheels -r model_requirements.txt
+```
+
+このfileは保存モデルが必要とする数値backendとpackageの版を固定します。OS・GPU driver・全推移依存を完全に再現する環境imageではありません。新しい依存での再学習と、既存bundleの別環境への移送は別の受入です。旧モデルはinfoに記録されたruntimeを参照してください。
+
+出力先にはhard linkを作成できるfilesystemが必要です。モデルとfield出力は同一filesystem内で一時保存して公開します。NTFS等の対応local出力先を使い、FAT/exFATや共有filesystemへの持出しは完成した成果物をcopyします。
+
 ## 配列API
 
 ```python
@@ -99,7 +109,7 @@ restored = model.inverse_transform(coefficients)
 通常のFFT/DCT・POD SVD・Ridge・散布点・Hodgeはbaseインストールで使えます。必要なbackendだけextraを追加します。
 
 ```powershell
-.venv/Scripts/python.exe -m pip install --find-links wheels "ml-platform-mode-decomp[wavelet]==0.11.1"
+.venv/Scripts/python.exe -m pip install --find-links wheels "ml-platform-mode-decomp[wavelet]==0.11.2"
 ```
 
 `wavelet`はPyWavelets、`pod`はmodredを使うPOD方式、`torch`はautoencoder、`mtgp`は多出力GP、`gbdt`はXGBoost・LightGBM・CatBoostです。`pod_svd`のために`pod` extraを導入する必要はありません。
@@ -108,7 +118,7 @@ restored = model.inverse_transform(coefficients)
 
 ```powershell
 .venv/Scripts/python.exe -m pip install --upgrade "pip>=25.3"
-.venv/Scripts/python.exe -m pip install --find-links wheels --build-constraint build-constraints.txt "ml-platform-mode-decomp[pod]==0.11.1"
+.venv/Scripts/python.exe -m pip install --find-links wheels --build-constraint build-constraints.txt "ml-platform-mode-decomp[pod]==0.11.2"
 ```
 
 通常のextra指定だけではこの制約は自動適用されません。制約は隔離したbuild環境のsetuptoolsにだけ適用し、利用先のruntime依存を古い版へ固定しません。

@@ -52,7 +52,10 @@ _SELECTION_SPLIT = (
     ParameterSpec("Split/selection_method", "enum", ("split", "selection_method")),
 )
 _CANDIDATES = (ParameterSpec("Model/candidates", "json", ("model", "candidates")),)
-_PREDICTIONS = (ParameterSpec("Output/prediction_name", "str", ("output", "prediction_name")),)
+_PREDICTIONS = (
+    ParameterSpec("Output/prediction_name", "str", ("output", "prediction_name")),
+    ParameterSpec("Output/coefficients_name", "str", ("output", "coefficients_name")),
+)
 _REPORT = (ParameterSpec("Report/config", "json", ("report",)),)
 _UNCERTAINTY = (ParameterSpec("Uncertainty/config", "json", ("uncertainty",)),)
 _ANALYSIS = (ParameterSpec("Analysis/config", "json", ("analysis",)),)

@@ -201,6 +201,9 @@ class RidgeRegressor(BaseRegressor):
             raise ValueError("tol must be nonnegative")
 
     def fit(self, X_cond: np.ndarray, Y: np.ndarray) -> "RidgeRegressor":
+        self._fitted = False
+        self._state = None
+        self._model = None
         X_cond = _ensure_2d_features(X_cond, "X_cond")
         Y = _ensure_2d_targets(Y, X_cond.shape[0])
 
@@ -216,6 +219,8 @@ class RidgeRegressor(BaseRegressor):
             random_state=self._random_state,
         )
         model.fit(X_cond, Y)
+        if not np.isfinite(model.coef_).all() or not np.isfinite(model.intercept_).all():
+            raise ValueError("ridge fit produced non-finite coefficients or intercept; check the data and solver")
         self._model = model
         self._target_dim = Y.shape[1]
         # Capture the fitted numerical settings for inspection.
@@ -291,8 +296,6 @@ class ElasticNetRegressor(BaseRegressor):
         self._tol = _number(self._tol, "tol")
         if self._tol < 0:
             raise ValueError("tol must be nonnegative")
-        if self._tol < 0:
-            raise ValueError("tol must be >= 0")
 
     def fit(self, X_cond: np.ndarray, Y: np.ndarray) -> "ElasticNetRegressor":
         X_cond = _ensure_2d_features(X_cond, "X_cond")
@@ -390,8 +393,6 @@ class MultiTaskElasticNetRegressor(BaseRegressor):
         self._tol = _number(self._tol, "tol")
         if self._tol < 0:
             raise ValueError("tol must be nonnegative")
-        if self._tol < 0:
-            raise ValueError("tol must be >= 0")
 
     def fit(self, X_cond: np.ndarray, Y: np.ndarray) -> "MultiTaskElasticNetRegressor":
         X_cond = _ensure_2d_features(X_cond, "X_cond")
@@ -480,8 +481,6 @@ class MultiTaskLassoRegressor(BaseRegressor):
         self._tol = _number(self._tol, "tol")
         if self._tol < 0:
             raise ValueError("tol must be nonnegative")
-        if self._tol < 0:
-            raise ValueError("tol must be >= 0")
 
     def fit(self, X_cond: np.ndarray, Y: np.ndarray) -> "MultiTaskLassoRegressor":
         X_cond = _ensure_2d_features(X_cond, "X_cond")

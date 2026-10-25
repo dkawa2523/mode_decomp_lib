@@ -7,6 +7,29 @@ from ml_platform_core.result import RunError, RunResult
 from ml_platform_core.paths import resolve_path_within
 
 
+def write_prediction_coefficients(cfg, result, sample_ids, model, inputs, model_artifact):
+    name = cfg["output"].get("coefficients_name")
+    if name is None:
+        return
+    from .inputs import write_coefficient_archive
+
+    path = resolve_path_within(
+        result.run_dir,
+        name,
+        setting="output.coefficients_name",
+        root_description="the run directory",
+        allow_nested=False,
+    )
+    result.artifacts["coefficients"] = write_coefficient_archive(
+        path,
+        model.predict_coefficients(inputs),
+        sample_ids,
+        model.representation,
+        model_artifact,
+        source="surrogate_prediction",
+    )
+
+
 def write_prediction_batches(
     cfg,
     result,

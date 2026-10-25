@@ -260,7 +260,7 @@ def test_zero_area_locations_do_not_make_training_baseline_undefined():
     assert report.metrics["field_skill"] == pytest.approx(0.75)
 
 
-@pytest.mark.parametrize("selected", [[8, 2, 5], [1, 2, 3], [5, 2, 5]])
+@pytest.mark.parametrize("selected", [[8, 2, 5], [1, 2, 3]])
 def test_indexed_training_baseline_uses_only_selected_observed_rows(selected):
     rng = np.random.default_rng(842)
     values = rng.normal(size=(9, 4, 7, 2))[:, :, ::2]

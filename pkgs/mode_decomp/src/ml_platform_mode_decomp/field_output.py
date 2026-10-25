@@ -12,6 +12,7 @@ import numpy as np
 
 from .data.schema import _field_units, _ids
 from .data._sources import _binary_mask
+from .geometry import DomainSpec
 
 
 def _field_schema(shape, kind, components, units):
@@ -44,6 +45,8 @@ def _field_schema(shape, kind, components, units):
 def _validate_geometry(metadata, arrays, shape):
     declared = metadata.get("geometry")
     if declared is None:
+        if "geometry_weights" in arrays:
+            raise ValueError("Field output geometry_weights require declared geometry")
         return
     if (
         not isinstance(declared, dict)
@@ -66,6 +69,19 @@ def _validate_geometry(metadata, arrays, shape):
             raise ValueError("Field output geometry vertex count differs from the declared field")
     elif len(shape) != 3 or any(arrays[key].shape != spatial for key in coordinates.values()):
         raise ValueError("Field output geometry shape differs from the declared grid field")
+    if "geometry_weights" in arrays:
+        if declared.get("weights") != "geometry_weights":
+            raise ValueError("Field output geometry_weights must declare their geometry role")
+        geometry = DomainSpec(
+            declared["name"],
+            {name: arrays[key] for name, key in coordinates.items()},
+            arrays.get("domain_mask"),
+            arrays["geometry_weights"],
+            declared["metadata"],
+        )
+        weights = geometry.integration_weights()
+        if weights is None or not np.any(weights > 0):
+            raise ValueError("Field output geometry_weights must have positive active mass")
 
 
 def _json_value(value):
@@ -100,13 +116,13 @@ def field_descriptor(field_spec, geometry=None, *, observation_mask=None, calibr
             "coordinates": {name: f"geometry_{name}" for name in geometry.coords},
         }
         arrays.update({f"geometry_{name}": np.asarray(value) for name, value in geometry.coords.items()})
-        _validate_geometry(metadata, arrays, tuple(field_spec.shape))
         if geometry.mask is not None:
             arrays["domain_mask"] = _binary_mask(geometry.mask, "domain_mask").reshape(field_spec.shape[:-1])
             metadata["support"]["domain"] = "domain_mask"
         if geometry.weights is not None:
             arrays["geometry_weights"] = np.asarray(geometry.weights).reshape(field_spec.shape[:-1])
             metadata["geometry"]["weights"] = "geometry_weights"
+        _validate_geometry(metadata, arrays, tuple(field_spec.shape))
     if observation_mask is not None:
         arrays["observation_mask"] = _binary_mask(observation_mask, "observation_mask")
         metadata["support"]["observations"] = "observation_mask"

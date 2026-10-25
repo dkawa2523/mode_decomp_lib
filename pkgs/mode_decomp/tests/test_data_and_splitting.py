@@ -22,6 +22,17 @@ from ml_platform_mode_decomp.geometry import build_domain_spec, validate_decompo
 from ml_platform_mode_decomp.geometry.identity import geometry_fingerprint
 
 
+def test_public_batches_preserve_unique_case_ids_across_the_selection():
+    from ml_platform_mode_decomp import FieldDataset
+
+    data = FieldDataset.from_arrays(np.arange(4.0)[:, None, None, None])
+    for indices in ([1, 1], [1, -3], [1, 2, 1]):
+        with pytest.raises(ValueError, match="unique sample IDs"):
+            list(data.iter_batches(indices, batch_size=1))
+    batches = list(data.iter_batches([2, -1, 0], batch_size=2))
+    assert [item for batch in batches for item in batch.sample_ids] == data.sample_ids[[2, 3, 0]].tolist()
+
+
 def write_dataset(
     root: Path, *, count: int = 12, order=None, condition_format="table", manifest_name="field_dataset.yaml"
 ):

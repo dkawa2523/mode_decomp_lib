@@ -152,10 +152,17 @@ def _info_path(path: Path) -> Path:
     return path.with_name("model_info.json" if path.name == "model.joblib" else f"{path.stem}_info.json")
 
 
+def model_requirements_path(path: str | Path) -> Path:
+    """Companion pins for installing a saved model's recorded numerical runtime."""
+    path = Path(path)
+    return path.with_name(f"{path.stem}_requirements.txt")
+
+
 def save_model(bundle: Bundle, path: str | Path, *, provenance: dict | None = None) -> tuple[Path, Path]:
     path = Path(path)
     info_path = _info_path(path)
-    if path.exists() or info_path.exists():
+    requirements_path = model_requirements_path(path)
+    if any(destination.exists() for destination in (path, info_path, requirements_path)):
         raise FileExistsError(f"Choose a new model artifact path: {path}")
     rep = bundle.representation if isinstance(bundle, FieldSurrogate) else bundle
     rep._require_fitted()
@@ -186,9 +193,22 @@ def save_model(bundle: Bundle, path: str | Path, *, provenance: dict | None = No
             "provenance": provenance or {},
         }
         staged_info = write_json(info, _info_path(staged))
+        staged_requirements = model_requirements_path(staged)
+        packages = runtime["packages"]
+        pins = sorted(required | {"ml-platform-core", "ml-platform-mode-decomp"})
+        python_minor = ".".join(runtime["python"].split(".")[:2])
+        staged_requirements.write_text(
+            f"# Use Python {python_minor}. Install this file alongside the matching application wheels.\n"
+            + "".join(f"{name}=={packages[name]}\n" for name in pins),
+            encoding="utf-8",
+        )
         installed = []
         try:
-            for source, destination in ((staged, path), (staged_info, info_path)):
+            for source, destination in (
+                (staged, path),
+                (staged_info, info_path),
+                (staged_requirements, requirements_path),
+            ):
                 # Exclusive creation prevents replacing an existing model, even
                 # if another writer chose the same destination after our check.
                 os.link(source, destination)

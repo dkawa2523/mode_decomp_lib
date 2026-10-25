@@ -35,7 +35,7 @@ for name in ("clearml", "ml_platform_tabular", "ml_platform_spdml", "mode_decomp
         raise ValueError(f"Unexpected execution SDK or sibling package: {name}")
 
 def run(command):
-    result = subprocess.run(command, cwd=workspace, check=True, capture_output=True, text=True, encoding="utf-8")
+    result = subprocess.run(command, cwd=workspace, check=True, capture_output=True, text=True, encoding="utf-8", errors="replace")
     return result.stdout
 
 def cli(filename, *overrides):
@@ -83,6 +83,7 @@ inferred = cli(
     f"model.artifact_path={model_path}",
     "runtime.output_dir=outputs/inference",
     "output.prediction_name=predictions.npy",
+    "output.coefficients_name=target_z.npz",
 )
 saved = read_field_output(inferred["artifacts"]["predictions"])
 predictions = saved["arrays"]["predictions"]
@@ -91,6 +92,14 @@ if predictions.shape != (2, 10, 12, 1) or not np.isfinite(predictions).all():
 if saved["arrays"]["sample_ids"].tolist() != ["new_a", "new_b"]:
     raise ValueError("Fresh-process inference did not preserve condition IDs")
 np.testing.assert_array_equal(predictions, load_model(model_path).predict(np.array([[0.2, 0.5], [0.8, -0.4]])))
+from ml_platform_mode_decomp.inputs import load_surrogate_inputs
+coefficient_input = load_surrogate_inputs({"input": {
+    "kind": "coefficients", "local_path": inferred["run_dir"],
+    "path": "target_z.npz", "model_artifact": str(model_path),
+}})
+np.testing.assert_array_equal(coefficient_input.sample_ids, saved["arrays"]["sample_ids"])
+np.testing.assert_allclose(coefficient_input.representation.inverse_transform(coefficient_input.coefficients), predictions)
+np.save(workspace / "reuse_expected.npy", predictions, allow_pickle=False)
 
 mapping_root = workspace / "data/field_mapping"
 run([sys.executable, "-I", str(bundle / "examples/create_field_mapping_dataset.py"), "--output", str(mapping_root)])
@@ -131,6 +140,9 @@ report = {
     "training_input_hidden_before_inference": not training.exists(),
     "condition_column_reordering_and_ids": True,
     "portable_npy_read": True,
+    "reusable_predicted_target_z": True,
+    "model": str(model_path),
+    "model_requirements": trained["artifacts"]["model_requirements"],
     "bundle_inputs_only": True,
     "field_mapping_source_only_inference": True,
     "field_mapping_target_coefficients_and_units": True,
@@ -142,10 +154,28 @@ report = {
 print(json.dumps(report, ensure_ascii=False))
 """
 
+_REUSE_CONSUMER = r"""
+import hashlib
+from pathlib import Path
+import sys
+import numpy as np
+import ml_platform_mode_decomp as package
+from ml_platform_mode_decomp import load_model
+
+model_path, expected_path, expected_hash = sys.argv[1:]
+if not sys.flags.isolated or not Path(package.__file__).resolve().is_relative_to(Path(sys.prefix).resolve()):
+    raise ValueError("Model reuse must import only the second environment's installed wheel")
+if hashlib.sha256(Path(model_path).read_bytes()).hexdigest() != expected_hash:
+    raise ValueError("Model reuse must retain the original saved model bytes")
+predictions = load_model(model_path).predict(np.array([[0.2, 0.5], [0.8, -0.4]]))
+np.testing.assert_array_equal(predictions, np.load(expected_path, allow_pickle=False))
+print("Same saved model predictions match in a second environment installed from its runtime pins")
+"""
+
 
 def _run(command, workspace, environment, log_name):
     completed = subprocess.run(
-        command, cwd=workspace, env=environment, capture_output=True, text=True, encoding="utf-8"
+        command, cwd=workspace, env=environment, capture_output=True, text=True, encoding="utf-8", errors="replace"
     )
     (workspace / log_name).write_text(completed.stdout + completed.stderr, encoding="utf-8")
     if completed.returncode:
@@ -157,7 +187,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle", type=Path, required=True, help="Distribution ZIP to accept")
     parser.add_argument("--work-dir", type=Path, required=True, help="New directory for extraction, venv and results")
-    parser.add_argument("--python", default=sys.executable, help="Base interpreter for the single stdlib venv")
+    parser.add_argument("--python", default=sys.executable, help="Base interpreter for the consumer stdlib venvs")
     args = parser.parse_args()
     archive = args.bundle.resolve(strict=True)
     workspace = args.work_dir.resolve()
@@ -199,6 +229,43 @@ def main():
         [str(interpreter), "-I", str(consumer), str(bundle), str(workspace)], workspace, environment, "consumer.log"
     )
     report = json.loads(output)
+    # Reuse the exact model bytes, rather than retraining in a new environment.
+    import shutil
+
+    reuse = workspace / "model-reuse"
+    reuse.mkdir()
+    for name in ("model.joblib", "model_info.json", "model_requirements.txt"):
+        shutil.copyfile(Path(report["model"]).parent / name, reuse / name)
+    reuse_environment = workspace / "reuse-environment"
+    _run(
+        [str(Path(args.python).resolve()), "-I", "-m", "venv", str(reuse_environment)],
+        workspace,
+        environment,
+        "reuse_venv.log",
+    )
+    reuse_interpreter = reuse_environment / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+    _run(
+        [str(reuse_interpreter), "-I", "-m", "pip", "install", *wheels, "-r", str(reuse / "model_requirements.txt")],
+        workspace,
+        environment,
+        "reuse_install.log",
+    )
+    _run([str(reuse_interpreter), "-I", "-m", "pip", "check"], workspace, environment, "reuse_pip_check.log")
+    reuse_consumer = workspace / "reuse.py"
+    reuse_consumer.write_text(_REUSE_CONSUMER, encoding="utf-8")
+    _run(
+        [
+            str(reuse_interpreter),
+            "-I",
+            str(reuse_consumer),
+            str(reuse / "model.joblib"),
+            str(workspace / "reuse_expected.npy"),
+            hashlib.sha256(Path(report["model"]).read_bytes()).hexdigest(),
+        ],
+        workspace,
+        environment,
+        "reuse.log",
+    )
     report.update(
         bundle=str(archive),
         bundle_sha256=hashlib.sha256(archive.read_bytes()).hexdigest(),
@@ -207,6 +274,7 @@ def main():
         installed_with="python -m pip install two local wheels",
         pip_check=True,
         uv_required=False,
+        same_bundle_reused_in_second_environment=True,
     )
     (workspace / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, ensure_ascii=False))

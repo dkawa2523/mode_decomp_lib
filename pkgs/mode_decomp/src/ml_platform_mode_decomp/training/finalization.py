@@ -4,9 +4,9 @@ from ml_platform_core.io import write_json, write_table
 
 from ..evaluation import score_surrogate, prepare_objective
 from ..inputs import subset_inputs
-from ..model_artifact import evaluation_identity, fingerprint, save_model
+from ..model_artifact import evaluation_identity, fingerprint, save_model, model_requirements_path
 from ..policy import METRIC_DIRECTIONS
-from ..stage_result import write_prediction_batches
+from ..stage_result import write_prediction_batches, write_prediction_coefficients
 from ..surrogate import FieldSurrogate
 from ..uncertainty_reporting import add_uncertainty_report
 from .calibration import calibrate_from_split
@@ -97,7 +97,9 @@ def finalize_selected(cfg, result, dataset, split, candidates, *, inputs=None):
     if rows:
         result.tables["leaderboard"] = write_table(pd.DataFrame(rows), result.run_dir / "leaderboard.csv")
     model_path, info_path = save_model(model, result.run_dir / "model.joblib", provenance=provenance)
-    result.artifacts.update(model=model_path, model_info=info_path)
+    result.artifacts.update(
+        model=model_path, model_info=info_path, model_requirements=model_requirements_path(model_path)
+    )
     write_prediction_batches(
         cfg,
         result,
@@ -107,6 +109,9 @@ def finalize_selected(cfg, result, dataset, split, candidates, *, inputs=None):
         uncertainty=None if model.calibrator is None else model.calibrator.summary(),
         observation_mask=test.observation_mask,
         calibration_support=None if model.calibrator is None else model.calibrator.support,
+    )
+    write_prediction_coefficients(
+        cfg, result, test.sample_ids, model, test if test_inputs is None else test_inputs, model_path
     )
     result.metrics.update(metrics)
     result.extra.update(

@@ -8,6 +8,7 @@ import pytest
 from ml_platform_core.artifacts import file_hash
 
 from ml_platform_mode_decomp import FieldDataset, FieldRepresentation, FieldSurrogate
+from ml_platform_mode_decomp.data import load_condition_batch
 from ml_platform_mode_decomp.inputs import (
     CoefficientBatch,
     align_inputs,
@@ -40,6 +41,27 @@ def _source(root, *, surrogate=False):
         "input": {"kind": "coefficients", "path": archive.name, "model_artifact": artifact.name},
     }
     return data, representation, artifact, coefficients, settings
+
+
+def test_condition_id_column_is_not_ignored_for_arrays_or_manifests(tmp_path):
+    np.save(tmp_path / "conditions.npy", np.array([[1.0], [2.0]]))
+    for empty_manifest in ("", {}):
+        with pytest.raises(ValueError):
+            load_condition_batch(
+                {"local_path": str(tmp_path / "conditions.npy"), "source_manifest": empty_manifest},
+                condition_columns=["x"],
+            )
+    for selection in ({"dataset_file": "conditions.npy"}, {"source_manifest": "conditions.yaml"}):
+        with pytest.raises(ValueError, match="data.id_column"):
+            load_condition_batch(
+                {"local_path": str(tmp_path), "id_column": "case_id", **selection}, condition_columns=["x"]
+            )
+    (tmp_path / "conditions.csv").write_text("case_id,x\none,1\ntwo,2\n", encoding="utf-8")
+    batch = load_condition_batch(
+        {"local_path": str(tmp_path), "dataset_file": "conditions.csv", "id_column": "case_id"},
+        condition_columns=["x"],
+    )
+    np.testing.assert_array_equal(batch.sample_ids, ["one", "two"])
 
 
 @pytest.mark.parametrize("surrogate", [False, True])

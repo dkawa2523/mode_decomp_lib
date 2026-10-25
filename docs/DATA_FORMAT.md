@@ -22,6 +22,10 @@
 
 有限な入力でも係数後処理でoverflowする場合は、無限大のZを返さずエラーにします。packing／係数後処理の直接APIも、複素数の虚部を捨てて実数Aとして受け付けません。
 
+条件をDataFrame等の名前付き表で渡す場合、`from_arrays`は省略した条件名を表から取得し、明示した`condition_columns`には列名で整列します。直接の`predict(table)`もfit時の列名へ整列し、重複・不足・余分な列を拒否します。裸のndarrayは引き続き列順に意味を持ちます。`ConditionBatch`／`FieldDataset`で推論するときは、宣言した条件schemaもfit時と一致させます。`iter_batches(indices)`は選択全体でcase IDの重複を拒否します。
+
+CLIは標準出力へ`status`、`run_dir`、`metrics`、`artifacts`、`tables`、`plots`を持つJSONを返します。実行失敗時も保持した成果物と`error`／`failed_phase`を返し、終了コードは1です。設定解決で失敗した場合は`run_dir: null`です。解析CSVは`tables`から取得できます。`analysis.allow_failures: true`で一部候補の数値失敗を許可した解析は`status: partial`／終了コード0となり、完全な成功と区別します。
+
 ## NPYの最小入力とshape
 
 ```yaml

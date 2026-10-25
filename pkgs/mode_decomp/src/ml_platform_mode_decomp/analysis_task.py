@@ -20,7 +20,7 @@ from .evaluation import (
     observation_mask,
 )
 from .evaluation.comparison import paired_comparisons
-from .model_artifact import evaluation_identity, save_model
+from .model_artifact import evaluation_identity, model_requirements_path, save_model
 from .mode_reporting import mode_options, write_mode_report
 from .policy import candidate_config
 from .representation import FieldRepresentation
@@ -308,6 +308,9 @@ def _study(cfg, result):
                         metadata["model_bytes"] = path.stat().st_size
                         report.summary["saved_model"] = str(path.relative_to(result.run_dir))
                         report.summary["saved_model_info"] = str(info.relative_to(result.run_dir))
+                        report.summary["saved_model_requirements"] = str(
+                            model_requirements_path(path).relative_to(result.run_dir)
+                        )
                     if study["components"]["enabled"]:
                         from .component_reporting import write_component_report
 

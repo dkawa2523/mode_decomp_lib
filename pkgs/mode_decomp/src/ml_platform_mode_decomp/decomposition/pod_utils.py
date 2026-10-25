@@ -185,7 +185,9 @@ def svd_snapshots_basis(X: np.ndarray, *, n_modes: int | None, method: str) -> n
     return basis.copy(order="F") if selected < len(vh) else basis
 
 
-def solve_ridge(A: np.ndarray, y: np.ndarray, ridge_alpha: float, *, method: str) -> np.ndarray:
+def solve_ridge(
+    A: np.ndarray, y: np.ndarray, ridge_alpha: float, *, method: str, require_full_rank: bool = False
+) -> np.ndarray:
     """Solve min ||A x - y||^2 + ridge_alpha ||x||^2 (ridge_alpha >= 0)."""
     alpha = float(ridge_alpha)
     if not np.isfinite(alpha) or alpha < 0:
@@ -204,7 +206,12 @@ def solve_ridge(A: np.ndarray, y: np.ndarray, ridge_alpha: float, *, method: str
         # Augmentation avoids squaring the condition number of partial bases.
         A = np.vstack((A, np.sqrt(alpha) * np.eye(A.shape[1])))
         y = np.concatenate((y, np.zeros((A.shape[1], *y.shape[1:]))))
-    coeff, _, _, _ = np.linalg.lstsq(A, y, rcond=None)
+    coeff, _, rank, _ = np.linalg.lstsq(A, y, rcond=None)
+    if require_full_rank and alpha == 0 and rank < A.shape[1]:
+        raise ValueError(
+            f"{method} observed basis does not identify all fitted modes; "
+            "provide more observations, reduce n_modes, or use positive regularization"
+        )
     return coeff
 
 

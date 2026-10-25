@@ -163,6 +163,9 @@ def test_single_yaml_legacy_cli_and_dictionary_execute_the_same_model_with_cwd_p
         cwd=tmp_path,
     )
     payload = json.loads(completed.stdout)
+    assert payload["status"] == "ok"
+    assert Path(payload["tables"]["per_sample"]).is_file()
+    assert payload["plots"] == {}
     assert Path(payload["run_dir"]).is_relative_to(tmp_path / "cli")
     monkeypatch.chdir(tmp_path)
     direct = run_task({**raw, "runtime": {"output_dir": "dictionary"}})
@@ -186,3 +189,59 @@ def test_cli_rejects_missing_or_ambiguous_configuration_before_loading(tmp_path,
     )
     assert completed.returncode == 2 and message in completed.stderr
     assert not list(tmp_path.iterdir())
+
+
+def test_cli_failure_reports_partial_run_and_preserves_nonzero_exit(tmp_path):
+    np.save(tmp_path / "field.npy", np.ones((3, 2, 2, 1)))
+    config = write_yaml(
+        tmp_path / "failed.yaml",
+        {
+            "task": "mode_decomp_representation",
+            "data": {"local_path": str(tmp_path), "fields": {"path": "field.npy", "layout": "NHWC"}},
+            "representation": {"decomposition": {"name": "tucker", "params": {"ranks": [3, 2, 1]}}},
+            "runtime": {"output_dir": str(tmp_path / "runs")},
+        },
+    )
+    completed = subprocess.run(
+        [sys.executable, "-B", "-m", "ml_platform_mode_decomp", str(config)],
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+    )
+    payload = json.loads(completed.stdout)
+    assert completed.returncode == 1 and payload["status"] == "failed"
+    assert payload["failed_phase"] == "operation" and "rank" in payload["error"].lower()
+    assert Path(payload["run_dir"]).is_dir() and Path(payload["artifacts"]["config"]).is_file()
+    assert payload["tables"] == payload["plots"] == {} and not completed.stderr
+
+
+def test_cli_allowed_incomplete_analysis_reports_partial_status_with_zero_exit(tmp_path):
+    from test_analysis import _input, _settings
+
+    source = tmp_path / "input"
+    _input(source)
+    cfg = _settings(source, tmp_path / "runs")
+    cfg["analysis"].update(allow_failures=True, bootstrap_samples=0)
+    cfg["report"] = {"enabled": False}
+    cfg["model"]["candidates"].append(
+        {"id": "broken", "representation": {"decomposition": {"name": "pod_svd", "params": {"n_modes": 999}}}}
+    )
+    config = write_yaml(tmp_path / "partial.yaml", cfg)
+    completed = subprocess.run(
+        [sys.executable, "-B", "-m", "ml_platform_mode_decomp", str(config)],
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+    )
+    payload = json.loads(completed.stdout)
+    assert completed.returncode == 0 and payload["status"] == "partial"
+    assert payload["metrics"]["failed_evaluations"] == 1
+    assert Path(payload["tables"]["comparison"]).is_file()
+    summary = json.loads(Path(payload["artifacts"]["analysis_summary"]).read_text(encoding="utf-8"))
+    assert summary["complete"] is False and summary["failures"][0]["candidate_id"] == "broken"
+
+
+@pytest.mark.parametrize("name", [None, True, "nested/coefficients.npz", "coefficients.npy", "predictions.npz"])
+def test_invalid_coefficient_output_is_rejected_before_execution(name):
+    with pytest.raises(ValueError, match="output\\."):
+        resolve_config({"task": "mode_decomp_pipeline", "output": {"coefficients_name": name}})

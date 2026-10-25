@@ -128,9 +128,24 @@ model:
 
 Pythonでは`ml_platform_mode_decomp.inputs.load_surrogate_inputs()`で同じ設定から`CoefficientBatch`を読み、`predict()`または`predict_coefficients()`へ渡せます。手動でhashや表現を組み立てる必要はありません。学習時のtargetは通常のfield Datasetです。任意の裸のtarget係数行列だけを学ぶ入口は追加しません。
 
+## 予測係数を次の対応学習へ渡す
+
+pipeline／inferに次の指定を加えると、fieldと同じcase順のtarget Zを保存します。pipelineは最終test分、inferは渡した全query分です。
+
+```yaml
+output:
+  coefficients_name: target_z.npz
+```
+
+`result.artifacts["coefficients"]`のNPZは`coefficients`、`sample_ids`、`space: z`、`model_sha256`、`coefficient_source: surrogate_prediction`を持ちます。ここでhashは、このtarget表現を内包する上流surrogateの保存モデルです。次段の`data.input`にそのNPZと上流の`model.joblib`を指定すれば、既存の係数入力として読み込めます。直接分解の係数は同じ形式で`coefficient_source: field_transform`となり、`packed_a`も保持します。
+
+予測Zは正解fieldを符号化したZとは異なります。連鎖モデルを学習する場合、上流がそのcaseの正解を学習済みかどうかも評価設計に含めます。元fieldが手元にあることを理由に、予測Zを正解Zへ置き換えて評価しません。現在の追加出力は任意で、省略時には計算しません。有効時は係数予測を再実行し、`N×K_Z`行列を保持します。field出力は従来どおりbatchで書き込みます。
+
 ## 評価と追加解析
 
 主指標はtargetの原field・support・measureで計算します。`predict_coefficients()`はtargetの`Z`を返すため、条件→field、field→field、係数→係数の予測が同じ回帰器・target表現を通ります。係数値の大小を異なるfitや手法間の共通精度として比較しません。
+
+学習対象はtarget Zです。二乗誤差でZの条件付き平均を学習しても、Quadratic manifoldや非線形係数後処理を通したfieldは一般にfieldの条件付き平均ではありません。例えば同じ入力から正負のmodeが生じる場合、平均係数0を復号したfieldと、各fieldの平均は異なります。入力からtargetがほぼ定まる用途を基本とし、曖昧さが大きい用途では原field誤差とtraining平均baselineへのskillを確認します。多峰分布の推定やfield損失での直接学習は現在の処理に含みません。
 
 較正を使う場合はsourceとtargetの較正ペアをfit・候補選択から除外し、`model.calibrate(target_calibration, inputs=source_calibration, training=target_training)`へ渡します。得られるのはtarget場の予測帯です。通常と同じ交換可能性等の条件が必要です。
 
