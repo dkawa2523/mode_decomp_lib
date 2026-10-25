@@ -6,6 +6,25 @@ import pytest
 from ml_platform_mode_decomp.regressors import build_regressor
 
 
+@pytest.mark.parametrize("name", ["ridge", "elasticnet", "multitask_elasticnet", "multitask_lasso", "gpr"])
+def test_failed_refit_invalidates_predictions_with_the_mutated_scaler(name):
+    model = build_regressor({"name": name, **({"optimizer": None} if name == "gpr" else {})})
+    conditions = np.arange(8.0)[:, None]
+    targets = np.column_stack((conditions[:, 0], conditions[:, 0] ** 2))
+    model.fit(conditions, targets)
+    assert np.isfinite(model.predict(conditions[:2])).all()
+    invalid = targets.copy()
+    invalid[0, 0] = np.nan
+    with pytest.raises(ValueError, match="NaN"):
+        model.fit(conditions + 100, invalid)
+    with pytest.raises(ValueError, match="must be fit"):
+        model.predict(conditions[:2])
+    with pytest.raises(ValueError, match="before fit"):
+        model.state()
+    model.fit(conditions, targets)
+    assert np.isfinite(model.predict(conditions[:2])).all()
+
+
 @pytest.mark.parametrize("outputs", [1, 3])
 def test_ridge_single_and_multi_output_predictions(outputs) -> None:
     rng = np.random.default_rng(10)

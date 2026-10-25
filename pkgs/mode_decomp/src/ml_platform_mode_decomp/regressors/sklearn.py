@@ -201,8 +201,7 @@ class RidgeRegressor(BaseRegressor):
             raise ValueError("tol must be nonnegative")
 
     def fit(self, X_cond: np.ndarray, Y: np.ndarray) -> "RidgeRegressor":
-        self._fitted = False
-        self._state = None
+        self._begin_fit()
         self._model = None
         X_cond = _ensure_2d_features(X_cond, "X_cond")
         Y = _ensure_2d_targets(Y, X_cond.shape[0])
@@ -298,6 +297,7 @@ class ElasticNetRegressor(BaseRegressor):
             raise ValueError("tol must be nonnegative")
 
     def fit(self, X_cond: np.ndarray, Y: np.ndarray) -> "ElasticNetRegressor":
+        self._begin_fit()
         X_cond = _ensure_2d_features(X_cond, "X_cond")
         Y = _ensure_2d_targets(Y, X_cond.shape[0])
 
@@ -395,6 +395,7 @@ class MultiTaskElasticNetRegressor(BaseRegressor):
             raise ValueError("tol must be nonnegative")
 
     def fit(self, X_cond: np.ndarray, Y: np.ndarray) -> "MultiTaskElasticNetRegressor":
+        self._begin_fit()
         X_cond = _ensure_2d_features(X_cond, "X_cond")
         Y = _ensure_2d_targets(Y, X_cond.shape[0])
 
@@ -483,6 +484,7 @@ class MultiTaskLassoRegressor(BaseRegressor):
             raise ValueError("tol must be nonnegative")
 
     def fit(self, X_cond: np.ndarray, Y: np.ndarray) -> "MultiTaskLassoRegressor":
+        self._begin_fit()
         X_cond = _ensure_2d_features(X_cond, "X_cond")
         Y = _ensure_2d_targets(Y, X_cond.shape[0])
 
@@ -567,6 +569,7 @@ class GPRRegressor(BaseRegressor):
         self._target_dim: int | None = None
 
     def fit(self, X_cond: np.ndarray, Y: np.ndarray) -> "GPRRegressor":
+        self._begin_fit()
         X_cond = _ensure_2d_features(X_cond, "X_cond")
         Y = _ensure_2d_targets(Y, X_cond.shape[0])
 

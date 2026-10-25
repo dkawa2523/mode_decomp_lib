@@ -77,6 +77,10 @@ class BaseRegressor:
             raise ValueError("state is not available before fit")
         return self._state
 
+    def _begin_fit(self) -> None:
+        self._fitted = False
+        self._state = None
+
     def _mark_fitted(self) -> None:
         self._fitted = True
 

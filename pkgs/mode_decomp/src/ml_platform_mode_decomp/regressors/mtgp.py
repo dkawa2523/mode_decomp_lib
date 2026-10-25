@@ -155,6 +155,7 @@ class MTGPRegressor(BaseRegressor):
         self._target_dim: int | None = None
 
     def fit(self, X_cond: np.ndarray, Y: np.ndarray) -> "MTGPRegressor":
+        self._begin_fit()
         _require_dependency()
         assert torch is not None and gpytorch is not None and _MTGPModel is not None
         X_cond = _ensure_2d_features(X_cond, "X_cond")

@@ -134,6 +134,7 @@ class XGBRegressor(BaseRegressor):
         )
 
     def fit(self, X_cond: np.ndarray, Y: np.ndarray) -> "XGBRegressor":
+        self._begin_fit()
         X_cond = _ensure_2d_features(X_cond, "X_cond")
         Y = _ensure_2d_targets(Y, X_cond.shape[0])
         if self._scaler is not None:
@@ -255,6 +256,7 @@ class LGBMRegressor(BaseRegressor):
         )
 
     def fit(self, X_cond: np.ndarray, Y: np.ndarray) -> "LGBMRegressor":
+        self._begin_fit()
         X_cond = _ensure_2d_features(X_cond, "X_cond")
         Y = _ensure_2d_targets(Y, X_cond.shape[0])
         if self._scaler is not None:
@@ -357,6 +359,7 @@ class CatBoostRegressor(BaseRegressor):
         )
 
     def fit(self, X_cond: np.ndarray, Y: np.ndarray) -> "CatBoostRegressor":
+        self._begin_fit()
         X_cond = _ensure_2d_features(X_cond, "X_cond")
         Y = _ensure_2d_targets(Y, X_cond.shape[0])
         if self._scaler is not None:
