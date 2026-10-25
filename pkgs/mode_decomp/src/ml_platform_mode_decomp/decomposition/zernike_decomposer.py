@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Mapping
 
@@ -32,7 +32,7 @@ class ZernikeDecomposer(ZernikeBasisDecomposer):
     ) -> None:
         cfg = constructor_config(cfg, locals(), name="zernike")
         n_max = require_cfg(cfg, "n_max", label="decompose")
-        n_max = int(n_max)
+        n_max = integer_parameter(n_max, "n_max")
         if n_max < 0:
             raise ValueError("decompose.n_max must be >= 0 for zernike")
         ordering = str(require_cfg(cfg, "ordering", label="decompose"))

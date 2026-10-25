@@ -15,12 +15,12 @@ import tomllib
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out-dir", default="dist")
+    parser.add_argument("--out-dir", help="Output directory; default: dist/<package version>")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    output = Path(args.out_dir).resolve()
-    output.mkdir(parents=True, exist_ok=True)
     project = tomllib.loads((root / "pkgs/mode_decomp/pyproject.toml").read_text(encoding="utf-8"))["project"]
+    output = (Path(args.out_dir) if args.out_dir else root / "dist" / project["version"]).resolve()
+    output.mkdir(parents=True, exist_ok=True)
     stem = f"{project['name'].replace('-', '_')}-{project['version']}"
     core = root / "vendor/wheels"
     info = json.loads((core / "core.json").read_text(encoding="utf-8"))

@@ -1,0 +1,21 @@
+task: mode_decomp_pipeline
+run:
+  name: field_mapping
+  seed: 42
+data:
+  local_path: data/field_mapping/target
+  source_manifest: field_dataset.yaml
+  input:
+    kind: field
+    local_path: data/field_mapping/source
+    source_manifest: field_dataset.yaml
+model:
+  candidates:
+    - id: tucker_to_quadratic
+      input_representation:
+        decomposition: {name: tucker, params: {ranks: [3, 3, 1]}}
+      representation:
+        decomposition: {name: quadratic_manifold, params: {n_modes: 2}}
+      regression: {name: ridge, params: {alpha: 0.000001}}
+metrics:
+  names: [field_rmse, field_mae]

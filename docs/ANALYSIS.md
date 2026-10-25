@@ -1,6 +1,8 @@
-# 科学解析ガイド（mode 0.10 / core 0.2.1）
+# 科学解析ガイド（mode 0.11 / core 0.2.1）
 
 `mode_decomp_analysis` は、事前に決めた手法・ハイパーパラメータを共通の outer train/test で比較するタスクです。原 field 上の損失、表現による誤差、baseline、次元、コストを保存します。test の順位による候補選択やモデル公開は行いません。
+
+次元のmetadataは役割を区別します。`field_dimension`は表現する場のdomain内自由度、`ambient_field_dimension`はmaskを含む配列全体の大きさ、`coefficient_to_field_ratio`はZ次元／field次元です。surrogateの`prediction_input_kind`と`prediction_input_dimension`は実際に回帰へ渡す入力の種類と列数を示し、targetの場の大きさと混同しません。0.11では旧解析名`input_dimension`／`target_to_input_ratio`をこれらの明示名へ変更しました。
 
 手元の一つの場を分解するだけなら `mode_decomp_representation` を使います。全入力で表現をfitし、係数・再構成・任意の物理成分／モードを保存します。scopeは `fitted_input_reconstruction` で、未使用sampleへの性能とは解釈しません。目的が異なるため、この入口にholdoutを強制しません。
 
@@ -9,7 +11,7 @@
 | `analysis.kind` | train で fit するもの | test 時の入力と正解 |
 | --- | --- | --- |
 | `representation` | field 前処理・分解・codec・係数後処理 | 未使用 field を変換・再構成し、原 field と比較 |
-| `surrogate` | 表現全体と、条件から Z への回帰器 | 条件だけを入力し、未使用の原 field と比較 |
+| `surrogate` | target表現と、条件／sourceから Z への回帰器。field入力ではsource表現もfit | 条件・source場・保存source係数から予測し、未使用のtarget fieldと比較 |
 | `imputation` | train field から学ぶ復元器 | 未使用 sample の既知値の一部だけを入力し、人工的に隠した既知値と比較 |
 
 全候補で同じ test sample・geometry・評価 support・重みを使います。Datasetはrun開始時に一度読み、各splitのreference・measure・baselineを候補とmodel seedで共有します。学習済みの前処理・basis・回帰器は共有しません。representation と imputation は条件列がなくても利用できます。imputation はもともと未観測の値を正解として扱いません。隠す前の既知値を評価側に保持し、入力観測maskと評価maskを分けます。隠した値を除去した入力とhidden/full/observedのmeasureはsplitごとに一度準備します。
@@ -56,7 +58,7 @@ metrics:
 
 ## 主評価を選ぶ
 
-通常は`metrics.reference:grid`で、元観測を主評価にする場合は`observations`、人工欠測は`hidden`を使います。指標名もそれぞれfield_* / observation_* / hidden_*に分けます。明示referenceと指標の矛盾は拒否します。旧imputationでreference未指定のfield_*はhidden互換名です。
+通常は`metrics.reference:grid`で、元観測を主評価にする場合は`observations`、人工欠測は`hidden`を使います。指標名もそれぞれfield_* / observation_* / hidden_*に分けます。referenceと指標の矛盾は拒否します。0.11ではimputationの`field_*`互換名を廃止しました。旧設定の`metrics.names`は`hidden_*`へ変更してください。reference未指定でもfield指標をhidden採点へ読み替えません。
 
 元点ではsample内の点重みを正規化し、channel尺度・重み、sample重みを適用します。候補間のsupportを参照から固定し、予測NaNで評価点を減らしません。coverageは評価可能な範囲であり精度ではありません。元点R²は提供しません。secondary R²/skillが未定義でも有効RMSE/MAEを保持します。
 
@@ -116,7 +118,8 @@ gappy = FieldRepresentation(
     seed=42,
 ).fit(train)
 observed = observation_mask(reference, fraction=0.3, seed=81, pattern="shared")
-imputation_report = analyze_imputation(gappy, train, reference, observed, options)
+hidden_options = {"reference": "hidden", "names": ["hidden_rmse", "hidden_mae"], "reference_scope": "outer_test"}
+imputation_report = analyze_imputation(gappy, train, reference, observed, hidden_options)
 print(surrogate_report.metrics)
 ```
 

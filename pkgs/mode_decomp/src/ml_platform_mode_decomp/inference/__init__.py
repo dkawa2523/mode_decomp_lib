@@ -1,8 +1,9 @@
-"""Condition-only inference from a verified self-contained surrogate."""
+"""Inference from saved input coordinates to a verified target representation."""
 
 from ml_platform_core.io import write_json
 
 from ..data import load_condition_batch
+from ..inputs import load_surrogate_inputs
 from ..model_artifact import load_model
 from ..stage_result import execute_stage, write_prediction_batches
 from ..surrogate import FieldSurrogate
@@ -15,7 +16,16 @@ def _predict(cfg, result):
     )
     if not isinstance(model, FieldSurrogate):
         raise ValueError("Inference requires a surrogate bundle")
-    batch = load_condition_batch(cfg["data"], condition_columns=model.condition_columns)
+    if getattr(model, "input_kind", "conditions") == "conditions":
+        if cfg["data"].get("input") is not None:
+            raise ValueError("data.input differs from this saved model's condition input kind")
+        batch = load_condition_batch(cfg["data"], condition_columns=model.condition_columns)
+        prediction_inputs = batch.conditions
+    else:
+        batch = load_surrogate_inputs(cfg["data"], model=model)
+        if batch is None:
+            raise ValueError("Inference for this saved model requires data.input")
+        prediction_inputs = batch
     uncertainty = None
     if cfg["uncertainty"]["enabled"]:
         if model.calibrator is None:
@@ -28,14 +38,15 @@ def _predict(cfg, result):
         cfg,
         result,
         batch.sample_ids,
-        model.iter_predict(batch.conditions, intervals=uncertainty is not None),
+        model.iter_predict(prediction_inputs, intervals=uncertainty is not None),
         model.representation,
         uncertainty=uncertainty,
     )
     result.artifacts["result_summary"] = write_json(
         {
             "sample_count": len(batch),
-            "condition_columns": list(batch.condition_columns),
+            "condition_columns": list(model.condition_columns),
+            **({"input_kind": model.input_kind} if getattr(model, "input_kind", "conditions") != "conditions" else {}),
             "field_shape": list(model.representation.field_shape),
             "components": list(model.representation.components),
             "field_units": list(model.representation.field_units),

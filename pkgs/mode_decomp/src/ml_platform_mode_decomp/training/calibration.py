@@ -1,5 +1,7 @@
 """Fit held-out field calibration after proper training and selection."""
 
+from ..inputs import subset_inputs
+
 
 def validate_calibration_split(dataset, split, settings):
     """Check static band prerequisites before fitting any candidate."""
@@ -16,10 +18,12 @@ def validate_calibration_split(dataset, split, settings):
             raise ValueError("Channel normalization needs observed proper training values")
 
 
-def calibrate_from_split(model, dataset, split, settings):
+def calibrate_from_split(model, dataset, split, settings, *, inputs=None):
     if settings.get("enabled", False):
+        source = subset_inputs(inputs, split["calibration_indices"])
         model.calibrate(
             dataset._subset_validated(split["calibration_indices"]),
             training=dataset._subset_validated(split["train_indices"]),
+            **({"inputs": source} if source is not None else {}),
             **{key: settings[key] for key in ("coverage", "scope", "normalization")},
         )

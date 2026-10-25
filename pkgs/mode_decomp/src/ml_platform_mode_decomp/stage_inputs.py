@@ -1,15 +1,18 @@
 """Validate business meaning after transport has resolved artifacts to paths."""
 
+from pathlib import Path
+
 from ml_platform_core.io import read_json
 
 from .data.splitting import cross_validation_folds
-from .training.preparation import needs_selection
+from .training.preparation import PreparedExecution, needs_selection
 from .training.calibration import validate_calibration_split
 
 from .data import load_field_dataset, split_dataset
+from .inputs import load_surrogate_inputs
 
 
-def load_stage_dataset(cfg):
+def load_stage_execution(cfg):
     refs = cfg.get("stage_inputs", {})
     split = read_json(refs["split"])
     reference = refs.get("canonical_dataset")
@@ -24,6 +27,13 @@ def load_stage_dataset(cfg):
         cfg["data"] = data
     else:
         dataset = load_field_dataset(cfg["data"])
+    inputs = load_surrogate_inputs(cfg["data"], target=dataset)
+    if reference is not None:
+        record = read_json(Path(reference) / "stage_input.json")
+        if record["schema"] == "canonical_stage_input_v2" and (
+            inputs is None or inputs.revision != record["input_revision"]
+        ):
+            raise ValueError("Canonical source input content differs from its prepared revision")
     expected_split = split_dataset(
         dataset,
         cfg["split"],
@@ -34,7 +44,15 @@ def load_stage_dataset(cfg):
     if split != expected_split:
         raise ValueError("Split artifact differs from the fixed Dataset and split configuration")
     validate_calibration_split(dataset, split, cfg["uncertainty"])
-    return dataset, split
+    return PreparedExecution(dataset, split, inputs)
+
+
+def load_stage_dataset(cfg):
+    """Keep the former target/split helper for condition-only callers."""
+    prepared = load_stage_execution(cfg)
+    if prepared.inputs is not None:
+        raise ValueError("Source-backed Stage execution requires load_stage_execution, which retains the source inputs")
+    return prepared.dataset, prepared.split
 
 
 def _candidate_context(context):
@@ -52,7 +70,7 @@ def _candidate_context(context):
     }
 
 
-def load_candidate_results(cfg, dataset, split):
+def load_candidate_results(cfg, dataset, split, *, inputs=None):
     from .training.candidate_training import selection_options, selection_scope
     from .training.search import fold_training_ids, trial_candidates
 
@@ -61,6 +79,8 @@ def load_candidate_results(cfg, dataset, split):
     ids = [item.get("candidate_id") for item in payloads]
     if len(ids) != len(set(ids)) or set(ids) != set(expected):
         raise ValueError("Candidate results do not match the planned candidate IDs")
+    if cfg["data"].get("input") is not None and inputs is None:
+        raise ValueError("Source candidate validation requires the prepared source inputs")
     for item in payloads:
         candidate = expected[item["candidate_id"]]
         tuned = cfg.get("tuning", {}).get("enabled", False)
@@ -79,6 +99,7 @@ def load_candidate_results(cfg, dataset, split):
             item.get("schema_version") != 1
             or item.get("dataset_revision") != dataset.revision
             or item.get("split_fingerprint") != split["fingerprint"]
+            or item.get("input_revision") != (None if inputs is None else inputs.revision)
             or item.get("candidate") != candidate
             or item.get("fit_ids") != expected_fit_ids
             or item.get("evaluation") != selection_options(cfg)

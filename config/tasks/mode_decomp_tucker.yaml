@@ -1,0 +1,15 @@
+task: mode_decomp_representation
+run:
+  name: steady_tucker
+data:
+  local_path: data/nonlinear_fields
+representation:
+  decomposition:
+    name: tucker
+    params:
+      ranks: [4, 4, 2]
+      inner_product: domain_weights
+      ridge_alpha: 0.000001
+analysis:
+  modes: {enabled: true, indices: [0, 1, 2]}
+report: {enabled: true}

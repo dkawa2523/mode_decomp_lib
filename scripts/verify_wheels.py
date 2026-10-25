@@ -32,24 +32,37 @@ def _verify_source_tree(installed: Path, source: Path) -> int:
 
 
 def _verify_analysis(training: Path, workspace: Path):
+    import numpy as np
+    import pandas as pd
     from ml_platform_mode_decomp import run_task
 
     results = {}
     for kind in ("representation", "surrogate", "imputation"):
         decomposition = {"name": "gappy_pod", "params": {"n_modes": 2}} if kind == "imputation" else {"name": "dct2"}
+        candidate = {"id": "example", "representation": {"decomposition": decomposition}}
+        if kind == "surrogate":
+            candidate["regression"] = {"name": "ridge", "params": {"alpha": 0.01}}
+        reference = "hidden" if kind == "imputation" else "grid"
+        metric = "hidden_rmse" if kind == "imputation" else "field_rmse"
         result = run_task(
             {
                 "task": "mode_decomp_analysis",
                 "data": {"local_path": str(training)},
                 "runtime": {"output_dir": str(workspace / "analysis" / kind)},
                 "analysis": {"kind": kind, "split_seeds": [11], "model_seeds": [42], "bootstrap_samples": 0},
-                "model": {"candidates": [{"id": "example", "representation": {"decomposition": decomposition}}]},
+                "metrics": {"reference": reference, "names": [metric]},
+                "model": {"candidates": [candidate]},
                 "report": {"enabled": False},
             }
         )
         summary = json.loads(result.artifacts["analysis_summary"].read_text(encoding="utf-8"))
         if not summary["complete"] or not result.tables["comparison"].is_file():
             raise ValueError(f"Installed {kind} analysis did not complete")
+        comparison = pd.read_csv(result.tables["comparison"])
+        if metric not in comparison or not np.isfinite(comparison[metric]).all():
+            raise ValueError(f"Installed {kind} analysis did not score the requested {reference} reference")
+        if kind == "imputation" and "field_rmse" in comparison:
+            raise ValueError("Imputation must identify hidden-reference scores with the hidden namespace")
         results[kind] = str(result.run_dir)
     return results
 

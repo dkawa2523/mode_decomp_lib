@@ -64,32 +64,34 @@ def _config(directory, output, kind):
         if kind == "surrogate":
             indices = [2, 0, 1, *range(3, 9)]
         representation["coeff_post"] = {"name": "pca", "params": {"n_components": 1 if kind == "representation" else 2}}
-    return {
+    candidate = {"id": "candidate", "representation": representation}
+    if kind == "surrogate":
+        candidate["regression"] = {"name": "ridge", "params": {"alpha": 0.7}}
+    metric = "hidden_rmse" if kind == "imputation" else "field_rmse"
+    settings = {
         "task": "mode_decomp_analysis",
         "run": {"name": "mode_acceptance", "seed": 29},
         "data": {"local_path": str(directory)},
         "runtime": {"output_dir": str(output)},
         "split": {"method": "random", "valid_size": 0.3},
-        "metrics": {"names": ["field_rmse"], "sample_weight_column": "importance", "channel_scales": [2.0]},
+        "metrics": {
+            "reference": "hidden" if kind == "imputation" else "grid",
+            "names": [metric],
+            "sample_weight_column": "importance",
+            "channel_scales": [2.0],
+        },
         "analysis": {
             "kind": kind,
             "split_seeds": [17],
             "model_seeds": [23],
             "bootstrap_samples": 0,
-            "observed_fraction": 0.5,
-            "mask_seed": 31,
             "modes": {"indices": indices, "cumulative_counts": [1, len(indices)]},
         },
-        "model": {
-            "candidates": [
-                {
-                    "id": "candidate",
-                    "representation": representation,
-                    "regression": {"name": "ridge", "params": {"alpha": 0.7}},
-                }
-            ]
-        },
+        "model": {"candidates": [candidate]},
     }
+    if kind == "imputation":
+        settings["analysis"].update(observed_fraction=0.5, mask_seed=31)
+    return settings
 
 
 def _read(path):
@@ -131,8 +133,9 @@ def test_optional_modes_keep_the_study_measure_and_meaning(tmp_path, kind):
         assert comparison.field_rmse > 0.1
         assert full.field_rmse == pytest.approx(comparison.decomposition_rmse, abs=1e-12)
     else:
-        assert full.field_rmse < 1e-12
-        assert full.field_rmse == pytest.approx(comparison.field_rmse, abs=1e-12)
+        assert "field_rmse" not in curve and "field_rmse" not in comparison.index
+        assert full.hidden_rmse < 1e-12
+        assert full.hidden_rmse == pytest.approx(comparison.hidden_rmse, abs=1e-12)
     if kind != "imputation":
         np.testing.assert_allclose(descriptions.frequency_x, descriptions.kx / (8 * 0.25))
         np.testing.assert_allclose(descriptions.frequency_y, descriptions.ky / (6 * 0.5))
@@ -176,29 +179,12 @@ def test_imputation_mode_inputs_are_invariant_when_only_hidden_truth_changes(tmp
     np.testing.assert_array_equal(inputs[0], inputs[1])
     _, first_curve = _mode_tables(first.tables)
     _, second_curve = _mode_tables(second.tables)
-    first_full = first_curve[first_curve.reconstruction == "all_a_coordinates"].field_rmse.iloc[0]
-    second_full = second_curve[second_curve.reconstruction == "all_a_coordinates"].field_rmse.iloc[0]
+    first_full = first_curve[first_curve.reconstruction == "all_a_coordinates"].hidden_rmse.iloc[0]
+    second_full = second_curve[second_curve.reconstruction == "all_a_coordinates"].hidden_rmse.iloc[0]
     assert first_full < 1e-12
     # Hidden truth changes the score, not the input coefficients. Channel scale is 2 K.
     assert second_full == pytest.approx(50.0, abs=1e-11)
     assert second.extra["metric_scope"] == "heldout_hidden_reference"
-
-
-def test_explicit_hidden_objective_uses_hidden_namespace_in_comparison_and_modes(tmp_path):
-    directory = tmp_path / "input"
-    _fixture(directory, conditions=False)
-    config = _config(directory, tmp_path / "outputs", "imputation")
-    config["metrics"].update(reference="hidden", names=["hidden_rmse"])
-    result = run_task(config)
-    _, curve = _mode_tables(result.tables)
-    assert "hidden_rmse" in curve and "field_rmse" not in curve
-    comparison = pd.read_csv(result.tables["comparison"]).set_index("candidate_id").loc["candidate"]
-    assert curve[curve.reconstruction == "all_a_coordinates"].hidden_rmse.iloc[0] == pytest.approx(
-        comparison.hidden_rmse, abs=1e-12
-    )
-    summary = _read(result.artifacts["analysis_summary"])
-    candidate = next(item for item in summary["details"] if item["candidate_id"] == "candidate")
-    assert candidate["legacy_hidden_field_aliases"] is False
 
 
 def test_nonlinear_synthesis_single_coordinate_is_reported_as_perturbation(tmp_path):

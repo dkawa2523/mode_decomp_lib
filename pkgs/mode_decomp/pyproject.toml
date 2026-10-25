@@ -1,7 +1,7 @@
 [project]
 name = "ml-platform-mode-decomp"
-version = "0.10.4"
-description = "Field representations and condition-to-field surrogates for ML Platform."
+version = "0.11.0"
+description = "Field representations and coefficient-based field surrogates for ML Platform."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

@@ -9,6 +9,7 @@ __all__ = [
     "FieldDataset",
     "FieldRepresentation",
     "FieldSurrogate",
+    "CoefficientBatch",
     "FieldCalibrator",
     "HodgeDecomposition",
     "load_model",
@@ -29,6 +30,10 @@ def __getattr__(name: str):
         from .surrogate import FieldSurrogate
 
         return FieldSurrogate
+    if name == "CoefficientBatch":
+        from .inputs import CoefficientBatch
+
+        return CoefficientBatch
     if name == "load_model":
         from .model_artifact import load_model
 

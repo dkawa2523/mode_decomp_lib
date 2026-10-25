@@ -1,22 +1,24 @@
 # パッケージの責務と成果物
 
-`ml-platform-mode-decomp` 0.10 と core 0.2.1 は、一つのrun YAMLまたはPython配列から利用するパッケージです。profileと外部Dataset manifestは任意です。公開入口は `run_task(cfg) -> core.RunResult`、`FieldDataset.from_arrays()`、`FieldRepresentation`、`FieldSurrogate` を維持します。tabularや実行SDKを相互importしません。
+`ml-platform-mode-decomp` 0.11 と core 0.2.1 は、一つのrun YAMLまたはPython配列から利用するパッケージです。profileと外部Dataset manifestは任意です。公開入口は `run_task(cfg) -> core.RunResult`、`FieldDataset.from_arrays()`、`FieldRepresentation`、`FieldSurrogate` を維持します。tabularや実行SDKを相互importしません。
+
+`FieldSurrogate`はoptionalな入力表現を持ち、条件行列／source場／保存source係数から共通の回帰器でtarget係数とfieldを予測します。field入力の両表現はtraining partition内でfitし、保存係数入力は検証済みの外部表現を固定します。ID対応と利用契約は[対応学習ガイド](FIELD_MAPPING.md)に集約します。local taskと外部Stageで同じ入力契約を使います。
 
 ## モジュールの境界
 
 | 場所 | 責務 |
 | --- | --- |
 | config / policy / __main__ | 一つの設定解決、手法選択、未知key検出、CLI override。parameterと既定値は各実装のconstructorが所有 |
-| input_preparation / data | 入力rootからの参照解決、読込、形式変換、IDと条件の対応。raw入力の正規化は一度だけ |
+| input_preparation / inputs / data | 各入力rootからの読込・形式変換、source/targetのID整列、保存係数の表現照合。raw入力の正規化は一度だけ |
 | data.schema / data._sources | FieldDatasetとFieldSpec、ID/条件/mask対応、形式adapterの共通参照・表・geometry読込 |
 | geometry | 数値座標、topology、領域mask、積分measure、周期性。ファイル読込はdata側 |
 | decomposition / coefficients / regressors / field_preprocessing | 数値計算と学習済み状態。run管理・SDK・描画・保存先を持たない |
-| representation / surrogate / coefficients.layout | field→raw→A→Z、条件→Z→fieldの学習済み合成、queryで変化しない固定layout |
+| representation / surrogate / coefficients.layout | field→raw→A→Z、入力特徴→target Z→fieldの学習済み合成、queryで変化しない固定layout |
 | training | localのprepare、候補評価、選択、最終学習。役割ごとに分離したsampleを数値処理へ渡す |
 | analysis_task / evaluation | 固定候補比較、grid/元観測/hiddenの共通目的・support・measure、通常採点と明示詳細解析 |
 | stage / stage_inputs / domain_plan / manifest | 外部Stageの受入、保存split・候補結果の意味検証、将来の実行adapter用計画 |
 | analysis_reporting / mode_reporting / component_reporting / scattered_reporting | 要求された追加出力を数値結果へ接続 |
-| model_artifact / inference | bundle、field構造schema、backend互換、条件だけの保存後推論 |
+| model_artifact / inference | bundle、field構造schema、backend互換、条件・source場・保存係数からの保存後推論 |
 | field_output | run/modelから独立した物理fieldの逐次writerとreader。座標・単位・topology・各supportを保存 |
 | core | 設定合成、path、run、snapshot、manifest、artifact hash・明示来歴検証、RunResult/RunError |
 
@@ -54,7 +56,7 @@ CVは分割と参照measureを一度準備します。保存foldのindexは親Da
 
 `mode_decomp_stage` は外部から再開する境界です。この場合だけDatasetを読み、保存split、候補、fit IDs、評価設定、scope、明示されたpipeline/release/workspaceのcontextを照合します。runtimeの全辞書一致は要求せず、版は来歴として記録します。`evaluation_task_id` はStageごとに異なってよい来歴です。保存モデルのbackend互換検査は別に行います。`domain_plan` はこの外部経路用で、local計算本体では使いません。
 
-入力変換は同runの開始後に行います。外部prepareは必要参照だけを持つ`canonical_dataset`とsplitを渡し、後続Stageでrawを再変換しません。通常localはcanonical入力をcopyせず直接利用します。
+入力変換は同runの開始後に行います。外部prepareはtargetとsourceの必要参照を含む`canonical_dataset`とsplitを渡し、後続Stageでrawを再変換しません。保存係数入力のNPZ・表現モデルもsnapshotに含め、source revisionの異なる候補結果を混ぜません。通常localはcanonical入力をcopyせず直接利用します。
 
 ## Datasetとメモリの所有
 
@@ -74,7 +76,7 @@ fieldの平均・標準偏差は非連続配列やmaskを含めてblock集計し
 
 joint/EMもsampleを所有matrixへ直接充填し、中心化・重み付けのworkを再利用します。切詰めbasisは選択したvectorだけを保持し、view経由で未選択の全SVD結果を保持しません。全vectorを要求する場合は不要なcopyを省きます。Direct SVDのfactorization workとEMのoriginal/mask/filled行列は引き続き必要です。
 
-Surrogateは条件queryを分けてregressor・逆変換・任意の帯を計算します。`iter_predict()`を順に消費する場合は最終field全件の保持も不要です。通常の`predict`等は全件arrayを返し、そこだけを集約します。物理単位への逆変換でoverflowしたfieldは成功予測として返しません。
+Surrogateは入力queryを分け、必要なsource符号化・regressor・逆変換・任意の帯を計算します。`iter_predict()`を順に消費する場合は最終field全件の保持も不要です。通常の`predict`等は全件arrayを返し、そこだけを集約します。物理単位への逆変換でoverflowしたfieldは成功予測として返しません。
 
 返す係数・field配列、学習用の前処理、dense SVD・回帰などには全件の配列が必要です。内部のbatchサイズは一時演算量の目安で、巨大な単一fieldを含むprocess全体のメモリ上限ではありません。実データ規模での負荷確認は継続対象です。
 
@@ -106,7 +108,7 @@ analysisは共通outer holdoutの固定候補比較です。baselineはsplitご�
 | 固定候補解析 | comparison、per_sample、paired比較、protocol、analysis_summary、任意HTML |
 | local pipeline | split、候補選択時の `candidates/<id>/` 記録、最終bundle・指標・予測。順位表は選択時のみ |
 | 外部Stage | prepareのsplit、候補の評価record、finalizeのモデルを各Stageのrunへ出力 |
-| 条件推論 | 新sample ID付き予測、任意の保存済み較正による帯 |
+| 保存モデル推論 | 新sample ID付き予測、任意の保存済み較正による帯 |
 
 条件推論はbatchを共通writerへ直接渡します。`output.prediction_name`の`.npz`は従来の圧縮形式、`.npy`は部分読込用arrayと自動sidecarを保存します。学習後の全件予測も同じwriterを使います。計算が完了してから登録し、失敗batchの部分予測は公開しません。[出力形式](DATA_FORMAT.md#予測の保存と部分読込)に読込方法と一時ディスク容量を記載しています。
 
@@ -118,7 +120,7 @@ analysisは共通outer holdoutの固定候補比較です。baselineはsplitご�
 
 bundleはgeometry・全変換・係数layout・field意味・条件schema・回帰器・任意較正stateを含みます。推論に訓練Datasetや旧runは不要です。payload hashと明示された来歴はcoreが検証し、field schemaと実際に保存したbackendの互換はmodeが検証します。数値結果に依存する診断値を構造schemaへ混ぜません。
 
-新しいfield input schemaは3です。旧schema1/2は元のhash/runtime/schema規則で検証してから互換layoutを付与し、basisや係数を並べ替えません。旧CKも維持します。mode/coreの版を一律完全一致にせず、Pythonと実際に保存したbackendの要求を検査します。NumPy・SciPy・joblibと保存optional backendは記録版が必要で、sklearn estimatorを含む場合はsklearn版も一致させます。任意の旧版モデルの読込を保証するものではありません。
+新しいfield input schemaは4です。入力kindとsource表現も保存し、旧schema1〜3は元のhash/runtime/schema規則で検証してから互換layoutを付与します。basisや係数を並べ替えず、旧CKも維持します。mode/coreの版を一律完全一致にせず、Pythonと実際に保存したbackendの要求を検査します。NumPy・SciPy・joblibと保存optional backendは記録版が必要で、sklearn estimatorを含む場合はsklearn版も一致させます。任意の旧版モデルの読込を保証するものではありません。
 
 新規のPOD表現はbasis・mean等の数値状態だけを保存するため、fit時にだけ使うsklearnの版を必須条件から外します。回帰器・PCA係数後処理等が保存するsklearn estimatorの要件と、既存bundleに記録済みの要件は維持します。
 

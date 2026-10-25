@@ -2,12 +2,69 @@
 
 from contextlib import ExitStack
 import json
+from numbers import Integral
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import numpy as np
+
+from .data.schema import _field_units, _ids
+
+
+def _field_schema(shape, kind, components, units):
+    if (
+        not isinstance(shape, (tuple, list))
+        or len(shape) not in (2, 3)
+        or any(isinstance(size, bool) or not isinstance(size, Integral) or size < 1 for size in shape)
+    ):
+        raise ValueError("Field output shape must be positive VC or HWC dimensions")
+    shape = tuple(shape)
+    if (
+        not isinstance(kind, str)
+        or kind not in {"scalar", "vector", "multichannel"}
+        or (kind == "scalar" and shape[-1] != 1)
+    ):
+        raise ValueError("Field output kind must be scalar (C=1), vector, or multichannel")
+    if (
+        not isinstance(components, (tuple, list))
+        or len(components) != shape[-1]
+        or any(not isinstance(name, str) or not name.strip() for name in components)
+        or len(set(components)) != len(components)
+    ):
+        raise ValueError("Field output components must uniquely name each channel")
+    if not isinstance(units, (tuple, list)):
+        raise ValueError("Field output units must be empty or specify one unit per component")
+    _field_units(tuple(units), shape[-1])
+    return shape
+
+
+def _validate_geometry(metadata, arrays, shape):
+    declared = metadata.get("geometry")
+    if declared is None:
+        return
+    if (
+        not isinstance(declared, dict)
+        or not isinstance(declared.get("name"), str)
+        or not declared["name"].strip()
+        or not isinstance(declared.get("coordinates"), dict)
+        or not isinstance(declared.get("metadata"), dict)
+    ):
+        raise ValueError("Field output geometry must declare its coordinate arrays")
+    coordinates = declared["coordinates"]
+    if not coordinates or any(not isinstance(key, str) or key not in arrays for key in coordinates.values()):
+        raise ValueError("Field output geometry is missing coordinate arrays")
+    spatial = shape[:-1]
+    if declared.get("name") == "mesh":
+        vertices = arrays.get(coordinates.get("vertices"))
+        if len(shape) != 2 or vertices is None or vertices.ndim != 2 or vertices.shape[0] != spatial[0]:
+            raise ValueError("Field output geometry shape differs from the declared mesh field")
+        count = declared.get("metadata", {}).get("vertex_count", spatial[0])
+        if count != spatial[0]:
+            raise ValueError("Field output geometry vertex count differs from the declared field")
+    elif len(shape) != 3 or any(arrays[key].shape != spatial for key in coordinates.values()):
+        raise ValueError("Field output geometry shape differs from the declared grid field")
 
 
 def _json_value(value):
@@ -24,6 +81,7 @@ def _json_value(value):
 
 def field_descriptor(field_spec, geometry=None, *, observation_mask=None, calibration_support=None):
     """Describe declared coordinates and distinguish domain, observed and calibrated support."""
+    _field_schema(field_spec.shape, field_spec.kind, field_spec.components, field_spec.units)
     metadata: dict[str, Any] = {
         "schema": "field_output_v1",
         "field_shape": list(field_spec.shape),
@@ -41,6 +99,7 @@ def field_descriptor(field_spec, geometry=None, *, observation_mask=None, calibr
             "coordinates": {name: f"geometry_{name}" for name in geometry.coords},
         }
         arrays.update({f"geometry_{name}": np.asarray(value) for name, value in geometry.coords.items()})
+        _validate_geometry(metadata, arrays, tuple(field_spec.shape))
         if geometry.mask is not None:
             arrays["domain_mask"] = np.asarray(geometry.mask, dtype=bool).reshape(field_spec.shape[:-1])
             metadata["support"]["domain"] = "domain_mask"
@@ -73,13 +132,25 @@ def _validate_field_arrays(metadata, arrays):
     primary = metadata.get("primary_array", "predictions")
     if primary not in arrays or "sample_ids" not in arrays:
         raise ValueError("Field output must include its primary array and sample IDs")
-    shape = tuple(metadata.get("field_shape", ()))
+    shape = _field_schema(
+        metadata.get("field_shape"),
+        metadata.get("field_kind"),
+        metadata.get("components"),
+        metadata.get("field_units", ()),
+    )
     count = metadata.get("sample_count")
     fields, ids = arrays[primary], arrays["sample_ids"]
-    if not shape or fields.shape != (count, *shape) or fields.dtype.kind not in "fiu":
+    if (
+        isinstance(count, bool)
+        or not isinstance(count, Integral)
+        or count < 1
+        or fields.shape != (count, *shape)
+        or fields.dtype.kind not in "fiu"
+    ):
         raise ValueError("Field array differs from its declared sample count or field shape")
     if ids.shape != (count,):
         raise ValueError("Field output sample IDs must have one value per field")
+    _ids(ids, int(count))
     components, units = metadata.get("components", []), metadata.get("field_units", [])
     if len(components) != shape[-1] or (units and len(units) != shape[-1]):
         raise ValueError("Field output components and units must match the channel axis")
@@ -94,6 +165,7 @@ def _validate_field_arrays(metadata, arrays):
     if any(arrays[name].shape != fields.shape for name in bands):
         raise ValueError("Prediction bands must match the primary field shape")
     _validate_support_shapes(arrays, count, shape)
+    _validate_geometry(metadata, arrays, shape)
 
 
 def write_field_batches(
@@ -118,14 +190,23 @@ def write_field_batches(
         raise ValueError("Field output must end in .npz or .npy")
     if path.exists():
         raise FileExistsError(f"Field output already exists: {path}")
-    ids = np.asarray(sample_ids, dtype=str)
-    if ids.ndim != 1 or not len(ids):
+    raw_ids = np.asarray(sample_ids)
+    if raw_ids.ndim != 1 or not len(raw_ids):
         raise ValueError("Field output requires a nonempty one-dimensional sample ID array")
+    ids = _ids(raw_ids, len(raw_ids))
     count, shape = len(ids), tuple(field_spec.shape)
     names = (array_name,) if uncertainty is None else (array_name, "lower", "upper")
     metadata, small = field_descriptor(
         field_spec, geometry, observation_mask=observation_mask, calibration_support=calibration_support
     )
+    reserved = {"lower", "upper", "field_metadata", "sample_ids", "components", "field_units", *small}
+    if (
+        not isinstance(array_name, str)
+        or not array_name.isidentifier()
+        or array_name in reserved
+        or array_name.startswith("interval_")
+    ):
+        raise ValueError("Field output array_name must be a non-reserved identifier")
     _validate_support_shapes(small, count, shape)
     metadata.update(sample_count=count, field_uncertainty=uncertainty, primary_array=array_name)
     small.update(

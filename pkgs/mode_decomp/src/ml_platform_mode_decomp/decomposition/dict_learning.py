@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from .base import field_arrays
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Literal, Mapping, cast
 
@@ -54,13 +54,13 @@ class DictLearningDecomposer(BaseDecomposer[np.ndarray]):
         if n_components is None:
             self._n_components = None
         else:
-            self._n_components = int(n_components)
+            self._n_components = integer_parameter(n_components, "n_components")
             if self._n_components <= 0:
                 raise ValueError("decompose.n_components must be > 0 for dict_learning")
         self._alpha = float(cfg["alpha"])
         if self._alpha <= 0.0:
             raise ValueError("decompose.alpha must be > 0 for dict_learning")
-        self._max_iter = int(cfg["max_iter"])
+        self._max_iter = integer_parameter(cfg["max_iter"], "max_iter")
         if self._max_iter <= 0:
             raise ValueError("decompose.max_iter must be > 0 for dict_learning")
         self._tol = float(cfg["tol"])
@@ -80,7 +80,7 @@ class DictLearningDecomposer(BaseDecomposer[np.ndarray]):
         if transform_n_nonzero is None:
             self._transform_n_nonzero = None
         else:
-            self._transform_n_nonzero = int(transform_n_nonzero)
+            self._transform_n_nonzero = integer_parameter(transform_n_nonzero, "transform_n_nonzero")
             if self._transform_n_nonzero <= 0:
                 raise ValueError("decompose.transform_n_nonzero_coefs must be > 0 for dict_learning")
         transform_alpha = cfg["transform_alpha"]
@@ -93,7 +93,7 @@ class DictLearningDecomposer(BaseDecomposer[np.ndarray]):
         self._positive_code = bool(cfg["positive_code"])
         self._positive_dict = bool(cfg["positive_dict"])
         seed = cfg["seed"]
-        self._seed = int(seed) if seed is not None else None
+        self._seed = integer_parameter(seed, "seed") if seed is not None else None
 
         self._models: list[DictionaryLearning] | None = None
         self._mask: np.ndarray | None = None

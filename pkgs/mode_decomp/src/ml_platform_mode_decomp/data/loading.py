@@ -15,7 +15,7 @@ from ml_platform_core.artifacts import file_hash
 from ml_platform_core.config import load_yaml
 
 from .schema import ConditionBatch, FieldDataset, _array_geometry, _field_units
-from .input_spec import field_input_spec, read_input_spec
+from .input_spec import field_input_spec, read_input_spec, validate_data_settings
 from ._sources import _path, _mapping, _array, _table, _columns, _sample_table, _indices, _conditions, _resolve_geometry
 
 
@@ -30,9 +30,10 @@ def _revision(root: Path, paths: list[Path], manifest: dict[str, Any], dataset_i
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def _config_root(value: Mapping[str, Any] | str | Path) -> tuple[dict[str, Any], Path]:
+def _config_root(value: Mapping[str, Any] | str | Path, *, condition_only=False) -> tuple[dict[str, Any], Path]:
     if isinstance(value, Mapping):
         config = _mapping(value.get("data", value), "data")
+        validate_data_settings(config, condition_only=condition_only)
         local_path = config.get("local_path", config.get("path"))
         if not local_path:
             raise ValueError("data.local_path is required after runtime Dataset resolution.")
@@ -147,7 +148,7 @@ def load_condition_batch(
     cfg_or_file: Mapping[str, Any] | str | Path,
     condition_columns: Sequence[str] | None = None,
 ) -> ConditionBatch:
-    config, root = _config_root(cfg_or_file)
+    config, root = _config_root(cfg_or_file, condition_only=True)
     paths: list[Path] = []
     expected_columns = None if condition_columns is None else tuple(condition_columns)
     if config.get("condition_columns") is not None:
@@ -158,7 +159,7 @@ def load_condition_batch(
     if config.get("source_manifest"):
         if config.get("dataset_file"):
             raise ValueError("Choose dataset_file or source_manifest for inference, not both.")
-        manifest = load_yaml(_path(root, config["source_manifest"], "source_manifest", paths))
+        manifest = read_input_spec(root, config["source_manifest"], paths)
         if manifest.get("schema") != "condition_batch_v1":
             raise ValueError("Condition-only manifest must use schema: condition_batch_v1.")
         samples, id_column, index_column = _sample_table(root, manifest, paths)
@@ -169,6 +170,8 @@ def load_condition_batch(
         if values is None:
             raise ValueError("Condition manifest requires conditions.")
         return ConditionBatch(values, samples[id_column].astype(str).to_numpy(), columns)
+    if root.is_file() and config.get("dataset_file") is not None:
+        raise ValueError("Specify a condition file as local_path or dataset_file, not both.")
     path = root if root.is_file() else _path(root, config.get("dataset_file"), "dataset_file", paths)
     columns = _columns(expected_columns, "condition_columns")
     if path.suffix.lower() == ".npy":
@@ -183,7 +186,11 @@ def load_condition_batch(
         values = frame[list(columns)].apply(pd.to_numeric, errors="raise").to_numpy(dtype=float)
     except (TypeError, ValueError) as exc:
         raise ValueError("Inference conditions must be numeric.") from exc
-    id_column = str(config.get("id_column", "sample_id"))
+    id_column = config.get("id_column", "sample_id")
+    if not isinstance(id_column, str) or not id_column.strip():
+        raise ValueError("data.id_column must be a non-empty string.")
+    if "id_column" in config and id_column not in frame:
+        raise ValueError(f"Configured ID column {id_column!r} is missing from inference conditions.")
     ids = (
         frame[id_column].astype(str).to_numpy()
         if id_column in frame

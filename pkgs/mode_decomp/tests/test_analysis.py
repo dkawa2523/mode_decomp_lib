@@ -66,8 +66,7 @@ def _settings(root, output, *, kind="surrogate"):
             "kind": kind,
             "split_seeds": [17],
             "model_seeds": [23],
-            "mask_seed": 31,
-            "observed_fraction": 0.5,
+            **({"mask_seed": 31, "observed_fraction": 0.5} if kind == "imputation" else {}),
             "bootstrap_samples": 40,
         },
         "model": {
@@ -133,7 +132,6 @@ def test_analysis_splits_and_component_seeds_are_independent(tmp_path):
     _input(root, conditions=False)
     cfg = _settings(root, tmp_path / "first", kind="representation")
     cfg["analysis"].update(split_seeds=[5, 6], model_seeds=[7, 11], bootstrap_samples=0)
-    cfg["split"]["seed"] = 999
     for candidate in cfg["model"]["candidates"]:
         candidate["representation"]["decomposition"]["name"] = "pod"
         candidate["representation"]["decomposition"]["params"]["solver"] = "randomized"
@@ -189,7 +187,7 @@ def test_imputation_never_uses_values_outside_input_observation_mask(tmp_path):
     hidden_values[reference.effective_mask & ~observed] += 100.0
     hidden = analyze_imputation(model, training, replace(reference, fields=hidden_values), observed)
     np.testing.assert_array_equal(hidden.predictions, original.predictions)
-    assert hidden.metrics["field_rmse"] > original.metrics["field_rmse"] + 50.0
+    assert hidden.metrics["hidden_rmse"] > original.metrics["hidden_rmse"] + 50.0
 
 
 def test_paired_comparison_matches_sample_losses_and_group_resampling(tmp_path):

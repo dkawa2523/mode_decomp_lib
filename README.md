@@ -1,10 +1,10 @@
-# Mode Decomposition 0.10
+# Mode Decomposition 0.11
 
-場の分解・表現、条件からの場の予測、欠測復元を扱う単体パッケージです。**実行YAML一つ、またはPythonの配列から利用できます。** profile、別の入力manifest、シナリオファイル、手法別設定ファイルは必須ではありません。
+場の分解・表現、条件や別の場からの予測、欠測復元を扱う単体パッケージです。**実行YAML一つ、またはPythonの配列から利用できます。** profile、別の入力manifest、シナリオファイル、手法別設定ファイルは必須ではありません。
 
 `ml-platform-core>=0.2.1,<0.3`へ依存し、ClearML／実行SDKなしで動きます。基盤への統合は単体パッケージの受入後に扱います。
 
-配布先では[配布用の導入手順](docs/DISTRIBUTION.md)を使います。`dist/ml_platform_mode_decomp-0.10.4.zip`に実行用wheel、設定例、入力生成例、利用guideをまとめており、利用先ではGit・uv・基盤checkoutを要求しません。
+配布先では[配布用の導入手順](docs/DISTRIBUTION.md)を使います。`dist/0.11.0/ml_platform_mode_decomp-0.11.0.zip`に実行用wheel、設定例、入力生成例、利用guideをまとめており、利用先ではGit・uv・基盤checkoutを要求しません。
 
 ## 最初の実行
 
@@ -21,7 +21,7 @@ uv run python -m ml_platform_mode_decomp config/tasks/mode_decomp_representation
 配布一式は `uv run --no-project python scripts/build_distribution.py` で生成します。modeのsource archiveからwheelをbuildし、固定core wheel、自己完結した例と利用guide、SHA256SUMSをまとめます。wheel/source archiveだけなら `scripts/build_wheels.py` も使えます。配布先では生成済み2wheelをインストールします。
 
 ```powershell
-python -m pip install dist/ml_platform_core-0.2.1-py3-none-any.whl dist/ml_platform_mode_decomp-0.10.4-py3-none-any.whl
+python -m pip install dist/0.11.0/ml_platform_core-0.2.1-py3-none-any.whl dist/0.11.0/ml_platform_mode_decomp-0.11.0-py3-none-any.whl
 python -m ml_platform_mode_decomp run.yaml
 ```
 
@@ -57,6 +57,8 @@ restored = model.inverse_transform(coefficients)
 
 条件からの予測には `FieldDataset.from_arrays(fields, conditions)` と `FieldSurrogate` を使います。省略した格子座標は配列indexで、物理単位を推測しません。物理解析には `x`／`y` または明示した `geometry` を渡します。物理ベクトルは `field_kind="vector"`、成分・単位は `components`／`field_units` で指定します。分割・学習・較正はこのconstructorでは実行しません。
 
+別の場から予測する場合は、同じ`FieldSurrogate`に`input_representation`を加え、`model.fit(target, inputs=source)`とします。両側は異なる固定geometry・物理量で構いません。YAMLは既存taskへ`data.input`を追加するだけです。保存済みsource係数も入力にできます。[場と係数の対応学習](docs/FIELD_MAPPING.md)にAPI、ID整列、fold内の表現fit、保存後推論をまとめています。
+
 大量の新条件は `surrogate.iter_predict(new_conditions)` から順にfieldを受け取れます。較正済みなら `intervals=True` で各batchの予測・下限・上限を受け取ります。通常の `predict` も内部では分割計算し、返すfieldだけを全件保持します。
 
 保存する予測を後から部分読込したい場合は、既存の出力名だけを変えます。
@@ -85,7 +87,7 @@ print(result.run_dir, result.metrics)
 | 条件からの予測手法を比べる | 同Task、`analysis.kind: surrogate` | 未使用条件のfield誤差、baseline、表現／回帰の寄与 |
 | 欠測復元手法を比べる | 同Task、`analysis.kind: imputation` | 人工的に隠した既知正解への復元精度 |
 | 最終予測モデルを学習する | `task: mode_decomp_pipeline` | 内側評価またはCVで選択し、勝者を再学習、独立testで評価・保存 |
-| 保存モデルから予測する | `task: mode_decomp_infer` | 新条件だけからfieldと任意の予測帯 |
+| 保存モデルから予測する | `task: mode_decomp_infer` | 新条件・source場・保存係数からfieldと任意の予測帯 |
 
 直接分解の `fitted_input_reconstruction` は入力自身の再構成です。未知sampleの性能は比較解析で判断します。比較解析は固定候補を共通holdoutで採点し、test順位から勝者を自動選択・公開しません。pipelineで候補が一つ・探索無効なら、選択用分割を作らず一度fitして独立testを評価します。
 
@@ -125,7 +127,9 @@ fixture生成は既存先を上書きしません。既に生成したデータ�
 - [設定と目的の選び方](docs/CONFIGURATION.md)
 - [入力形式・座標・mask](docs/DATA_FORMAT.md)
 - [比較解析と評価定義](docs/ANALYSIS.md)
+- [別の場・保存係数からの予測](docs/FIELD_MAPPING.md)
 - [モード](docs/MODES.md)・[散布点](docs/SCATTERED.md)・[予測帯](docs/UNCERTAINTY.md)・[Hodge](docs/HODGE.md)
 - [CV/HPO](docs/SEARCH.md)・[手法一覧](docs/METHODS.md)
+- [定常分布のTucker／Quadratic manifold](docs/METHODS.md#定常分布のtuckerとquadratic-manifold)：共通係数API・条件予測・部分観測queryに対応
 - [責務と成果物](docs/ARCHITECTURE.md)・[品質検査](docs/07_TESTING_CI.md)
 - [現在地・課題・残件](docs/IMPLEMENTATION_STATUS.md)

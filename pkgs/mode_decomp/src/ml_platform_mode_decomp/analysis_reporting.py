@@ -105,7 +105,7 @@ def _capacity_svg(table, reference="grid"):
 def write_analysis_report(summary, table, previews, dataset, path) -> Path:
     kind = summary["analysis_kind"]
     names = {
-        "surrogate": "Condition to field prediction",
+        "surrogate": "Surrogate field prediction",
         "representation": "Held-out field representation",
         "imputation": "Reconstruction of hidden known values",
     }

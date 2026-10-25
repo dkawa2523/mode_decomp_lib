@@ -14,6 +14,7 @@ from .fields import (
     ScoreWeights,
     _channel_variance,
     _sample_values,
+    _validate_metric_options,
     _weighted_mean,
     mean_field_prediction,
     normalized_weights,
@@ -113,10 +114,7 @@ class PreparedObjective:
             assert self.grid is not None
             report = self.grid.score(predictions, baseline=baseline)
             if self.reference_kind == "hidden":
-                renamed = {key.replace("field_", "hidden_", 1): value for key, value in report.metrics.items()}
-                legacy = self.options.get("_legacy_hidden_aliases", False)
-                report.metrics = {**report.metrics, **renamed} if legacy else renamed
-                report.summary["legacy_hidden_field_aliases"] = bool(legacy)
+                report.metrics = {key.replace("field_", "hidden_", 1): value for key, value in report.metrics.items()}
                 if "metric_status" in report.summary:
                     report.summary["metric_status"] = {
                         key.replace("field_", "hidden_", 1): value
@@ -212,14 +210,12 @@ class PreparedObjective:
             else "per_sample_normalized_geometry_weights",
             "metric_status": {},
         }
-        if f"{prefix}_r2" in self.options.get("names", []) or (
-            prefix == "hidden" and "field_r2" in self.options.get("names", [])
-        ):
+        if f"{prefix}_r2" in self.options.get("names", []) or self.options.get("primary_metric") == f"{prefix}_r2":
             assert self.grid is not None
             variance = _channel_variance(self.grid.measure)
             active = cw > 0
             if np.any(variance[active] == 0):
-                if self.options.get("primary_metric") in {f"{prefix}_r2", "field_r2"}:
+                if self.options.get("primary_metric") == f"{prefix}_r2":
                     raise ValueError("Primary R2 metric is undefined for a constant channel")
                 summary["metric_status"][f"{prefix}_r2"] = "undefined_for_constant_channel"
             else:
@@ -239,14 +235,6 @@ class PreparedObjective:
             summary["metric_status"][f"{prefix}_skill"] = summary["baseline_status"]
         if self.options.get("primary_metric") == f"{prefix}_skill" and f"{prefix}_skill" not in metrics:
             raise ValueError("Primary skill metric is undefined for the pooled training baselines")
-        if prefix == "hidden" and self.options.get("_legacy_hidden_aliases", False):
-            metrics.update(
-                {
-                    key.replace("hidden_", "field_", 1): value
-                    for key, value in list(metrics.items())
-                    if key.startswith("hidden_")
-                }
-            )
         if any(not np.isfinite(value) for value in metrics.values()):
             raise ValueError("Pooled evaluation loss is not finite; rescale field values or channel scales")
         return ScoreResult(metrics, table, summary, None)
@@ -259,6 +247,11 @@ def prepare_objective(
     kind = options.get("reference", "grid")
     if kind not in {"grid", "observations", "hidden"}:
         raise ValueError("metrics.reference must be grid, observations, or hidden")
+    if kind == "hidden" and evaluation_mask is None:
+        raise ValueError("A hidden reference requires an explicit held-out evaluation_mask")
+    if kind == "observations" and evaluation_mask is not None:
+        raise ValueError("A grid evaluation_mask cannot redefine the original observations reference")
+    _validate_metric_options(options, reference=kind)
     if baseline is None and training is not None:
         baseline = mean_field_prediction(training, reference)
     grid = None
@@ -280,7 +273,10 @@ def prepare_objective(
                 raise ValueError("Every positive-weight reference sample requires scored original observations")
     else:
         grid_options = dict(options)
+        grid_options["reference"] = "grid"
         grid_options["names"] = [name.replace("hidden_", "field_", 1) for name in options.get("names", [])]
+        if options.get("primary_metric") is not None:
+            grid_options["primary_metric"] = options["primary_metric"].replace("hidden_", "field_", 1)
         grid = prepare_reference(
             reference,
             grid_options,

@@ -24,6 +24,7 @@ from .model_artifact import evaluation_identity, save_model
 from .mode_reporting import mode_options, write_mode_report
 from .policy import candidate_config
 from .representation import FieldRepresentation
+from .inputs import load_surrogate_inputs, subset_inputs
 from .stage_result import execute_stage
 from .surrogate import FieldSurrogate
 from .scattered_reporting import add_scattered_report, prepare_scattered_report
@@ -69,7 +70,7 @@ def _baseline_reports(train, reference, kind, prepared):
     evaluator = prepared.hidden if kind == "imputation" else prepared
     mean = evaluator.baseline
     candidates = [("baseline_mean", mean, 0, int(np.prod(train.fields.shape[1:])))]
-    if kind == "surrogate":
+    if kind == "surrogate" and train.conditions is not None and reference.conditions is not None:
         linear, parameters = _linear_baseline(train, reference)
         candidates.append(("baseline_linear", linear, 0, parameters))
     for name, predictions, target_dim, parameters in candidates:
@@ -81,9 +82,9 @@ def _baseline_reports(train, reference, kind, prepared):
             analysis_kind=kind,
             packed_dimension=target_dim,
             target_dimension=target_dim,
-            input_dimension=int(np.prod(train.fields.shape[1:])),
+            field_dimension=int(np.prod(train.fields.shape[1:])),
             fitted_parameters=parameters,
-            target_to_input_ratio=0.0,
+            coefficient_to_field_ratio=0.0,
             decomposition="baseline",
         )
         yield name, report
@@ -101,7 +102,14 @@ def _append_report(report, metadata, rows, per_sample, details, preview, referen
         **metadata,
         **{
             k: report.summary.get(k)
-            for k in ("input_dimension", "target_to_input_ratio", "basis_inner_product", "method_role")
+            for k in (
+                "field_dimension",
+                "coefficient_to_field_ratio",
+                "prediction_input_kind",
+                "prediction_input_dimension",
+                "basis_inner_product",
+                "method_role",
+            )
         },
     }
     rows.append({**metadata, "status": "ok", **report.metrics})
@@ -123,6 +131,8 @@ def _study(cfg, result):
     from .analysis_reporting import write_analysis_report
 
     dataset = load_field_dataset(cfg["data"])
+    inputs = load_surrogate_inputs(cfg["data"], target=dataset)
+    prediction_source = "condition_predictions" if inputs is None else "source_predictions"
     study = cfg["analysis"]
     kind = study["kind"]
     if study["components"]["enabled"]:
@@ -135,8 +145,10 @@ def _study(cfg, result):
             params=study["components"].get("params"),
         )
     selected_modes = mode_options(study.get("modes"))
-    if kind == "surrogate" and dataset.conditions is None:
+    if kind == "surrogate" and inputs is None and dataset.conditions is None:
         raise ValueError("Surrogate comparison requires conditions; use representation for field-only data")
+    if inputs is not None and kind != "surrogate":
+        raise ValueError("data.input is supported by surrogate analysis only")
     if study["scattered"]["enabled"] and not dataset.manifest.get("scattered"):
         raise ValueError(
             "analysis.scattered.enabled requires an imported scattered dataset retaining original observations"
@@ -164,6 +176,8 @@ def _study(cfg, result):
             dataset._subset_validated(split["train_indices"]),
             dataset._subset_validated(split["test_indices"]),
         )
+        train_inputs = subset_inputs(inputs, split["train_indices"])
+        reference_inputs = subset_inputs(inputs, split["test_indices"])
         observed = None
         if kind == "imputation":
             if explicit is not None:
@@ -194,7 +208,10 @@ def _study(cfg, result):
             if group_column:
                 if group_column not in reference.sample_metadata:
                     raise ValueError("bootstrap_group_column must name reference sample metadata")
-                group["group"] = np.asarray(reference.sample_metadata[group_column]).astype(str)
+                values = np.asarray(reference.sample_metadata[group_column])
+                if pd.isna(values).any() or any(not str(value).strip() for value in values):
+                    raise ValueError("bootstrap_group_column must not contain missing group labels")
+                group["group"] = values.astype(str)
             base = {"split_seed": split_seed, "model_seed": model_seed, "scope": scope}
             for candidate_id, baseline_report in baseline_reports:
                 report = replace(
@@ -228,8 +245,12 @@ def _study(cfg, result):
                 try:
                     started = perf_counter()
                     if kind == "surrogate":
-                        model = FieldSurrogate(candidate).fit(train)
-                        calibrate_from_split(model, dataset, split, cfg["uncertainty"])
+                        model = FieldSurrogate(candidate)
+                        if train_inputs is None:
+                            model.fit(train)
+                        else:
+                            model.fit(train, inputs=train_inputs)
+                        calibrate_from_split(model, dataset, split, cfg["uncertainty"], inputs=inputs)
                         representation = model.representation
                     else:
                         model = representation = FieldRepresentation(candidate["representation"]).fit(train)
@@ -243,6 +264,7 @@ def _study(cfg, result):
                             prepared=prepared,
                             retain_coefficients=selected_modes is not None,
                             retain_fields=False,
+                            inputs=reference_inputs,
                         )
                         add_uncertainty_report(report, model, reference, options)
                     elif kind == "representation":
@@ -302,7 +324,7 @@ def _study(cfg, result):
                         report.summary["component_analysis"] = {
                             "status": "ok",
                             "method": study["components"].get("method", "hodge"),
-                            "source": "condition_predictions" if isinstance(model, FieldSurrogate) else "input_fields",
+                            "source": prediction_source if isinstance(model, FieldSurrogate) else "input_fields",
                             "outputs": {
                                 name: path.relative_to(result.run_dir).as_posix() for name, path in outputs.items()
                             },
@@ -311,7 +333,7 @@ def _study(cfg, result):
                         try:
                             evaluation_mask = None
                             if isinstance(model, FieldSurrogate):
-                                coefficient_source = "condition_predictions"
+                                coefficient_source = prediction_source
                             elif observed is not None:
                                 evaluation_mask = reference.effective_mask & ~observed
                                 coefficient_source = "input_observations_only"
@@ -438,7 +460,12 @@ def _study(cfg, result):
     result.tables["per_sample"] = write_table(per_sample, result.run_dir / "per_sample.csv")
     result.tables["paired_comparisons"] = write_table(paired, result.run_dir / "paired_comparisons.csv")
     result.artifacts["protocol"] = write_json(
-        {"dataset_revision": dataset.revision, "repetitions": protocols}, result.run_dir / "protocol.json"
+        {
+            "dataset_revision": dataset.revision,
+            **({"input_revision": inputs.revision} if inputs is not None else {}),
+            "repetitions": protocols,
+        },
+        result.run_dir / "protocol.json",
     )
     result.artifacts["analysis_summary"] = write_json(summary, result.run_dir / "analysis_summary.json")
     result.metrics.update(successful_evaluations=float(len(good)), failed_evaluations=float(len(failures)))

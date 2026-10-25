@@ -90,6 +90,8 @@ def _ensure_mask_batch(masks: np.ndarray | None, expected_shape: tuple[int, int,
         raise ValueError(f"masks shape {masks.shape} does not match {expected_shape}")
     if masks.shape[0] not in {1, expected_shape[0]}:
         raise ValueError(f"mask sample count {masks.shape[0]} does not match {expected_shape[0]}")
+    if masks.dtype.kind not in "bfiu" or (masks.dtype.kind != "b" and not np.isin(masks, (0, 1)).all()):
+        raise ValueError("masks must contain boolean or 0/1 values")
     return np.broadcast_to(masks.astype(bool, copy=False), expected_shape)
 
 

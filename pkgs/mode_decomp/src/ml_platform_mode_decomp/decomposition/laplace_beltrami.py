@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Mapping
 
@@ -15,7 +15,7 @@ from ml_platform_mode_decomp.geometry import DomainSpec, validate_decomposer_com
 from ml_platform_mode_decomp.geometry.identity import geometry_fingerprint
 from ml_platform_mode_decomp.geometry.mesh import compact_mesh
 
-from .base import EigenBasisDecomposerBase, require_cfg
+from .base import EigenBasisDecomposerBase, _mask_values, require_cfg
 
 _LAPLACIAN_TYPES = {"cotangent"}
 _MASS_TYPES = {"lumped"}
@@ -31,7 +31,7 @@ def _parse_n_modes(value: Any) -> int | None:
             return None
         value = text
     if isinstance(value, (int, np.integer)):
-        num = int(value)
+        num = integer_parameter(value, "n_modes")
         if num <= 0:
             raise ValueError("decompose.n_modes must be > 0 for laplace_beltrami")
         return num
@@ -67,7 +67,7 @@ def _normalize_mask(mask: np.ndarray | None, n_vertices: int) -> np.ndarray | No
         raise ValueError(f"mesh mask must be 1D or (N,1), got shape {mask_arr.shape}")
     if mask_arr.shape[0] != n_vertices:
         raise ValueError(f"mesh mask length {mask_arr.shape[0]} does not match vertices {n_vertices}")
-    return mask_arr.astype(bool)
+    return _mask_values(mask_arr)
 
 
 def _cotangent(u: np.ndarray, v: np.ndarray) -> np.ndarray:
@@ -155,13 +155,15 @@ class LaplaceBeltramiDecomposer(EigenBasisDecomposerBase):
         self._solver = str(require_cfg(cfg, "solver", label="decompose"))
         if self._solver not in _SOLVERS:
             raise ValueError(f"decompose.solver must be one of {_SOLVERS}, got {self._solver}")
-        self._dense_threshold = int(require_cfg(cfg, "dense_threshold", label="decompose"))
+        self._dense_threshold = integer_parameter(
+            require_cfg(cfg, "dense_threshold", label="decompose"), "dense_threshold"
+        )
         if self._dense_threshold <= 0:
             raise ValueError("decompose.dense_threshold must be > 0 for laplace_beltrami")
         self._eigsh_tol = float(require_cfg(cfg, "eigsh_tol", label="decompose"))
         if self._eigsh_tol <= 0:
             raise ValueError("decompose.eigsh_tol must be > 0 for laplace_beltrami")
-        self._eigsh_maxiter = int(require_cfg(cfg, "eigsh_maxiter", label="decompose"))
+        self._eigsh_maxiter = integer_parameter(require_cfg(cfg, "eigsh_maxiter", label="decompose"), "eigsh_maxiter")
         if self._eigsh_maxiter <= 0:
             raise ValueError("decompose.eigsh_maxiter must be > 0 for laplace_beltrami")
 
@@ -283,7 +285,7 @@ class LaplaceBeltramiDecomposer(EigenBasisDecomposerBase):
         self._edge_count = int(n_edges)
         self._mesh_hash = geometry_fingerprint(domain_spec)
         self._solver_effective = solver
-        self._n_modes_effective = int(n_modes)
+        self._n_modes_effective = integer_parameter(n_modes, "n_modes")
 
     def fit(self, dataset: Any | None = None, domain_spec: DomainSpec | None = None) -> "LaplaceBeltramiDecomposer":
         if domain_spec is None:

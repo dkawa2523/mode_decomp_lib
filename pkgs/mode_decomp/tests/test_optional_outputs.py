@@ -56,9 +56,7 @@ def _yaml_config(root, directory):
         ),
         encoding="utf-8",
     )
-    profile.write_text(
-        yaml.safe_dump({"profile": "local", "runtime": {"output_dir": str(directory / "runs")}}), encoding="utf-8"
-    )
+    profile.write_text(yaml.safe_dump({"runtime": {"output_dir": str(directory / "runs")}}), encoding="utf-8")
     return task, profile
 
 

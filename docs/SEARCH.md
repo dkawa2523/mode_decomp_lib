@@ -1,4 +1,4 @@
-# CVと離散パラメータ探索（mode 0.10 / core 0.2.1）
+# CVと離散パラメータ探索（mode 0.11 / core 0.2.1）
 
 配備用 `mode_decomp_pipeline` で `tuning.enabled: true` を指定すると、outer train内の共通CVで候補のパラメータを選びます。outer final testは探索へ渡しません。各foldでfield前処理・分解・codec・係数後処理・回帰を新しくfitし、原fieldのOOF予測を評価します。
 

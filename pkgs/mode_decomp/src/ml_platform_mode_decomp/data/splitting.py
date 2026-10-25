@@ -25,6 +25,12 @@ def validate_split_settings(config: Mapping[str, Any], *, cross_validation: bool
     unknown = set(config) - allowed
     if unknown:
         raise ValueError(f"Unsupported {'CV' if cross_validation else 'split'} settings: {sorted(unknown)}")
+    if "seed" in config:
+        _seed(config["seed"], "split seed")
+    if cross_validation:
+        count = config.get("n_splits")
+        if isinstance(count, (bool, np.bool_)) or not isinstance(count, (int, np.integer)) or count < 2:
+            raise ValueError("CV n_splits must be an integer of at least two")
     if "gap_seconds" not in config:
         return 0.0
     if config.get("method", "random") != "time":
@@ -39,6 +45,12 @@ def validate_split_settings(config: Mapping[str, Any], *, cross_validation: bool
     if not math.isfinite(gap) or gap < 0:
         raise ValueError("gap_seconds must be a finite nonnegative number of seconds")
     return gap
+
+
+def _seed(value: Any, label: str) -> int:
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)) or not 0 <= value < 2**32:
+        raise ValueError(f"{label} must be an integer between zero and 4294967295")
+    return int(value)
 
 
 def _fraction(value: Any, name: str) -> float:
@@ -143,9 +155,7 @@ def split_dataset(
     if not isinstance(config, Mapping):
         raise ValueError("split must be a mapping.")
     gap = validate_split_settings(config)
-    seed = config.get("seed", seed)
-    if isinstance(seed, bool) or not isinstance(seed, (int, np.integer)) or not 0 <= int(seed) < 2**32:
-        raise ValueError("seed must be an integer between zero and 4294967295.")
+    seed = _seed(config.get("seed", seed), "seed")
     if not isinstance(nested, bool):
         raise ValueError("nested must be boolean.")
     if len(dataset) < (3 if nested else 2):
@@ -181,13 +191,15 @@ def split_dataset(
     if calibration and calibration.get("enabled", False):
         outer_train = train
         calibration_method = calibration["calibration_method"]
+        if method in {"group", "time"} and calibration_method != method:
+            raise ValueError("Calibration must preserve the outer group/time split method")
         proper, heldout = _partition(
             dataset,
             outer_train,
             config,
             calibration_method,
             _fraction(calibration["calibration_size"], "uncertainty.calibration_size"),
-            int(calibration["calibration_seed"]),
+            _seed(calibration["calibration_seed"], "calibration_seed"),
         )
         purged = np.setdiff1d(outer_train, np.concatenate((proper, heldout)))
         train = proper

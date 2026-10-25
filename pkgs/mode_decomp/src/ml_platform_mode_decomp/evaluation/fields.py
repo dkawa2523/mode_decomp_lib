@@ -123,6 +123,8 @@ def prepare_reference(reference, options=None, *, evaluation_mask=None, baseline
 
 
 def normalized_weights(values, count, label, *, allow_zero=False):
+    if np.iscomplexobj(values):
+        raise ValueError(f"{label} must be real")
     weights = np.asarray(values, dtype=float)
     if weights.shape != (count,) or not np.isfinite(weights).all() or np.any(weights < 0):
         raise ValueError(f"{label} must be finite, nonnegative and have positive sum")
@@ -144,8 +146,26 @@ def _sample_values(measure, values):
     return np.where(measure.sample_weights > 0, values, np.nan)
 
 
+def _validate_metric_options(options: Mapping[str, Any], *, reference: str) -> None:
+    prefix = {"grid": "field", "observations": "observation", "hidden": "hidden"}[reference]
+    suffixes = ("rmse", "mae", "skill") if reference == "observations" else ("rmse", "mae", "r2", "skill")
+    allowed = {f"{prefix}_{suffix}" for suffix in suffixes}
+    names = options.get("names", ())
+    if not isinstance(names, (list, tuple)):
+        raise ValueError("metrics.names must be a list of metric names")
+    requested = [*names]
+    if options.get("primary_metric") is not None:
+        requested.append(options["primary_metric"])
+    if any(not isinstance(name, str) or name not in allowed for name in requested):
+        raise ValueError(f"metrics.reference: {reference} requires known {prefix}_* metric names: {sorted(allowed)}")
+
+
 def score_weights(reference: FieldDataset, options: Mapping[str, Any], *, allow_zero=False):
     channels = reference.fields.shape[-1]
+    for key in ("channel_scales", "channel_weights"):
+        value = options.get(key)
+        if value is not None and np.iscomplexobj(value):
+            raise ValueError("Channel scales and weights must be real")
     scales = np.asarray(options.get("channel_scales", np.ones(channels)), dtype=float)
     channel_weights = np.asarray(options.get("channel_weights", np.ones(channels)), dtype=float)
     if scales.shape != (channels,) or channel_weights.shape != (channels,):
@@ -165,7 +185,7 @@ def score_weights(reference: FieldDataset, options: Mapping[str, Any], *, allow_
     else:
         if sample_column not in reference.sample_metadata:
             raise ValueError("sample_weight_column must name reference sample metadata")
-        sample_weights = np.asarray(reference.sample_metadata[sample_column], dtype=float)
+        sample_weights = np.asarray(reference.sample_metadata[sample_column])
         if sample_weights.shape != (len(reference),):
             raise ValueError("Sample weights must have one value per sample")
     sample_weights = normalized_weights(sample_weights, len(reference), "Sample weights", allow_zero=allow_zero)
@@ -189,6 +209,8 @@ def _measure(reference: FieldDataset, options: Mapping[str, Any], evaluation_mas
     truth = np.asarray(reference.fields)
     spatial = truth.shape[1:-1]
     area = reference.geometry.integration_weights()
+    if area is not None and np.iscomplexobj(area):
+        raise ValueError("Evaluation weights must be real")
     area = np.ones(spatial) if area is None else np.asarray(area, dtype=float).reshape(spatial)
     if not np.isfinite(area).all() or np.any(area < 0):
         raise ValueError("Evaluation weights must be finite and nonnegative")
@@ -305,11 +327,15 @@ def score_fields(
     evaluation_mask: np.ndarray | None = None,
     baseline: np.ndarray | None = None,
 ) -> EvaluationReport:
-    """Score known reference values; an input observation mask is never guessed here.
+    """Score known grid reference values on explicitly selected support.
 
-    For hidden-point experiments pass the untouched reference Dataset and an
-    explicit evaluation_mask, separately from the observations used by the model.
+    An input observation mask is never guessed here. Use ``prepare_objective``
+    for the hidden or scattered-observation namespaces.
     """
+    options = dict(options or {})
+    if options.get("reference", "grid") != "grid":
+        raise ValueError("score_fields requires metrics.reference: grid; use prepare_objective for other references")
+    _validate_metric_options(options, reference="grid")
     prepared = prepare_reference(reference, options, evaluation_mask=evaluation_mask, baseline=baseline)
     return prepared.score(predictions)
 
@@ -339,7 +365,11 @@ def _score(prepared, predictions, baseline):
         metrics[f"channel_{channel}_mae"] = float(sw @ sample_channel_mae[:, channel])
         rows[f"channel_{channel}_rmse"] = _sample_values(measure, np.sqrt(sample_channel_mse[:, channel]))
         rows[f"channel_{channel}_mae"] = _sample_values(measure, sample_channel_mae[:, channel])
-    if "field_r2" in options.get("names", []) or "hidden_r2" in options.get("names", []):
+    if (
+        "field_r2" in options.get("names", [])
+        or "hidden_r2" in options.get("names", [])
+        or options.get("primary_metric") in {"field_r2", "hidden_r2"}
+    ):
         variance = _channel_variance(measure)
         active = cw > 0
         if np.any(variance[active] == 0):

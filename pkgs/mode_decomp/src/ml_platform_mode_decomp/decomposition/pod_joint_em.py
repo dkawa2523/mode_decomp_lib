@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Mapping
 
@@ -10,8 +10,8 @@ import numpy as np
 
 from ml_platform_mode_decomp.geometry import DomainSpec, validate_decomposer_compatibility
 
-from .base import BaseDecomposer, _combine_masks, _normalize_mask, parse_bool, require_cfg
-from .pod_utils import parse_n_modes, solve_ridge, svd_snapshots_basis
+from .base import BaseDecomposer, _combine_masks, _normalize_mask, require_cfg
+from .pod_utils import parse_n_modes, resolve_centering, solve_ridge, svd_snapshots_basis
 
 _MASK_POLICIES = {"allow"}
 _INNER_PRODUCTS = {"euclidean", "domain_weights"}
@@ -42,7 +42,7 @@ class JointPODEMDecomposer(BaseDecomposer[np.ndarray]):
         n_modes = require_cfg(cfg, "n_modes", label="decompose")
         self._n_modes = parse_n_modes(n_modes, method="pod_joint_em")
         self._n_modes_config = n_modes
-        self._n_iter = int(require_cfg(cfg, "n_iter", label="decompose"))
+        self._n_iter = integer_parameter(require_cfg(cfg, "n_iter", label="decompose"), "n_iter")
         if self._n_iter < 1:
             raise ValueError("decompose.n_iter must be >= 1 for pod_joint_em")
         self._ridge_alpha = float(require_cfg(cfg, "ridge_alpha", label="decompose"))
@@ -57,9 +57,7 @@ class JointPODEMDecomposer(BaseDecomposer[np.ndarray]):
         self._mask_policy = str(require_cfg(cfg, "mask_policy", label="decompose")).strip().lower()
         if self._mask_policy not in _MASK_POLICIES:
             raise ValueError(f"decompose.mask_policy must be one of {_MASK_POLICIES}, got {self._mask_policy}")
-        self._mean_centered = parse_bool(
-            cfg.get("center") if cfg.get("center") is not None else cfg.get("mean_centered"), default=True
-        )
+        self._mean_centered = resolve_centering(cfg, default=True)
 
         self._mu: np.ndarray | None = None  # (F,)
         self._basis: np.ndarray | None = None  # (F,K) in weighted feature space if domain_weights

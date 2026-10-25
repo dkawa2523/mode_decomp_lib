@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from .base import field_arrays
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Mapping
 
@@ -31,7 +31,7 @@ from .pod_utils import (
 )
 
 try:  # optional dependency
-    import modred as _modred
+    import modred as _modred  # pyrefly: ignore[missing-import]
 except ImportError:  # pragma: no cover - modred optional
     _modred = None
 
@@ -72,11 +72,11 @@ class _PODScalarDecomposer(BaseDecomposer[np.ndarray]):
         if n_modes is None:
             self._n_modes = None
         else:
-            self._n_modes = int(n_modes)
+            self._n_modes = integer_parameter(n_modes, "n_modes")
             if self._n_modes <= 0:
                 raise ValueError("decompose.n_modes must be > 0 for pod")
         seed = cfg["seed"]
-        self.seed = int(seed) if seed is not None else None
+        self.seed = integer_parameter(seed, "seed") if seed is not None else None
         self._rank_select = _resolve_rank_select(cfg)
         self._mode_weight = _resolve_mode_weight(cfg)
 
@@ -245,6 +245,8 @@ class _PODScalarDecomposer(BaseDecomposer[np.ndarray]):
         def _sample_field_and_mask(index: int) -> tuple[np.ndarray, np.ndarray | None]:
             sample = dataset[index]
             field = np.asarray(sample.field)
+            if field.dtype.kind not in "fiu":
+                raise ValueError("pod requires real numeric training fields")
             if field.ndim == 3:
                 if field.shape[-1] != 1:
                     raise ValueError(f"pod expects scalar fields, got shape {field.shape}")
@@ -253,12 +255,7 @@ class _PODScalarDecomposer(BaseDecomposer[np.ndarray]):
                 raise ValueError(f"pod expects 2D fields, got shape {field.shape}")
             if field.shape != domain_spec.grid_shape:
                 raise ValueError(f"field shape {field.shape} does not match domain {domain_spec.grid_shape}")
-            if sample.mask is None:
-                mask_arr = None
-            else:
-                mask_arr = np.asarray(sample.mask).astype(bool)
-                if mask_arr.shape != domain_spec.grid_shape:
-                    raise ValueError(f"mask shape {mask_arr.shape} does not match {domain_spec.grid_shape}")
+            mask_arr = _normalize_mask(sample.mask, domain_spec.grid_shape)
             return field, mask_arr
 
         for idx in range(n_samples):

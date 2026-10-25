@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Mapping
 
@@ -13,6 +13,7 @@ from ml_platform_mode_decomp.geometry import DomainSpec, validate_decomposer_com
 
 from .base import EigenBasisDecomposerBase, _combine_masks, _normalize_field, _normalize_mask, require_cfg
 from .graph_fourier import _build_laplacian, _CONNECTIVITY, _LAPLACIAN_TYPES, _SOLVERS, _auto_n_modes, _parse_n_modes
+from .learned_support import stable_ridge
 
 _MASK_POLICIES = {"allow_full"}
 
@@ -47,7 +48,7 @@ class GappyGraphFourierDecomposer(EigenBasisDecomposerBase):
         self._n_modes = _parse_n_modes(n_modes)
         self._n_modes_config = n_modes
         self._n_modes_effective: int | None = None
-        self._connectivity = int(require_cfg(cfg, "connectivity", label="decompose"))
+        self._connectivity = integer_parameter(require_cfg(cfg, "connectivity", label="decompose"), "connectivity")
         if self._connectivity not in _CONNECTIVITY:
             raise ValueError(f"decompose.connectivity must be one of {_CONNECTIVITY}, got {self._connectivity}")
         self._laplacian_type = str(require_cfg(cfg, "laplacian_type", label="decompose"))
@@ -59,18 +60,20 @@ class GappyGraphFourierDecomposer(EigenBasisDecomposerBase):
         self._solver = str(require_cfg(cfg, "solver", label="decompose"))
         if self._solver not in _SOLVERS:
             raise ValueError(f"decompose.solver must be one of {_SOLVERS}, got {self._solver}")
-        self._dense_threshold = int(require_cfg(cfg, "dense_threshold", label="decompose"))
+        self._dense_threshold = integer_parameter(
+            require_cfg(cfg, "dense_threshold", label="decompose"), "dense_threshold"
+        )
         if self._dense_threshold <= 0:
             raise ValueError("decompose.dense_threshold must be > 0 for gappy_graph_fourier")
         self._eigsh_tol = float(require_cfg(cfg, "eigsh_tol", label="decompose"))
-        if self._eigsh_tol <= 0:
+        if isinstance(cfg["eigsh_tol"], (bool, np.bool_)) or not np.isfinite(self._eigsh_tol) or self._eigsh_tol <= 0:
             raise ValueError("decompose.eigsh_tol must be > 0 for gappy_graph_fourier")
-        self._eigsh_maxiter = int(require_cfg(cfg, "eigsh_maxiter", label="decompose"))
+        self._eigsh_maxiter = integer_parameter(require_cfg(cfg, "eigsh_maxiter", label="decompose"), "eigsh_maxiter")
         if self._eigsh_maxiter <= 0:
             raise ValueError("decompose.eigsh_maxiter must be > 0 for gappy_graph_fourier")
         ridge_alpha = require_cfg(cfg, "ridge_alpha", label="decompose")
         self._ridge_alpha = float(ridge_alpha)
-        if self._ridge_alpha < 0:
+        if isinstance(ridge_alpha, (bool, np.bool_)) or not np.isfinite(self._ridge_alpha) or self._ridge_alpha < 0:
             raise ValueError("decompose.ridge_alpha must be >= 0 for gappy_graph_fourier")
 
         self._grid_shape: tuple[int, int] | None = None
@@ -140,7 +143,7 @@ class GappyGraphFourierDecomposer(EigenBasisDecomposerBase):
         self._n_nodes = int(n_nodes)
         self._n_edges = int(n_edges)
         self._solver_effective = solver
-        self._n_modes_effective = int(n_modes)
+        self._n_modes_effective = integer_parameter(n_modes, "n_modes")
 
     def fit(self, dataset: Any | None = None, domain_spec: DomainSpec | None = None) -> "GappyGraphFourierDecomposer":
         if domain_spec is None:
@@ -171,6 +174,8 @@ class GappyGraphFourierDecomposer(EigenBasisDecomposerBase):
             raise ValueError("gappy_graph_fourier basis was not initialized")
 
         field_3d, was_2d = _normalize_field(field)
+        if field_3d.dtype.kind not in "fiu":
+            raise ValueError("gappy_graph_fourier fields must contain real numeric values")
         if field_3d.shape[:2] != domain_spec.grid_shape:
             raise ValueError(f"field shape {field_3d.shape[:2]} does not match domain {domain_spec.grid_shape}")
         if self._channels is not None and field_3d.shape[-1] != self._channels:
@@ -186,6 +191,8 @@ class GappyGraphFourierDecomposer(EigenBasisDecomposerBase):
             weights = np.asarray(weights, dtype=np.float64)
         if weights.shape != domain_spec.grid_shape:
             raise ValueError(f"weights shape {weights.shape} does not match {domain_spec.grid_shape}")
+        if not np.isfinite(weights).all() or np.any(weights < 0):
+            raise ValueError("gappy_graph_fourier integration weights must be finite and nonnegative")
         if combined_mask is not None:
             weights = np.where(combined_mask, weights, 0.0)
 
@@ -205,23 +212,13 @@ class GappyGraphFourierDecomposer(EigenBasisDecomposerBase):
         sqrt_w = np.sqrt(weights_nodes[valid].astype(np.float64, copy=False))
         design = self._basis[valid]
         design_w = design * sqrt_w[:, None]
-        k = design_w.shape[1]
-        gram = design_w.T @ design_w + (self._ridge_alpha * np.eye(k, dtype=np.float64))
-
-        coeffs = []
-        for ch in range(field_3d.shape[-1]):
-            vec_full = field_3d[..., ch].reshape(-1, order="C")
-            if mask_indices is not None:
-                vec_nodes = vec_full[mask_indices]
-            else:
-                vec_nodes = vec_full
-            if not np.isfinite(vec_nodes[valid]).all():
-                raise ValueError("gappy_graph_fourier field has non-finite values within valid mask")
-            y_w = vec_nodes[valid].astype(np.float64, copy=False) * sqrt_w
-            rhs = design_w.T @ y_w
-            a = np.linalg.solve(gram, rhs)
-            coeffs.append(a)
-        coeff_tensor = np.stack(coeffs, axis=0)
+        values = field_3d.reshape(-1, field_3d.shape[-1])
+        if mask_indices is not None:
+            values = values[mask_indices]
+        targets = np.asarray(values[valid], dtype=np.float64) * sqrt_w[:, None]
+        # Solve the observed design itself, avoiding the squared condition
+        # number of normal equations and sharing one solve across components.
+        coeff_tensor = stable_ridge(design_w, targets, self._ridge_alpha, method=self.name).T
 
         self._coeff_shape = coeff_tensor.shape
         self._field_ndim = 2 if was_2d else 3
@@ -271,7 +268,10 @@ class GappyGraphFourierDecomposer(EigenBasisDecomposerBase):
             if not np.array_equal(np.asarray(domain_spec.mask).astype(bool), self._domain_mask):
                 raise ValueError("gappy_graph_fourier domain mask does not match cached basis")
 
-        coeff_tensor = self._reshape_coeff(coeff, self._coeff_shape, name=self.name)
+        coefficients = np.asarray(coeff)
+        if coefficients.dtype.kind not in "fiu" or not np.isfinite(coefficients).all():
+            raise ValueError("gappy_graph_fourier coefficients must be finite real values")
+        coeff_tensor = self._reshape_coeff(coefficients, self._coeff_shape, name=self.name)
         height, width = self._grid_shape
         mask_indices = self._mask_indices
 

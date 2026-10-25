@@ -18,7 +18,7 @@ from scipy.sparse.linalg import lsmr
 
 from ..geometry import DomainSpec, validate_decomposer_compatibility
 from ..geometry.identity import geometry_fingerprint
-from .base import BaseDecomposer
+from .base import BaseDecomposer, _mask_values
 
 
 def validate_hodge_geometry(geometry: DomainSpec):
@@ -267,7 +267,7 @@ class HodgeDecomposer(BaseDecomposer[np.ndarray]):
     def transform(self, field: np.ndarray, mask: np.ndarray | None, domain_spec: DomainSpec) -> np.ndarray:
         hodge = self._complex(domain_spec)
         if mask is not None:
-            mask = np.asarray(mask, dtype=bool)
+            mask = _mask_values(mask)
             if mask.shape != hodge.grid_shape or not mask[hodge.mask].all():
                 raise ValueError("hodge requires observations at every fixed domain node; it is not an imputer")
         values = np.asarray(field)

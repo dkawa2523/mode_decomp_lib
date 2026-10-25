@@ -23,17 +23,18 @@ GUIDES = (
     "UNCERTAINTY",
     "HODGE",
     "MODES",
+    "FIELD_MAPPING",
 )
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out-dir", type=Path, default=Path("dist"))
+    parser.add_argument("--out-dir", type=Path, help="Output directory; default: dist/<package version>")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    output = args.out_dir.resolve()
-    subprocess.run([sys.executable, str(root / "scripts/build_wheels.py"), "--out-dir", str(output)], check=True)
     project = tomllib.loads((root / "pkgs/mode_decomp/pyproject.toml").read_text(encoding="utf-8"))["project"]
+    output = (args.out_dir or root / "dist" / project["version"]).resolve()
+    subprocess.run([sys.executable, str(root / "scripts/build_wheels.py"), "--out-dir", str(output)], check=True)
     stem = f"{project['name'].replace('-', '_')}-{project['version']}"
     core = (root / "vendor/wheels/core.json").read_bytes()
     wheels = [output / json.loads(core)["filename"], output / f"{stem}-py3-none-any.whl"]
@@ -41,6 +42,7 @@ def main():
     files = {f"wheels/{path.name}": path.read_bytes() for path in wheels}
     files[f"sources/{source.name}"] = source.read_bytes()
     files["core.json"] = core
+    files["build-constraints.txt"] = (root / "config/build-constraints.txt").read_bytes()
     readme = (root / "docs/DISTRIBUTION.md").read_text(encoding="utf-8")
     for name in GUIDES:
         filename = f"{name}.md"

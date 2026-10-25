@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Mapping
 
@@ -13,7 +13,7 @@ from scipy.special import sph_harm_y
 from ml_platform_mode_decomp.geometry import DomainSpec, validate_decomposer_compatibility
 from ml_platform_mode_decomp.geometry.identity import geometry_fingerprint
 
-from .base import EigenBasisDecomposerBase, _combine_masks, _normalize_field, _normalize_mask, require_cfg
+from .base import EigenBasisDecomposerBase, _combine_masks, _mask_values, _normalize_field, _normalize_mask, require_cfg
 from .pod_utils import singular_value_rank
 
 
@@ -77,7 +77,7 @@ def _build_cap_mask(domain_spec: DomainSpec, cap_spec: Mapping[str, Any]) -> np.
 
 
 def _normalize_region_mask(mask: np.ndarray, grid_shape: tuple[int, int]) -> np.ndarray:
-    mask_arr = np.asarray(mask).astype(bool)
+    mask_arr = _mask_values(mask)
     if mask_arr.shape != grid_shape:
         raise ValueError(f"region_mask shape {mask_arr.shape} does not match {grid_shape}")
     return mask_arr
@@ -126,11 +126,11 @@ class SphericalSlepianDecomposer(EigenBasisDecomposerBase):
         super().__init__(cfg=cfg)
         self.name = "spherical_slepian"
         l_max = require_cfg(cfg, "l_max", label="decompose")
-        self._l_max = int(l_max)
+        self._l_max = integer_parameter(l_max, "l_max")
         if self._l_max < 0:
             raise ValueError("decompose.l_max must be >= 0 for spherical_slepian")
         k_val = require_cfg(cfg, "k", label="decompose")
-        self._k = int(k_val)
+        self._k = integer_parameter(k_val, "k_val")
         if self._k <= 0:
             raise ValueError("decompose.k must be > 0 for spherical_slepian")
 

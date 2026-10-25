@@ -1,0 +1,16 @@
+task: mode_decomp_representation
+run:
+  name: steady_quadratic_manifold
+data:
+  local_path: data/nonlinear_fields
+representation:
+  decomposition:
+    name: quadratic_manifold
+    params:
+      n_modes: 4
+      inner_product: domain_weights
+      quadratic_alpha: 0.000001
+      ridge_alpha: 0.000001
+analysis:
+  modes: {enabled: true, indices: [0, 1, 2]}
+report: {enabled: true}

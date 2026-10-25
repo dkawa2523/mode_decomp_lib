@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Dict, Literal, Mapping, cast
 
@@ -27,6 +27,22 @@ RidgeSolver = Literal["auto", "cholesky", "lbfgs", "lsqr", "sag", "saga", "spars
 Selection = Literal["cyclic", "random"]
 
 
+def _integer(value: Any, name: str, *, minimum: int = 0) -> int:
+    result = integer_parameter(value, name)
+    if result < minimum:
+        raise ValueError(f"{name} must be an integer >= {minimum}")
+    return result
+
+
+def _number(value: Any, name: str) -> float:
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, float, np.integer, np.floating)):
+        raise ValueError(f"{name} must be a finite real number")
+    result = float(value)
+    if not np.isfinite(result):
+        raise ValueError(f"{name} must be a finite real number")
+    return result
+
+
 def _resolve_scaler(cfg: Mapping[str, Any]) -> str:
     scaler = cfg["cond_scaler"]
     if scaler is None:
@@ -43,9 +59,11 @@ def _resolve_random_state(cfg: Mapping[str, Any]) -> int | None:
     seed = cfg["seed"]
     random_state = cfg["random_state"]
     if seed is not None:
-        seed = int(seed)
+        seed = _integer(seed, "seed")
     if random_state is not None:
-        random_state = int(random_state)
+        random_state = _integer(random_state, "random_state")
+    if any(value is not None and value >= 2**32 for value in (seed, random_state)):
+        raise ValueError("seed and random_state must be integers in [0, 2**32)")
     if seed is not None and random_state is not None and seed != random_state:
         raise ValueError("seed and random_state must match when both are provided")
     return seed if seed is not None else random_state
@@ -76,8 +94,8 @@ def _coerce_bounds(value: Any, name: str) -> tuple[float, float]:
     if isinstance(value, np.ndarray):
         value = value.tolist()
     if isinstance(value, (list, tuple)) and len(value) == 2:
-        low = float(value[0])
-        high = float(value[1])
+        low = _number(value[0], name)
+        high = _number(value[1], name)
         if not np.isfinite([low, high]).all():
             raise ValueError(f"{name} must be finite, got {value}")
         if low <= 0 or high <= 0 or low >= high:
@@ -92,7 +110,10 @@ def _build_gpr_kernel(cfg: Mapping[str, Any]) -> tuple[Any, Dict[str, Any]]:
         raise ValueError(f"kernel must be one of {_VALID_GPR_KERNELS}, got {kernel_name}")
 
     # CONTRACT: kernel configuration is sourced from config for reproducibility.
-    length_scale = np.asarray(cfg["length_scale"], dtype=float)
+    length_scale = np.asarray(cfg["length_scale"])
+    if length_scale.dtype.kind not in "fiu" or length_scale.ndim > 1 or not length_scale.size:
+        raise ValueError("length_scale must be a positive real number or vector")
+    length_scale = length_scale.astype(float)
     if length_scale.ndim == 0:
         length_scale_value: float | list[float] = float(length_scale)
         if not np.isfinite(length_scale).all() or float(length_scale) <= 0:
@@ -103,7 +124,7 @@ def _build_gpr_kernel(cfg: Mapping[str, Any]) -> tuple[Any, Dict[str, Any]]:
             raise ValueError("length_scale values must be finite and > 0")
 
     length_scale_bounds = _coerce_bounds(cfg["length_scale_bounds"], "length_scale_bounds")
-    kernel_constant = float(cfg["kernel_constant"])
+    kernel_constant = _number(cfg["kernel_constant"], "kernel_constant")
     if kernel_constant <= 0:
         raise ValueError("kernel_constant must be > 0")
     kernel_constant_bounds = _coerce_bounds(
@@ -114,7 +135,7 @@ def _build_gpr_kernel(cfg: Mapping[str, Any]) -> tuple[Any, Dict[str, Any]]:
     kernel = ConstantKernel(kernel_constant, kernel_constant_bounds) * RBF(length_scale, length_scale_bounds)
 
     white_noise = bool(cfg["white_noise"])
-    noise_level = float(cfg["noise_level"])
+    noise_level = _number(cfg["noise_level"], "noise_level")
     if noise_level < 0:
         raise ValueError("noise_level must be >= 0")
     noise_level_bounds = _coerce_bounds(cfg["noise_level_bounds"], "noise_level_bounds")
@@ -153,7 +174,7 @@ class RidgeRegressor(BaseRegressor):
         cfg = constructor_config(cfg, locals(), name="ridge")
         super().__init__(cfg=cfg)
         self.name = "ridge"
-        self._alpha = float(cfg["alpha"])
+        self._alpha = _number(cfg["alpha"], "alpha")
         self._fit_intercept = bool(cfg["fit_intercept"])
         solver = str(cfg["solver"])
         if solver not in {"auto", "cholesky", "lbfgs", "lsqr", "sag", "saga", "sparse_cg", "svd"}:
@@ -172,10 +193,12 @@ class RidgeRegressor(BaseRegressor):
         if not self._solver:
             raise ValueError("solver must be a non-empty string")
         if self._max_iter is not None:
-            self._max_iter = int(self._max_iter)
+            self._max_iter = _integer(self._max_iter, "max_iter", minimum=1)
         if self._tol is None:
             raise ValueError("tol must be set to a non-negative float")
-        self._tol = float(self._tol)
+        self._tol = _number(self._tol, "tol")
+        if self._tol < 0:
+            raise ValueError("tol must be nonnegative")
 
     def fit(self, X_cond: np.ndarray, Y: np.ndarray) -> "RidgeRegressor":
         X_cond = _ensure_2d_features(X_cond, "X_cond")
@@ -241,8 +264,8 @@ class ElasticNetRegressor(BaseRegressor):
         cfg = constructor_config(cfg, locals(), name="elasticnet")
         super().__init__(cfg=cfg)
         self.name = "elasticnet"
-        self._alpha = float(cfg["alpha"])
-        self._l1_ratio = float(cfg["l1_ratio"])
+        self._alpha = _number(cfg["alpha"], "alpha")
+        self._l1_ratio = _number(cfg["l1_ratio"], "l1_ratio")
         self._fit_intercept = bool(cfg["fit_intercept"])
         self._max_iter = cfg["max_iter"]
         self._tol = cfg["tol"]
@@ -260,12 +283,14 @@ class ElasticNetRegressor(BaseRegressor):
             raise ValueError("l1_ratio must be between 0 and 1")
         if self._max_iter is None:
             self._max_iter = 1000
-        self._max_iter = int(self._max_iter)
+        self._max_iter = _integer(self._max_iter, "max_iter", minimum=1)
         if self._max_iter <= 0:
             raise ValueError("max_iter must be > 0")
         if self._tol is None:
             raise ValueError("tol must be set to a non-negative float")
-        self._tol = float(self._tol)
+        self._tol = _number(self._tol, "tol")
+        if self._tol < 0:
+            raise ValueError("tol must be nonnegative")
         if self._tol < 0:
             raise ValueError("tol must be >= 0")
 
@@ -339,8 +364,8 @@ class MultiTaskElasticNetRegressor(BaseRegressor):
         cfg = constructor_config(cfg, locals(), name="multitask_elasticnet")
         super().__init__(cfg=cfg)
         self.name = "multitask_elasticnet"
-        self._alpha = float(cfg["alpha"])
-        self._l1_ratio = float(cfg["l1_ratio"])
+        self._alpha = _number(cfg["alpha"], "alpha")
+        self._l1_ratio = _number(cfg["l1_ratio"], "l1_ratio")
         self._fit_intercept = bool(cfg["fit_intercept"])
         self._max_iter = cfg["max_iter"]
         self._tol = cfg["tol"]
@@ -357,12 +382,14 @@ class MultiTaskElasticNetRegressor(BaseRegressor):
             raise ValueError("l1_ratio must be between 0 and 1")
         if self._max_iter is None:
             self._max_iter = 1000
-        self._max_iter = int(self._max_iter)
+        self._max_iter = _integer(self._max_iter, "max_iter", minimum=1)
         if self._max_iter <= 0:
             raise ValueError("max_iter must be > 0")
         if self._tol is None:
             raise ValueError("tol must be set to a non-negative float")
-        self._tol = float(self._tol)
+        self._tol = _number(self._tol, "tol")
+        if self._tol < 0:
+            raise ValueError("tol must be nonnegative")
         if self._tol < 0:
             raise ValueError("tol must be >= 0")
 
@@ -430,7 +457,7 @@ class MultiTaskLassoRegressor(BaseRegressor):
         cfg = constructor_config(cfg, locals(), name="multitask_lasso")
         super().__init__(cfg=cfg)
         self.name = "multitask_lasso"
-        self._alpha = float(cfg["alpha"])
+        self._alpha = _number(cfg["alpha"], "alpha")
         self._fit_intercept = bool(cfg["fit_intercept"])
         self._max_iter = cfg["max_iter"]
         self._tol = cfg["tol"]
@@ -445,12 +472,14 @@ class MultiTaskLassoRegressor(BaseRegressor):
             raise ValueError("alpha must be >= 0")
         if self._max_iter is None:
             self._max_iter = 1000
-        self._max_iter = int(self._max_iter)
+        self._max_iter = _integer(self._max_iter, "max_iter", minimum=1)
         if self._max_iter <= 0:
             raise ValueError("max_iter must be > 0")
         if self._tol is None:
             raise ValueError("tol must be set to a non-negative float")
-        self._tol = float(self._tol)
+        self._tol = _number(self._tol, "tol")
+        if self._tol < 0:
+            raise ValueError("tol must be nonnegative")
         if self._tol < 0:
             raise ValueError("tol must be >= 0")
 
@@ -526,12 +555,12 @@ class GPRRegressor(BaseRegressor):
         self._cond_scaler_name = _resolve_scaler(cfg)
         self._scaler = StandardScaler() if self._cond_scaler_name == "standardize" else None
         self._kernel, self._kernel_cfg = _build_gpr_kernel(cfg)
-        self._alpha = float(cfg["alpha"])
+        self._alpha = _number(cfg["alpha"], "alpha")
         if self._alpha < 0:
             raise ValueError("alpha must be >= 0")
         self._normalize_y = bool(cfg["normalize_y"])
         self._optimizer = _resolve_optimizer(cfg)
-        self._n_restarts_optimizer = int(cfg["n_restarts_optimizer"])
+        self._n_restarts_optimizer = _integer(cfg["n_restarts_optimizer"], "n_restarts_optimizer")
         if self._n_restarts_optimizer < 0:
             raise ValueError("n_restarts_optimizer must be >= 0")
         self._random_state = _resolve_random_state(cfg)

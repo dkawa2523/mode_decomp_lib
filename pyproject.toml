@@ -7,6 +7,7 @@ ml-platform-mode-decomp = { workspace = true }
 ml-platform-core = { path = "vendor/wheels/ml_platform_core-0.2.1-py3-none-any.whl" }
 
 [tool.uv.extra-build-dependencies]
+# Consumer pip builds use the matching config/build-constraints.txt.
 modred = ["setuptools<81"]
 
 [dependency-groups]

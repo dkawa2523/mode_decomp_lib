@@ -52,6 +52,8 @@ array_indexがfield・NPY条件・sample別maskの先頭軸を参照します。
 
 明示したgeometryは同じrunの全sampleで共有し、index座標へ置き換えません。axesはstart/step/count、values、または座標NPYへのpathを使います。円・円環はcenter/radius等、sphere_gridはlon/lat・angle_unit・radius、meshはvertices/facesを指定します。小さなmeshならvertices/facesをYAML内へ書け、大きなmeshは `mesh: {path: surface.npz}` を使えます。CSV・散布点のtarget geometryは明示します。
 
+geometryの未知key、fieldとのshape不一致、axesとrangeの矛盾を拒否します。同じ意味の座標・maskをinlineとpath、または別名のkeyで二重指定しません。`FieldDataset.from_arrays()`のx/yとgeometryも択一です。geometry内のmaskと`masks.domain`は共通部分をdomainとします。
+
 非等間隔入力を読めてもFFT等の各手法の条件は別に満たす必要があります。周期軸は重複端点を持たせません。物理面積は実際の座標から求め、点間隔から仮の面積を付けません。
 
 ```yaml
@@ -66,6 +68,8 @@ masks:
 | observation | sampleで値が観測されている位置 | 共通空間shapeまたは`(N,H,W)` / `(N,V)` |
 
 どちらも必要な場合だけ指定します。有効点はdomain AND observationで、そこだけの有限値を要求します。mask外のNaNや保存上の0を統計・損失へ入れません。共通maskをN枚保存する必要はありません。初期の観測maskは全成分で共有し、成分別欠測は別定義を必要とします。評価maskは観測maskと同じとは限らず、人工欠測では隠した既知正解を採点します。
+
+Pythonの`FieldRepresentation.transform(dataset, masks=...)`へ追加maskを渡す場合も、Datasetの観測maskと固定domainとの共通部分だけを使います。追加maskで未知だった位置を観測済みへ広げません。
 
 ## 格子CSVも同じrunから読む
 
@@ -166,6 +170,8 @@ Pythonの `predict()` / `predict_interval()` / `predict_coefficients()` は配�
 
 新しいfield出力は共通の`field_output_v1`です。既存の予測・再構成キーに、実際に宣言されたgeometry座標・topology・重み・単位と、domain/入力観測/calibrationのsupportを付随します。NPZは内部にmetadataを持ち、NPYは相対参照のsidecarを自動保存します。モデルや訓練入力がなくても解釈できます。
 
+書込前にsample IDの一意性・非空、field shapeとgeometryの一致、成分名・単位とchannel数の一致を検査します。読込時も保存された宣言とarrayを照合します。観測されない位置のNaNは保持し、全domainが観測済みであるとは解釈しません。
+
 ```python
 from ml_platform_mode_decomp import read_field_output
 
@@ -177,3 +183,5 @@ fields = saved["arrays"]["predictions"]
 NPYのreaderは配列をmmapで読みます。NPY出力は関連sidecarも一緒に移動してください。旧出力も配列として読み、保存されていなかったgeometryはunknownとして扱います。架空の物理座標や単位を補いません。
 
 readerはfield用metadataか、宣言と配列のshape・sample ID軸・成分・帯・supportが対応するかを確認します。別用途のJSONや壊れたNPYを物理fieldとして成功扱いしません。field値の全面走査や別のhash契約は追加せず、NPYの部分読込を維持します。旧NPY metadataのgeometry未記録はNoneに統一します。
+
+source場／保存source係数を入力にする場合も、targetの通常Dataset定義と出力形式を維持します。`data.input`のroot、source/target IDの完全一致、係数NPZの`space`とモデルhash、保存bundleだけでの係数推論は[対応学習ガイド](FIELD_MAPPING.md)を参照してください。

@@ -21,9 +21,11 @@ def _path(root: Path, name: Any, label: str, paths: list[Path]) -> Path:
     return path
 
 
-def _mapping(value: Any, label: str) -> dict[str, Any]:
+def _mapping(value: Any, label: str, *, keys: set[str] | None = None) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise ValueError(f"{label} must be a mapping.")
+    if keys is not None and (unknown := set(value) - keys):
+        raise ValueError(f"Unknown {label} settings: {sorted(unknown, key=str)}")
     return dict(value)
 
 
@@ -58,8 +60,8 @@ def _table(path: Path) -> pd.DataFrame:
 def _columns(value: Any, label: str) -> tuple[str, ...]:
     if not isinstance(value, (list, tuple)) or not value:
         raise ValueError(f"{label} must explicitly name the condition columns in order.")
-    columns = tuple(str(name) for name in value)
-    if any(not name for name in columns) or len(columns) != len(set(columns)):
+    columns = tuple(value)
+    if any(not isinstance(name, str) or not name.strip() for name in columns) or len(columns) != len(set(columns)):
         raise ValueError(f"{label} must contain non-empty unique names.")
     return columns
 
@@ -75,10 +77,12 @@ def _sample_table(
             "sample_id",
             "array_index",
         )
-    samples = _mapping(manifest.get("samples"), "samples")
+    samples = _mapping(manifest.get("samples"), "samples", keys={"path", "id_column", "index_column"})
     frame = _table(_path(root, samples.get("path"), "samples.path", paths))
-    id_column = str(samples.get("id_column", "sample_id"))
-    index_column = str(samples.get("index_column", "array_index"))
+    id_column = samples.get("id_column", "sample_id")
+    index_column = samples.get("index_column", "array_index")
+    if any(not isinstance(name, str) or not name.strip() for name in (id_column, index_column)):
+        raise ValueError("Sample ID and index column names must be non-empty strings.")
     if id_column not in frame or frame.empty:
         raise ValueError("samples must contain a non-empty ID column.")
     ids = frame[id_column].astype(str)
@@ -114,6 +118,11 @@ def _conditions(
         return None, ()
     config = _mapping(config, "conditions")
     format_name = config.get("format", "table")
+    _mapping(
+        config,
+        "conditions",
+        keys={"format", "path", "columns"} if format_name == "npy" else {"format", "path", "columns", "id_column"},
+    )
     defaults = expected_columns
     values = None
     if format_name == "npy":
@@ -132,7 +141,9 @@ def _conditions(
     frame = samples
     if config.get("path"):
         frame = _table(_path(root, config["path"], "conditions.path", paths))
-        condition_id = str(config.get("id_column", id_column))
+        condition_id = config.get("id_column", id_column)
+        if not isinstance(condition_id, str) or not condition_id.strip():
+            raise ValueError("conditions.id_column must be a non-empty string.")
         if condition_id not in frame or frame[condition_id].duplicated().any():
             raise ValueError("Condition table needs unique sample IDs.")
         frame = frame.set_index(condition_id)
@@ -159,11 +170,14 @@ def _resolve_geometry(
     domain_mask: np.ndarray | None,
 ) -> DomainSpec:
     geometry = _mapping(config, "geometry")
+    if "kind" in geometry and "name" in geometry:
+        raise ValueError("Specify geometry.kind or geometry.name, not both.")
     geometry["name"] = geometry.pop("kind", geometry.get("name", ""))
     axes = geometry.get("axes", {})
     if not isinstance(axes, Mapping):
         raise ValueError("geometry.axes must be a mapping.")
-    geometry["axes"] = {}
+    if "axes" in geometry or geometry["name"] != "mesh":
+        geometry["axes"] = {}
     for name, raw_axis in axes.items():
         axis = _mapping(raw_axis, f"geometry.axes.{name}")
         if axis.get("path"):
@@ -172,7 +186,9 @@ def _resolve_geometry(
             axis["values"] = _array(_path(root, axis.pop("path"), f"geometry.axes.{name}.path", paths))
         geometry["axes"][name] = axis
     if geometry["name"] == "mesh":
-        mesh = _mapping(geometry.pop("mesh", {}), "geometry.mesh")
+        mesh = _mapping(geometry.pop("mesh", {}), "geometry.mesh", keys={"path"})
+        if "mesh_path" in geometry and mesh.get("path") is not None:
+            raise ValueError("Specify geometry.mesh.path or geometry.mesh_path, not both.")
         mesh_path = mesh.get("path", geometry.pop("mesh_path", None))
         if mesh_path:
             if any(key in geometry for key in ("vertices", "faces")):
@@ -182,6 +198,8 @@ def _resolve_geometry(
                 embedded = arrays["vertex_mask"] if "vertex_mask" in arrays else arrays.get("mask")
         else:
             embedded = None
+        if {"vertex_mask_path", "mask_path"} <= set(geometry) or {"vertex_mask", "mask"} <= set(geometry):
+            raise ValueError("Specify one mesh mask array or path, not duplicate aliases.")
         mask_path = geometry.pop("vertex_mask_path", geometry.pop("mask_path", None))
         mask_inline = geometry.pop("vertex_mask", geometry.pop("mask", None))
         if mask_path is not None and mask_inline is not None:

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from inspect import signature
+from numbers import Integral
 from pathlib import Path
 from typing import Any, Mapping
 
-from ml_platform_core.config import OverrideInput, apply_overrides, deep_merge, load_yaml, parse_overrides
+import yaml
+from ml_platform_core.config import OverrideInput, apply_overrides, deep_merge, parse_overrides
 from ml_platform_core.config_validation import validate_run_config
 
 
@@ -18,7 +21,16 @@ def load_config(
     Business defaults and path resolution use the same ``run_task`` policy as a
     directly supplied dictionary. Inline data descriptions stay in that dictionary.
     """
-    cfg = deep_merge({} if profile_path is None else load_yaml(profile_path), load_yaml(config_path))
+
+    def read_mapping(path):
+        value = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+        if not isinstance(value, dict):
+            raise ValueError(f"Run/profile YAML must contain a mapping: {path}")
+        return value
+
+    if overrides is not None and not isinstance(overrides, (dict, list)):
+        raise TypeError("overrides must be a mapping, a list of key=value strings, or None")
+    cfg = deep_merge({} if profile_path is None else read_mapping(profile_path), read_mapping(config_path))
     cfg = apply_overrides(cfg, overrides)
     cfg["_meta"] = {
         "task_config": str(config_path),
@@ -31,6 +43,13 @@ def load_config(
 
 def cfg_get(cfg: Mapping[str, Any] | None, key: str, default: Any = None) -> Any:
     return default if cfg is None else cfg.get(key, default)
+
+
+def integer_parameter(value: Any, label: str) -> int:
+    """Validate an actual integer without truncating a float or parsing text."""
+    if isinstance(value, bool) or not isinstance(value, Integral):
+        raise ValueError(f"{label} must be an integer")
+    return int(value)
 
 
 def component_config(cfg: Mapping[str, Any]) -> dict[str, Any]:
@@ -64,16 +83,32 @@ def constructor_config(cfg: Mapping[str, Any] | None, parameters: dict[str, Any]
 
     Defaults live in the selected implementation's signature. This helper owns no
     method defaults or parameter registry, and never changes a caller's mapping.
+    Explicit cfg options override keywords, except contradictory seed aliases.
     """
     values = {key: value for key, value in parameters.items() if key not in {"self", "cfg", "__class__"}}
+    if cfg is not None and (not isinstance(cfg, Mapping) or ("name" in cfg and cfg["name"] != name)):
+        raise ValueError(f"{name} constructor cfg must be a mapping with the same component name")
     options = {} if cfg is None else component_config({"name": name, **cfg})
     options.pop("name", None)
     unknown = set(options) - set(values)
     if unknown:
         raise ValueError(f"Unknown {name} parameters: {sorted(unknown)}")
     if "seed" in values and "seed" not in options and options.get("random_state") is not None:
+        if values["seed"] is not None and values["seed"] != options["random_state"]:
+            raise ValueError("seed and random_state must match when both are provided")
         options["seed"] = options["random_state"]
-    return {"name": name, **deepcopy(values), **options}
+    resolved = {"name": name, **deepcopy(values), **options}
+    defaults = {
+        key: parameter.default for key, parameter in signature(type(parameters["self"]).__init__).parameters.items()
+    }
+    _boolean_parameters(resolved, defaults, name)
+    return resolved
+
+
+def _boolean_parameters(options: Mapping[str, Any], defaults: Mapping[str, Any], name: str) -> None:
+    for key, default in defaults.items():
+        if isinstance(default, bool) and key in options and not isinstance(options[key], bool):
+            raise ValueError(f"{name}.{key} must be boolean, not a string or number")
 
 
 def resolve_component(value: Mapping[str, Any] | None, kind: str, seed: int = 42) -> dict[str, Any]:
@@ -93,6 +128,7 @@ def resolve_component(value: Mapping[str, Any] | None, kind: str, seed: int = 42
     unknown = set(options) - set(defaults)
     if unknown:
         raise ValueError(f"Unknown {name} parameters: {sorted(unknown)}")
+    _boolean_parameters(options, defaults, name)
     if "seed" in defaults and "seed" not in options and "random_state" not in options:
         defaults["seed"] = seed
     elif "seed" in defaults and "seed" not in options and options.get("random_state") is not None:
@@ -107,6 +143,8 @@ def resolve_representation(config: Mapping[str, Any], *, seed: int = 42) -> dict
     unknown = set(config) - set(kinds)
     if unknown:
         raise ValueError(f"Unknown representation keys: {sorted(unknown)}")
+    if any(kind in config and config[kind] is None for kind in kinds):
+        raise TypeError("Explicit representation components must be mappings, not null; omit them to use defaults")
     return {kind: resolve_component(config.get(kind), kind, seed) for kind in kinds}
 
 

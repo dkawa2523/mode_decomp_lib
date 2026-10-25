@@ -1,6 +1,6 @@
 # 共通coreとSDKの境界
 
-mode 0.9はtabularと同列のcore依存packageです。通常の利用・開発にSDK、ClearML、基盤checkoutは不要です。`uv sync --locked` は [固定core 0.2.1 artifact](../vendor/wheels/core.json) を解決します。
+modeはtabularと同列のcore依存packageです。通常の利用・開発にSDK、ClearML、基盤checkoutは不要です。`uv sync --locked` は [固定core 0.2.1 artifact](../vendor/wheels/core.json) を解決します。
 
 ## coreの再構築
 
@@ -17,8 +17,8 @@ uv lock --refresh-package ml-platform-core
 
 ## SDK統合は後続工程
 
-旧0.5時点の [SDK patch](legacy_0_5/ml_platform_sdk.patch) と [対応core patch](legacy_0_5/ml_platform_core.patch) は履歴です。当時のSDK受入は664 passed / 33 skipped、数値輸送の境界受入5件でした。[旧検証記録](../work/reviews/integration_improvement_validation_20261024.json) に保存しています。
+旧0.5時点のSDK／core patchと過去の受入logは現行buildで使わないため整理しました。現在のmode sourceと旧SDK設定を混在させるprepare scriptも提供しません。
 
-現在のmode sourceと旧SDK設定を混在させるprepare scriptは削除しました。これらのpatchを現在の単体利用の準備として実行しません。SDK再開時は対象基盤revisionを定め、inline入力・自動取込・field schema 2・較正モデル・追加成果物・local/外部Stage分離を一体で反映します。
+SDK再開時は対象基盤revisionを定め、inline入力・自動取込・両側の入力表現・field schema 4・較正モデル・追加成果物・local/外部Stage分離を一体で反映します。source入力の外部snapshot契約を定義するまでは、`data.input`を伴う外部Stage実行を扱いません。
 
 基盤ブランチへのmerge、実ClearML/Agent/Registry/Draftの受入は未実施です。単体wheelの受入結果と区別します。[現在地](../docs/IMPLEMENTATION_STATUS.md)を参照してください。

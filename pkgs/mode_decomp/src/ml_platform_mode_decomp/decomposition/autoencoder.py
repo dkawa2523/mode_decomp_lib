@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from copy import deepcopy
 from typing import Any, Mapping, Sequence
@@ -13,9 +13,10 @@ from ml_platform_mode_decomp.geometry import DomainSpec, validate_decomposer_com
 
 from .base import BaseDecomposer, _combine_masks, _normalize_mask, parse_bool, require_cfg
 
-import torch
-from torch import nn
-from torch.utils.data import DataLoader, TensorDataset
+# This module is loaded only when the optional torch backend is selected.
+import torch  # pyrefly: ignore[missing-import]
+from torch import nn  # pyrefly: ignore[missing-import]
+from torch.utils.data import DataLoader, TensorDataset  # pyrefly: ignore[missing-import]
 
 _MASK_POLICIES = {"error", "zero_fill"}
 _NORMALIZE_OPTIONS = {"none", "standardize"}
@@ -23,9 +24,9 @@ _NORMALIZE_OPTIONS = {"none", "standardize"}
 
 def _parse_int_list(value: Any, label: str) -> list[int]:
     if isinstance(value, (list, tuple, np.ndarray)):
-        items = [int(v) for v in value]
+        items = [integer_parameter(v, label) for v in value]
     elif isinstance(value, (int, np.integer)):
-        items = [int(value)]
+        items = [integer_parameter(value, label)]
     else:
         raise ValueError(f"decompose.{label} must be int or list of int for autoencoder")
     if not items or any(item <= 0 for item in items):
@@ -135,7 +136,7 @@ class AutoencoderDecomposer(BaseDecomposer[np.ndarray]):
         self._mask_policy = str(require_cfg(cfg, "mask_policy", label="decompose"))
         if self._mask_policy not in _MASK_POLICIES:
             raise ValueError(f"decompose.mask_policy must be one of {_MASK_POLICIES}, got {self._mask_policy}")
-        self._latent_dim = int(require_cfg(cfg, "latent_dim", label="decompose"))
+        self._latent_dim = integer_parameter(require_cfg(cfg, "latent_dim", label="decompose"), "latent_dim")
         if self._latent_dim <= 0:
             raise ValueError("decompose.latent_dim must be > 0 for autoencoder")
 
@@ -151,10 +152,10 @@ class AutoencoderDecomposer(BaseDecomposer[np.ndarray]):
             raise ValueError("decompose.hidden_channels must be non-empty for autoencoder")
 
         self._activation = str(cfg["activation"])
-        self._epochs = int(cfg["epochs"])
+        self._epochs = integer_parameter(cfg["epochs"], "epochs")
         if self._epochs <= 0:
             raise ValueError("decompose.epochs must be > 0 for autoencoder")
-        self._batch_size = int(cfg["batch_size"])
+        self._batch_size = integer_parameter(cfg["batch_size"], "batch_size")
         if self._batch_size <= 0:
             raise ValueError("decompose.batch_size must be > 0 for autoencoder")
         self._lr = float(cfg["lr"])
@@ -164,8 +165,12 @@ class AutoencoderDecomposer(BaseDecomposer[np.ndarray]):
         if self._weight_decay < 0:
             raise ValueError("decompose.weight_decay must be >= 0 for autoencoder")
         self._device_name = str(cfg["device"])
-        self._seed = cfg["seed"]
-        self._max_train_samples = cfg["max_train_samples"]
+        self._seed = None if cfg["seed"] is None else integer_parameter(cfg["seed"], "seed")
+        self._max_train_samples = (
+            None
+            if cfg["max_train_samples"] is None
+            else integer_parameter(cfg["max_train_samples"], "max_train_samples")
+        )
 
         self._model: _ConvAutoencoder | None = None
         self._grid_shape: tuple[int, int] | None = None

@@ -196,11 +196,13 @@ def test_objective_namespace_defaults_and_explicit_mask_settings_are_unambiguous
     }
     cfg = resolve_config(raw)
     assert cfg["metrics"]["reference"] == "hidden"
-    assert cfg["metrics"]["_legacy_hidden_aliases"] is True
+    assert cfg["metrics"]["names"] == ["hidden_rmse", "hidden_mae"]
     explicit = {**raw, "metrics": {"reference": "hidden", "names": ["hidden_rmse"]}}
-    assert resolve_config(explicit)["metrics"]["_legacy_hidden_aliases"] is False
+    assert resolve_config(explicit)["metrics"]["names"] == ["hidden_rmse"]
     with pytest.raises(ValueError, match="reference: hidden"):
         resolve_config({**raw, "metrics": {"reference": "hidden", "names": ["field_rmse"]}})
+    with pytest.raises(ValueError, match="reference: hidden"):
+        resolve_config({**raw, "metrics": {"names": ["field_rmse"]}})
     with pytest.raises(ValueError, match="random mask"):
         resolve_config({**raw, "analysis": {**raw["analysis"], "observed_fraction": 0.5}})
 

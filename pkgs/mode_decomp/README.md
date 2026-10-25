@@ -1,13 +1,21 @@
-# Mode Decomposition 0.10
+# Mode Decomposition 0.11
 
 A standalone package for field decomposition, condition-to-field prediction and missing-field reconstruction. Requires Python 3.11+ and `ml-platform-core>=0.2.1,<0.3`; no execution SDK or ClearML is required.
 
+The same `FieldSurrogate` also accepts paired fields with `fit(target, inputs=source)` and an `input_representation` alongside the target `representation`. The two fixed geometries may differ. `data.input` selects fields or checked saved Z coefficients for the existing pipeline, surrogate analysis and inference tasks. Source/target IDs must match exactly; field input representations are fitted inside each training partition. Saved coefficient inputs instead use their fixed external representation. The consumer ZIP includes `docs/FIELD_MAPPING.md` and a field mapping example.
+
 ```shell
-python -m pip install ml_platform_core-0.2.1-py3-none-any.whl ml_platform_mode_decomp-0.10.4-py3-none-any.whl
+python -m pip install ml_platform_core-0.2.1-py3-none-any.whl ml_platform_mode_decomp-0.11.0-py3-none-any.whl
 python -m ml_platform_mode_decomp run.yaml
 ```
 
 One run YAML can contain input fields, geometry, optional conditions and numerical methods. A profile and separate dataset manifest are optional. CSV/scattered formats are converted once into retained run-local canonical data before the normal workflows execute.
+
+Steady-field representations also include `tucker` (shared spatial/component factors and one core per sample) and
+`quadratic_manifold` (joint POD coordinates with an orthogonal quadratic decoder correction). Both use NumPy/SciPy,
+require complete training observations on their fixed domain, and support partially observed queries. Tucker uses a
+rectangular tensor-product grid; quadratic manifolds also support fixed masked grids and meshes. Their existing
+coefficient codecs, regressors, model bundles and held-out imputation workflows remain shared.
 
 ## Array API
 
@@ -52,8 +60,8 @@ Surrogate calibration consumes prediction batches once. Simultaneous calibration
 
 The bundle contains geometry, transforms, coefficient layout, components/units, condition schema, regressor and optional calibration. Normal inference needs no training data. Optional backends use wavelet/pod/torch/mtgp/gbdt extras.
 
-New models use field schema 3. Older schemas 1/2 retain their original validation and coefficient ordering; actual 0.7.1 and 0.9.0 bundles cover representations, surrogates, calibrated bands and geometry-dependent methods. Independent POD/Gappy/pod_svd retain each component's mode count, including zero modes for constant centered profiles. Numerical backend versions remain required, including the same sklearn version for stored sklearn estimators. Package provenance does not require an exact mode/core patch version.
+New models use field schema 4. Older schemas 1/2/3 retain their original validation and coefficient ordering; actual 0.7.1 and 0.9.0 bundles cover representations, surrogates, calibrated bands and geometry-dependent methods. Independent POD/Gappy/pod_svd retain each component's mode count, including zero modes for constant centered profiles. Numerical backend versions remain required, including the same sklearn version for stored sklearn estimators. Package provenance does not require an exact mode/core patch version.
 
 The source checkout includes the fixed core dependency. `uv sync --locked` needs no platform checkout; `scripts/build_wheels.py` stages and builds mode only. Core rebuilding is a separate maintainer operation in `integration/build_core.py`.
 
-SDK integration remains deferred; historical SDK acceptance applies to mode 0.5 only. Continuous/adaptive HPO, repeated outer nested CV, 3D scattered interpolation, changing geometry and arbitrary PDE boundary conditions remain outside this release.
+SDK integration remains deferred. Continuous/adaptive HPO, repeated outer nested CV, 3D scattered interpolation, changing geometry and arbitrary PDE boundary conditions remain outside this release.

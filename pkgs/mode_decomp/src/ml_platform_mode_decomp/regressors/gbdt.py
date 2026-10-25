@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Mapping
 
@@ -38,9 +38,9 @@ def _resolve_random_state(cfg: Mapping[str, Any]) -> int | None:
     seed = cfg["seed"]
     random_state = cfg["random_state"]
     if seed is not None:
-        seed = int(seed)
+        seed = integer_parameter(seed, "seed")
     if random_state is not None:
-        random_state = int(random_state)
+        random_state = integer_parameter(random_state, "random_state")
     if seed is not None and random_state is not None and seed != random_state:
         raise ValueError("seed and random_state must match when both are provided")
     return seed if seed is not None else random_state
@@ -94,10 +94,10 @@ class XGBRegressor(BaseRegressor):
         self._scaler = StandardScaler() if self._cond_scaler_name == "standardize" else None
         self._random_state = _resolve_random_state(cfg)
 
-        self._n_estimators = int(cfg["n_estimators"])
+        self._n_estimators = integer_parameter(cfg["n_estimators"], "n_estimators")
         if self._n_estimators <= 0:
             raise ValueError("n_estimators must be > 0")
-        self._max_depth = int(cfg["max_depth"])
+        self._max_depth = integer_parameter(cfg["max_depth"], "max_depth")
         if self._max_depth <= 0:
             raise ValueError("max_depth must be > 0")
         self._learning_rate = _validate_positive(float(cfg["learning_rate"]), "learning_rate")
@@ -112,7 +112,7 @@ class XGBRegressor(BaseRegressor):
         self._tree_method = str(cfg["tree_method"]).strip() or "auto"
         self._n_jobs = cfg["n_jobs"]
         if self._n_jobs is not None:
-            self._n_jobs = int(self._n_jobs)
+            self._n_jobs = integer_parameter(self._n_jobs, "n_jobs")
 
         self._model: IndependentMultiOutputWrapper | None = None
         self._target_dim: int | None = None
@@ -203,34 +203,35 @@ class LGBMRegressor(BaseRegressor):
         self._scaler = StandardScaler() if self._cond_scaler_name == "standardize" else None
         self._random_state = _resolve_random_state(cfg)
 
-        self._n_estimators = int(cfg["n_estimators"])
+        self._n_estimators = integer_parameter(cfg["n_estimators"], "n_estimators")
         if self._n_estimators <= 0:
             raise ValueError("n_estimators must be > 0")
         self._learning_rate = _validate_positive(float(cfg["learning_rate"]), "learning_rate")
-        self._max_depth = int(cfg["max_depth"])
+        self._max_depth = integer_parameter(cfg["max_depth"], "max_depth")
         if self._max_depth == 0 or self._max_depth < -1:
             raise ValueError("max_depth must be -1 or > 0")
-        self._num_leaves = int(cfg["num_leaves"])
+        self._num_leaves = integer_parameter(cfg["num_leaves"], "num_leaves")
         if self._num_leaves < 2:
             raise ValueError("num_leaves must be >= 2")
         self._subsample = _coerce_fraction(cfg["subsample"], "subsample")
-        self._subsample_freq = int(
-            (1 if self._subsample < 1.0 else 0) if cfg["subsample_freq"] is None else cfg["subsample_freq"]
+        self._subsample_freq = integer_parameter(
+            (1 if self._subsample < 1.0 else 0) if cfg["subsample_freq"] is None else cfg["subsample_freq"],
+            "subsample_freq",
         )
         if self._subsample_freq < 0:
             raise ValueError("subsample_freq must be >= 0")
         if self._subsample < 1.0 and self._subsample_freq == 0:
             raise ValueError("subsample < 1 requires subsample_freq > 0")
         self._colsample_bytree = _coerce_fraction(cfg["colsample_bytree"], "colsample_bytree")
-        self._min_child_samples = int(cfg["min_child_samples"])
+        self._min_child_samples = integer_parameter(cfg["min_child_samples"], "min_child_samples")
         if self._min_child_samples <= 0:
             raise ValueError("min_child_samples must be > 0")
         self._reg_lambda = _validate_non_negative(float(cfg["reg_lambda"]), "reg_lambda")
         self._boosting_type = str(cfg["boosting_type"]).strip() or "gbdt"
         self._n_jobs = cfg["n_jobs"]
         if self._n_jobs is not None:
-            self._n_jobs = int(self._n_jobs)
-        self._verbosity = int(cfg["verbosity"])
+            self._n_jobs = integer_parameter(self._n_jobs, "n_jobs")
+        self._verbosity = integer_parameter(cfg["verbosity"], "verbosity")
 
         self._model: IndependentMultiOutputWrapper | None = None
         self._target_dim: int | None = None
@@ -321,13 +322,13 @@ class CatBoostRegressor(BaseRegressor):
         self._scaler = StandardScaler() if self._cond_scaler_name == "standardize" else None
         self._random_state = _resolve_random_state(cfg)
 
-        self._n_estimators = int(cfg["n_estimators"])
+        self._n_estimators = integer_parameter(cfg["n_estimators"], "n_estimators")
         if self._n_estimators <= 0:
             raise ValueError("n_estimators must be > 0")
         depth_value = cfg["depth"]
         if depth_value is None:
             depth_value = cfg["max_depth"]
-        self._depth = int(depth_value)
+        self._depth = integer_parameter(depth_value, "depth_value")
         if self._depth <= 0:
             raise ValueError("depth must be > 0")
         self._learning_rate = _validate_positive(float(cfg["learning_rate"]), "learning_rate")
@@ -337,7 +338,7 @@ class CatBoostRegressor(BaseRegressor):
         self._verbose = bool(cfg["verbose"])
         self._thread_count = cfg["thread_count"]
         if self._thread_count is not None:
-            self._thread_count = int(self._thread_count)
+            self._thread_count = integer_parameter(self._thread_count, "thread_count")
 
         self._model: IndependentMultiOutputWrapper | None = None
         self._target_dim: int | None = None

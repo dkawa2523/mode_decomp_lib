@@ -15,6 +15,7 @@ import pandas as pd
 
 from ..data.schema import FieldDataset
 from ..data.splitting import cross_validation_folds
+from ..inputs import subset_inputs
 from ..evaluation import EvaluationReport, score_surrogate, mean_field_prediction
 from ..policy import METRIC_DIRECTIONS, candidate_config
 from ..surrogate import FieldSurrogate
@@ -112,13 +113,23 @@ def prepare_folds(training, config, options, *, source_indices=None, data=None):
     return PreparedSearch(prepared, prepare_objective(pooled_reference, options, data=data))
 
 
-def _trial_report(candidate: dict, training: FieldDataset, prepared: PreparedSearch, options: dict) -> EvaluationReport:
+def _trial_report(
+    candidate: dict, training: FieldDataset, prepared: PreparedSearch, options: dict, *, inputs=None
+) -> EvaluationReport:
     folds = prepared.folds
     reports = []
     for fold in folds:
         fit = training._subset_validated(fold.fit_positions)
-        model = FieldSurrogate(candidate).fit(fit)
-        evaluated = score_surrogate(model, fit, fold.reference, options, prepared=fold.evaluation)
+        fit_inputs = subset_inputs(inputs, fold.fit_positions)
+        validation_inputs = subset_inputs(inputs, fold.validation_positions)
+        model = FieldSurrogate(candidate)
+        if fit_inputs is None:
+            model.fit(fit)
+        else:
+            model.fit(fit, inputs=fit_inputs)
+        evaluated = score_surrogate(
+            model, fit, fold.reference, options, prepared=fold.evaluation, inputs=validation_inputs
+        )
         # Retain sufficient sample losses, not fold predictions or A/Z arrays.
         evaluated.predictions = None
         reports.append(evaluated)
@@ -128,11 +139,17 @@ def _trial_report(candidate: dict, training: FieldDataset, prepared: PreparedSea
         [np.full(len(fold.validation_positions), fold.record["fold"]) for fold in folds]
     )
     report.summary["analysis_kind"] = "surrogate_cv"
+    if inputs is not None:
+        report.summary["input_representation_fit_scope"] = (
+            "fixed_input_representation" if hasattr(inputs, "coefficients") else "training_partition"
+        )
 
     return report
 
 
-def search_candidate(cfg: dict, candidate: dict, training: FieldDataset, options: dict, *, folds=None) -> SearchResult:
+def search_candidate(
+    cfg: dict, candidate: dict, training: FieldDataset, options: dict, *, folds=None, inputs=None
+) -> SearchResult:
     """The caller supplies outer train only; no final-test Dataset is accepted."""
     settings = cfg["tuning"]
     folds = folds if folds is not None else prepare_folds(training, settings["cv"], options, data=cfg["data"])
@@ -145,7 +162,7 @@ def search_candidate(cfg: dict, candidate: dict, training: FieldDataset, options
         started = perf_counter()
         row = {"trial": trial, "candidate_id": candidate["id"], "configuration": json.dumps(proposed, sort_keys=True)}
         try:
-            report = _trial_report(proposed, training, folds, options)
+            report = _trial_report(proposed, training, folds, options, inputs=inputs)
             score = report.metrics.get(metric, np.nan)
             if not np.isfinite(score):
                 raise ValueError(f"CV selection metric {metric} must be finite")

@@ -1,0 +1,13 @@
+task: mode_decomp_infer
+run:
+  name: field_mapping_inference
+data:
+  input:
+    kind: field
+    local_path: data/field_mapping/new_source
+    source_manifest: field_dataset.yaml
+model:
+  artifact_path: null
+  info_path: null
+output:
+  prediction_name: predictions.npz

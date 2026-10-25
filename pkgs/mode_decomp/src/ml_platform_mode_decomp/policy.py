@@ -36,18 +36,158 @@ METRIC_DIRECTIONS = {
 }
 
 
+def _keys(value: Any, allowed: set[str], section: str) -> None:
+    if not isinstance(value, dict):
+        raise ValueError(f"{section} must be a mapping")
+    unknown = set(value) - allowed
+    if unknown:
+        raise ValueError(f"Unknown {section} settings: {sorted(unknown, key=str)}")
+
+
+def _validate_boundary(cfg: dict) -> None:
+    """Check run vocabulary and task ownership before applying any defaults."""
+    _keys(
+        cfg,
+        {
+            "task",
+            "run",
+            "runtime",
+            "data",
+            "split",
+            "model",
+            "candidate",
+            "representation",
+            "metrics",
+            "analysis",
+            "report",
+            "output",
+            "tuning",
+            "uncertainty",
+            "import",
+            "stage_inputs",
+            "_meta",
+        },
+        "run config",
+    )
+    task = cfg["task"]
+    if "data" in cfg:
+        from .data.input_spec import validate_data_settings
+
+        validate_data_settings(cfg["data"], condition_only=task == "mode_decomp_infer")
+    vocabularies = {
+        "run": {"name", "seed", "stage"},
+        "runtime": {"output_dir", "execution_context", "use_clearml"},
+        "output": {"prediction_name", "upload_plots"},
+        "report": {"enabled"},
+        "metrics": {"reference", "names", "channel_scales", "channel_weights", "sample_weight_column"},
+        "analysis": {
+            "kind",
+            "split_seeds",
+            "model_seeds",
+            "bootstrap_samples",
+            "confidence_level",
+            "allow_failures",
+            "save_models",
+            "bootstrap_group_column",
+            "observation_mask",
+            "observed_fraction",
+            "observation_pattern",
+            "mask_seed",
+            "modes",
+            "components",
+            "scattered",
+        },
+        "stage_inputs": {"split", "canonical_dataset", "candidate_results", "candidate_id"},
+        "_meta": None,
+        "data": None,
+        "split": None,
+        "representation": None,
+        "tuning": None,
+        "uncertainty": None,
+        "import": None,
+        "candidate": None,
+    }
+    for section, allowed in vocabularies.items():
+        if section in cfg:
+            _keys(
+                cfg[section],
+                set(cfg[section]) if allowed is None and isinstance(cfg[section], dict) else allowed or set(),
+                section,
+            )
+    training = task in {"mode_decomp_pipeline", "mode_decomp_stage"}
+    comparing = task == "mode_decomp_analysis"
+    direct = task == "mode_decomp_representation"
+    model_keys = (
+        {"candidates", "selection_metric"}
+        if training
+        else {"candidates"}
+        if comparing
+        else {"artifact_path", "info_path"}
+        if task == "mode_decomp_infer"
+        else set()
+    )
+    if "model" in cfg:
+        _keys(cfg["model"], model_keys, "model")
+    if (
+        "candidate" in cfg
+        and "candidates" in cfg.get("model", {})
+        and not (task == "mode_decomp_stage" and cfg.get("run", {}).get("stage") == "train_candidate")
+    ):
+        raise ValueError("Specify candidate or model.candidates, not both")
+    permitted = {
+        "representation": direct,
+        "analysis": comparing or direct,
+        "split": training or comparing,
+        "candidate": training,
+        "metrics": training or comparing or direct,
+        "import": task == "mode_decomp_import",
+        "stage_inputs": task == "mode_decomp_stage",
+        "output": training or task == "mode_decomp_infer",
+    }
+    for section, applicable in permitted.items():
+        if not applicable and cfg.get(section):
+            raise ValueError(f"{section} settings are not used by {task}; remove them")
+    if direct and "analysis" in cfg:
+        _keys(cfg["analysis"], {"modes", "components", "scattered"}, "direct representation analysis")
+    if "stage" in cfg.get("run", {}) and task != "mode_decomp_stage":
+        raise ValueError("run.stage is available only for mode_decomp_stage")
+    if comparing:
+        kind = cfg.get("analysis", {}).get("kind", "surrogate")
+        imputation_only = {"observation_mask", "observed_fraction", "observation_pattern", "mask_seed"}
+        if kind != "imputation" and imputation_only.intersection(cfg.get("analysis", {})):
+            raise ValueError("analysis observation/mask settings are available only for imputation")
+        if "split_seeds" in cfg.get("analysis", {}) and "seed" in cfg.get("split", {}):
+            if cfg["analysis"]["split_seeds"] != [cfg["split"]["seed"]]:
+                raise ValueError("analysis.split_seeds conflicts with split.seed; specify the study seeds in one place")
+        if kind != "surrogate":
+            for candidate in cfg.get("model", {}).get("candidates", []):
+                if isinstance(candidate, dict) and any(
+                    key in candidate for key in ("regression", "input_representation")
+                ):
+                    raise ValueError(
+                        "Representation/imputation analysis candidates do not use regression or input_representation"
+                    )
+
+
 def candidate_config(value: dict, seed: int) -> dict:
-    if not isinstance(value, dict) or set(value) - {"id", "representation", "regression"}:
-        raise ValueError("Each candidate requires id, representation, and regression settings")
+    if not isinstance(value, dict) or set(value) - {"id", "representation", "regression", "input_representation"}:
+        raise ValueError("Each candidate accepts id, representation, regression and optional input_representation")
     candidate_id = value.get("id")
     if not isinstance(candidate_id, str) or not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]*", candidate_id):
         raise ValueError("Candidate id must contain only letters, digits, underscores, and hyphens")
-    rep = value.get("representation") or {}
-    return {
+    rep = value.get("representation", {})
+    if "regression" in value and value["regression"] is None:
+        raise ValueError("candidate.regression must be a mapping; omit it to use defaults")
+    if "input_representation" in value and value["input_representation"] is None:
+        raise ValueError("candidate.input_representation must be a mapping; omit it for condition inputs")
+    normalized = {
         "id": candidate_id,
         "representation": resolve_representation(rep, seed=seed),
         "regression": resolve_component(value.get("regression"), "regression", seed),
     }
+    if value.get("input_representation") is not None:
+        normalized["input_representation"] = resolve_representation(value["input_representation"], seed=seed)
+    return normalized
 
 
 def _resolve_tuning(cfg: dict, seed: int) -> dict:
@@ -103,10 +243,10 @@ def _resolve_tuning(cfg: dict, seed: int) -> dict:
         validate_split_settings(cv, cross_validation=True)
     settings["cv"] = cv
     spaces = settings["search_spaces"]
-    candidates = {c["id"] for c in cfg["model"]["candidates"]}
-    if not isinstance(spaces, dict) or set(spaces) - candidates:
+    candidates = {c["id"]: c for c in cfg["model"]["candidates"]}
+    if not isinstance(spaces, dict) or set(spaces) - set(candidates):
         raise ValueError("tuning.search_spaces must map planned candidate IDs to parameter choices")
-    path_pattern = r"(?:regression|representation\.(?:field_preprocess|decomposition|codec|coeff_post))\.params\.[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*"
+    path_pattern = r"(?:regression|(?:representation|input_representation)\.(?:field_preprocess|decomposition|codec|coeff_post))\.params\.[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*"
     for candidate_id in candidates:
         space = spaces.get(candidate_id, {})
         if not isinstance(space, dict):
@@ -114,6 +254,8 @@ def _resolve_tuning(cfg: dict, seed: int) -> dict:
         for path, choices in space.items():
             if not isinstance(path, str) or not re.fullmatch(path_pattern, path):
                 raise ValueError(f"Search path must name a component parameter: {path!r}")
+            if path.startswith("input_representation.") and "input_representation" not in candidates[candidate_id]:
+                raise ValueError("Input representation tuning requires a field input representation on the candidate")
             if not isinstance(choices, list) or not choices:
                 raise ValueError(f"Search choices for {path} must be a non-empty list")
             try:
@@ -127,6 +269,33 @@ def _resolve_tuning(cfg: dict, seed: int) -> dict:
         if math.prod(len(choices) for choices in space.values()) < count:
             raise ValueError(f"Candidate {candidate_id!r} has fewer unique configurations than tuning.n_trials")
     return settings
+
+
+def _resolve_input(cfg: dict) -> None:
+    candidates = cfg.get("model", {}).get("candidates", [])
+    has_encoder = any(candidate.get("input_representation") is not None for candidate in candidates)
+    if cfg["data"].get("input") is None:
+        if has_encoder:
+            raise ValueError("candidate.input_representation requires data.input.kind: field")
+        return
+    if cfg["task"] not in {
+        "mode_decomp_pipeline",
+        "mode_decomp_stage",
+        "mode_decomp_infer",
+        "mode_decomp_analysis",
+    } or (cfg["task"] == "mode_decomp_analysis" and cfg["analysis"]["kind"] != "surrogate"):
+        raise ValueError("data.input is available for surrogate training, analysis and inference")
+    from .inputs import normalize_input_settings
+
+    settings = normalize_input_settings(cfg["data"], require_artifact=cfg["task"] != "mode_decomp_infer")
+    assert settings is not None
+    cfg["data"]["input"] = settings
+    if cfg["task"] == "mode_decomp_infer":
+        return  # Input kind and the saved representation are checked after loading the bundle.
+    if settings["kind"] == "field" and any(candidate.get("input_representation") is None for candidate in candidates):
+        raise ValueError("Every field-input candidate requires input_representation")
+    if settings["kind"] == "coefficients" and has_encoder:
+        raise ValueError("Coefficient inputs use their frozen model_artifact; do not also set input_representation")
 
 
 def _resolve_uncertainty(cfg: dict, seed: int) -> dict:
@@ -198,6 +367,10 @@ def _additional_analysis(cfg: dict) -> None:
         raise ValueError(
             "Direct decomposition uses analysis.modes/components/scattered; kind and holdout settings belong to mode_decomp_analysis"
         )
+    if "modes" in analysis:
+        from .mode_reporting import mode_options
+
+        mode_options(analysis["modes"])
     for name in ("scattered", "components"):
         options = analysis.get(name, {})
         allowed = {"enabled", "method", "params"} if name == "components" else {"enabled"}
@@ -227,6 +400,7 @@ def _additional_analysis(cfg: dict) -> None:
 def resolve_config(cfg: dict) -> dict:
     if not isinstance(cfg, dict) or cfg.get("task") not in TASKS:
         raise ValueError(f"task must be one of {TASKS}")
+    _validate_boundary(cfg)
     validate_run_config(cfg)
     task = cfg["task"]
     training = task in {"mode_decomp_pipeline", "mode_decomp_stage"}
@@ -256,18 +430,13 @@ def resolve_config(cfg: dict) -> dict:
                 f"analysis.observation_mask cannot be combined with explicit random mask settings: {sorted(conflicts)}"
             )
     prefix = {"grid": "field", "observations": "observation", "hidden": "hidden"}[reference]
-    legacy_hidden = reference == "hidden" and supplied_metrics.get(
-        "_legacy_hidden_aliases", "reference" not in supplied_metrics
-    )
     requested_names = supplied_metrics.get("names", [f"{prefix}_rmse", f"{prefix}_mae"])
     selection_metric = cfg.get("model", {}).get("selection_metric", f"{prefix}_rmse")
     allowed_names = {name for name in METRIC_DIRECTIONS if name.startswith(prefix + "_")}
-    if legacy_hidden:
-        allowed_names |= {name for name in METRIC_DIRECTIONS if name.startswith("field_")}  # Legacy hidden scores.
     if (
         not isinstance(requested_names, list)
         or not requested_names
-        or any(name not in allowed_names for name in requested_names)
+        or any(not isinstance(name, str) or name not in allowed_names for name in requested_names)
     ):
         raise ValueError(f"metrics.names must select metrics for reference: {reference}")
     if training and selection_metric not in allowed_names:
@@ -275,7 +444,7 @@ def resolve_config(cfg: dict) -> dict:
     defaults: dict[str, Any] = {
         "run": {"name": "mode_decomp", "seed": 42},
         "runtime": {"output_dir": "outputs"},
-        "data": {"source_manifest": None},
+        "data": {},
         "output": {},
     }
     if training or comparing:
@@ -283,8 +452,6 @@ def resolve_config(cfg: dict) -> dict:
         defaults["model"] = {"selection_metric": selection_metric} if training else {}
     if training or comparing or direct:
         metric_defaults: dict[str, Any] = {"reference": reference, "names": requested_names}
-        if reference == "hidden":
-            metric_defaults["_legacy_hidden_aliases"] = legacy_hidden
         defaults["metrics"] = metric_defaults
     if training or task == "mode_decomp_infer":
         defaults["output"]["prediction_name"] = "predictions.npz"
@@ -327,6 +494,13 @@ def resolve_config(cfg: dict) -> dict:
             raise ValueError("analysis.kind must be representation, surrogate, or imputation")
         if analysis.get("observation_mask") is not None and analysis["kind"] != "imputation":
             raise ValueError("analysis.observation_mask is available only for imputation")
+        for key in ("allow_failures", "save_models"):
+            if not isinstance(analysis[key], bool):
+                raise ValueError(f"analysis.{key} must be boolean")
+        if analysis.get("bootstrap_group_column") is not None and (
+            not isinstance(analysis["bootstrap_group_column"], str) or not analysis["bootstrap_group_column"].strip()
+        ):
+            raise ValueError("analysis.bootstrap_group_column must be a non-empty metadata column")
         for key in ("split_seeds", "model_seeds"):
             values = analysis[key]
             if not isinstance(values, list) or not values or len(set(values)) != len(values):
@@ -336,8 +510,27 @@ def resolve_config(cfg: dict) -> dict:
         count = analysis["bootstrap_samples"]
         if isinstance(count, bool) or not isinstance(count, int) or count < 0:
             raise ValueError("analysis.bootstrap_samples must be a nonnegative integer")
-        if not 0 < analysis["confidence_level"] < 1:
+        if (
+            isinstance(analysis["confidence_level"], bool)
+            or not isinstance(analysis["confidence_level"], (int, float))
+            or not 0 < analysis["confidence_level"] < 1
+        ):
             raise ValueError("analysis.confidence_level must be in (0,1)")
+        if analysis["kind"] == "imputation" and explicit_mask is None:
+            if (
+                isinstance(analysis["observed_fraction"], bool)
+                or not isinstance(analysis["observed_fraction"], (int, float))
+                or not 0 < analysis["observed_fraction"] < 1
+            ):
+                raise ValueError("analysis.observed_fraction must be a number in (0,1)")
+            if analysis["observation_pattern"] not in {"shared", "per_sample"}:
+                raise ValueError("analysis.observation_pattern must be shared or per_sample")
+            if (
+                isinstance(analysis["mask_seed"], bool)
+                or not isinstance(analysis["mask_seed"], int)
+                or not 0 <= analysis["mask_seed"] < 2**32
+            ):
+                raise ValueError("analysis.mask_seed must be an integer in [0,2**32)")
         raw = cfg["model"].get("candidates", [{"id": "pod_ridge"}])
         if not isinstance(raw, list) or not raw:
             raise ValueError("model.candidates must be a non-empty list fixed before analysis")
@@ -377,13 +570,18 @@ def resolve_config(cfg: dict) -> dict:
             cfg["candidate"] = selected
     else:
         cfg["tuning"] = _resolve_tuning(cfg, seed)
+    _resolve_input(cfg)
     cfg["uncertainty"] = _resolve_uncertainty(cfg, seed)
+    if cfg["task"] != "mode_decomp_stage" or cfg["run"].get("stage") != "train_candidate":
+        cfg.pop("candidate", None)  # A shorthand was consumed into model.candidates; it is not another active choice.
     if cfg["task"] == "mode_decomp_import":
         settings = cfg.get("import", {})
         if not isinstance(settings, dict) or set(settings) - {"format", "output_dir", "condition_columns", "geometry"}:
             raise ValueError("import accepts format, output_dir, condition_columns and geometry")
         if settings.get("format") not in {"scattered", "csv", "legacy-npy"} or not settings.get("output_dir"):
             raise ValueError("Import requires import.format: scattered/csv/legacy-npy and a new import.output_dir")
+        if settings["format"] != "legacy-npy" and {"condition_columns", "geometry"}.intersection(settings):
+            raise ValueError("import.condition_columns and import.geometry are available only for legacy-npy")
         if not cfg["data"].get("local_path"):
             raise ValueError("Import requires data.local_path")
         cfg["import"] = {**settings, "output_dir": str(Path(settings["output_dir"]).expanduser().resolve())}

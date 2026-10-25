@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Mapping
 
@@ -103,7 +103,7 @@ class RBFExpansionDecomposer(BaseDecomposer[np.ndarray]):
         if n_centers is None or n_centers == "" or n_centers == "null":
             self._n_centers = None
         else:
-            self._n_centers = int(n_centers)
+            self._n_centers = integer_parameter(n_centers, "n_centers")
             if self._n_centers <= 0:
                 raise ValueError("decompose.n_centers must be > 0 for rbf_expansion")
 
@@ -112,7 +112,7 @@ class RBFExpansionDecomposer(BaseDecomposer[np.ndarray]):
             if self._n_centers is None:
                 raise ValueError("decompose.stride is required for rbf_expansion when n_centers is not set")
             stride = 1
-        self._stride = int(stride)
+        self._stride = integer_parameter(stride, "stride")
         if self._stride < 1:
             raise ValueError("decompose.stride must be >= 1 for rbf_expansion")
         length_scale = require_cfg(cfg, "length_scale", label="decompose")

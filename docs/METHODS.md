@@ -4,7 +4,8 @@
 
 | 区分 | 手法 |
 | --- | --- |
-| 矩形・学習表現 | fft2、fft2_lowpass、dct2、wavelet2d、pswf2d_tensor、pod、pod_svd、dict_learning、autoencoder |
+| 矩形・学習表現 | fft2、fft2_lowpass、dct2、wavelet2d、pswf2d_tensor、pod、pod_svd、tucker、dict_learning、autoencoder |
+| 定常場の非線形学習表現 | quadratic_manifold（grid／meshの全成分を結合） |
 | 円・円環 | zernike、pseudo_zernike、annular_zernike、polar_fft、fourier_bessel、fourier_jacobi、disk_slepian |
 | graph・mesh・球面 | graph_fourier、gappy_graph_fourier、rbf_expansion、laplace_beltrami、spherical_harmonics、spherical_slepian |
 | 欠測・成分分離等 | pod_joint、pod_em、pod_joint_em、gappy_pod、helmholtz、hodge、offset_residual |
@@ -32,6 +33,108 @@
 - Spherical Slepianは重み付きSH行列のSVDから正の離散部分空間だけを白色化し、実効rankを超えるkを拒否します。零固有値を正値へclipしてmodeを存続させません。基底をgeometry・重み・maskへ束縛し、別のgeometryで再利用しません。
 - Quantile/Powerは入力を破壊せず、Power逆変換の定義域外は明示エラーにします。PCA energy=1.0は全成分保持へ変換します。
 - offsetは定数場とeps=0を扱います。
+
+## 定常分布のTuckerとQuadratic manifold
+
+`tucker`と`quadratic_manifold`は、既存の`FieldRepresentation`、条件から予測する`FieldSurrogate`、
+直接分解・比較・pipeline・保存後推論で利用できます。追加packageは不要で、NumPy／SciPyで計算します。
+どちらも**基底／decoderの学習には固定domain内の完全観測を要求**し、学習後は部分観測のqueryを受け付けます。
+学習sample自体の変動欠測には、既存のEM系等を選びます。
+
+### Tucker
+
+sample軸を残し、NHWCのH/W/C軸だけへ共通因子を学習します。raw係数は各sampleの
+`(rank_y, rank_x, rank_component)` coreで、AはそのC順flattenです。packed次元は3つのrankの積であり、
+PODの`n_modes`と同じ値では比較しません。成分因子は元の物理channelを混合するため、coreの成分indexを
+元channel名へ読み替えません。
+
+```yaml
+representation:
+  decomposition:
+    name: tucker
+    params:
+      ranks: [4, 4, 2]  # y, x, component。各軸の実際の長さ以下にする
+      center: true
+      inner_product: domain_weights
+      n_iter: 20
+      tol: 0.00000001
+      ridge_alpha: 0.000001
+```
+
+`ranks: null`は各軸`min(8, 軸長)`です。`n_iter: 0`はHOSVD、正数はHOSVDを初期値にしたHOOIです。
+`center: true`はtraining mean fieldを保持します。対応geometryは完全なrectilinear rectangleで、
+不等間隔軸も利用できます。meshや穴のあるdomain maskは受け付けません。
+`inner_product: domain_weights`は正で有限な積分重みがy/xに分離できる場合に対応し、重み付き座標で因子を学習します。
+`euclidean`は等重みです。近い別のmeasureへ自動置換しません。
+
+完全観測queryは因子への直交射影、部分観測queryは観測位置の因子積に対する重み付きLSでcoreを推定します。
+`ridge_alpha`は部分観測のcoreへ適用するL2正則化で、完全観測の射影は縮小しません。
+無正則化で観測からcoreを識別できない場合はエラーです。meanを除いた合成はaffineなので、
+`mode_fields()`は基準場を除いた加算可能な因子積応答を返します。
+
+### Quadratic manifold
+
+全成分を結合したPOD座標`a`と、そのPOD空間に直交する二次補正を学習します。
+
+```text
+u(a) = mean + V a + H (q(a) - q_mean)
+q(a) = [a_i * a_j for i <= j]
+```
+
+`center: true`ではmeanとq_meanをtraining sampleから求めます。これにより、対称な二次変動も平均からの補正として
+学習できます。`inverse(0)`は二次補正の切片を含むため、training meanと異なる場合があります。
+`center: false`では両meanを0にします。`domain_weights`では同じ物理重みでPOD、補正fit、観測残差を扱います。
+
+```yaml
+representation:
+  decomposition:
+    name: quadratic_manifold
+    params:
+      n_modes: 4
+      center: true
+      inner_product: domain_weights
+      quadratic_alpha: 0.000001
+      ridge_alpha: 0.000001
+      max_nfev: 200
+      tol: 0.00000001
+```
+
+`n_modes: null`はtrainingの数値rank以下で最大16、整数指定は数値rank以下です。全て定数なら座標はN×0となり、
+既存の定数場経路を使います。`quadratic_alpha`はtrainingの二次補正fitに対するL2正則化です。
+完全観測のencodeは固定の線形POD射影で、decoderの右逆になります。一般の任意fieldに対する非線形最短距離射影ではありません。
+部分観測のencodeは線形LS初期値からの局所非線形LSで、`ridge_alpha`はこのquery座標だけを正則化します。
+未収束や、無正則化での観測Jacobianのrank不足はエラーです。局所rankが十分でも大域的な解の一意性は保証しません。
+
+矩形・disk・annulus・mask・sphere_grid・meshの固定geometryを扱えます。重み付きの場合はdomain内に正で有限な積分重みが必要です。
+domain外の値は学習に使わず、復元は0です。非線形decoderなので、Aでも`list_modes()`は`latent_coordinate`、
+`additive: false`です。`mode_fields()`にはreference座標を渡し、指定点での有限摂動として解釈します。
+線形PODのenergy順位や誤差曲線の単調性を二次応答へ引き継ぎません。
+
+```python
+from ml_platform_mode_decomp import FieldDataset, FieldRepresentation
+
+data = FieldDataset.from_arrays(fields)  # NHWC。meshにはgeometryとlayout="NVC"を指定
+representation = FieldRepresentation({"decomposition": {"name": "quadratic_manifold", "params": {"n_modes": 4}}}).fit(
+    data
+)
+coordinates = representation.transform(observed_fields, masks=observed_mask)
+restored = representation.inverse_transform(coordinates)
+```
+
+条件予測では同じ`representation`設定を`model.candidates[].representation`へ置き、既存回帰器を選びます。
+欠測比較では同じ設定を`analysis.kind: imputation`へ渡します。隠したtruthやtest sampleで因子・decoderを再fitしません。
+
+両手法のfitはdenseなtraining tensor／matrixを使用します。Tuckerは3因子を保持し、部分観測では
+観測数×成分数×core次元のLS行列が必要です。Quadratic manifoldは有効field次元Fに対して
+`F × K(K+1)/2`の補正行列と、補正fitの一時行列を必要とします。大きいrankは実測して選びます。
+
+既存の入力生成例と次の設定で直接実行できます。入力生成先が既にある場合は生成を省略します。
+
+```powershell
+python examples/create_analysis_dataset.py
+python -m ml_platform_mode_decomp config/tasks/mode_decomp_tucker.yaml
+python -m ml_platform_mode_decomp config/tasks/mode_decomp_quadratic_manifold.yaml
+```
 
 ## 残る適用制約
 

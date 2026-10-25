@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Mapping
 
@@ -51,7 +51,7 @@ class SphericalHarmonicsDecomposer(BaseDecomposer[np.ndarray]):
         super().__init__(cfg=cfg)
         self.name = "spherical_harmonics"
         l_max = require_cfg(cfg, "l_max", label="decompose")
-        self._l_max = int(l_max)
+        self._l_max = integer_parameter(l_max, "l_max")
         if self._l_max < 0:
             raise ValueError("decompose.l_max must be >= 0 for spherical_harmonics")
         self._real_form = parse_bool(cfg["real_form"], default=True)

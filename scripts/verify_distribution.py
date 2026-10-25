@@ -92,6 +92,31 @@ if saved["arrays"]["sample_ids"].tolist() != ["new_a", "new_b"]:
     raise ValueError("Fresh-process inference did not preserve condition IDs")
 np.testing.assert_array_equal(predictions, load_model(model_path).predict(np.array([[0.2, 0.5], [0.8, -0.4]])))
 
+mapping_root = workspace / "data/field_mapping"
+run([sys.executable, "-I", str(bundle / "examples/create_field_mapping_dataset.py"), "--output", str(mapping_root)])
+mapped = cli("mode_decomp_field_mapping.yaml", "runtime.output_dir=outputs/mapping_training")
+for name in ("source", "target"):
+    original, relocated = mapping_root / name, mapping_root / ("hidden_" + name)
+    if not original.resolve().is_relative_to(workspace) or not relocated.resolve().is_relative_to(workspace):
+        raise ValueError("Mapping-input move must stay inside this acceptance workspace")
+    original.rename(relocated)
+mapping_inferred = cli(
+    "mode_decomp_field_mapping_infer.yaml",
+    f"model.artifact_path={mapped['artifacts']['model']}",
+    "runtime.output_dir=outputs/mapping_inference",
+)
+mapping_output = read_field_output(mapping_inferred["artifacts"]["predictions"])
+mapping_fields = mapping_output["arrays"]["predictions"]
+if mapping_fields.shape != (2, 7, 5, 1) or mapping_output["metadata"]["field_units"] != ["Pa"]:
+    raise ValueError("Source-only mapping did not preserve the target shape and units")
+from ml_platform_mode_decomp.data import load_field_dataset
+mapping_model = load_model(mapped["artifacts"]["model"])
+new_source = load_field_dataset(mapping_root / "new_source")
+target_z = mapping_model.predict_coefficients(new_source)
+np.testing.assert_allclose(mapping_model.representation.inverse_transform(target_z), mapping_fields, atol=1e-12)
+if mapping_output["arrays"]["sample_ids"].tolist() != ["new_0", "new_1"]:
+    raise ValueError("Source-only mapping did not preserve query sample IDs")
+
 report = {
     "success": True,
     "python": sys.version.split()[0],
@@ -107,6 +132,8 @@ report = {
     "condition_column_reordering_and_ids": True,
     "portable_npy_read": True,
     "bundle_inputs_only": True,
+    "field_mapping_source_only_inference": True,
+    "field_mapping_target_coefficients_and_units": True,
     "runtime": {name: version(name) for name in (
         "ml-platform-mode-decomp", "ml-platform-core", "numpy", "scipy", "scikit-learn", "pandas", "PyYAML", "joblib"
     )},

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from .base import field_arrays
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Mapping
 
@@ -52,7 +52,7 @@ class PODSVDDecomposer(BaseDecomposer[np.ndarray]):
         if n_modes is None:
             self._n_modes = None
         else:
-            self._n_modes = int(n_modes)
+            self._n_modes = integer_parameter(n_modes, "n_modes")
             if self._n_modes <= 0:
                 raise ValueError("decompose.n_modes must be > 0 for pod_svd")
         self._inner_product = str(cfg["inner_product"]).strip() or "euclidean"

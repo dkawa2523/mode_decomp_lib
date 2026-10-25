@@ -13,6 +13,9 @@ analysis:
   observed_fraction: 0.3
   observation_pattern: shared
   mask_seed: 81
+metrics:
+  reference: hidden
+  names: [hidden_rmse, hidden_mae]
 model:
   candidates:
     - id: gappy4

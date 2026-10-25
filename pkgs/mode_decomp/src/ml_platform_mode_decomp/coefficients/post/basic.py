@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Dict, Literal, Mapping, cast
 
@@ -17,6 +17,15 @@ def _ensure_2d(array: np.ndarray, name: str) -> np.ndarray:
     if array.ndim != 2:
         raise ValueError(f"{name} must be 2D, got shape {array.shape}")
     return array
+
+
+def _random_seed(cfg: Mapping[str, Any]) -> int | None:
+    seed, random_state = cfg["seed"], cfg["random_state"]
+    seed = None if seed is None else integer_parameter(seed, "seed")
+    random_state = None if random_state is None else integer_parameter(random_state, "random_state")
+    if seed is not None and random_state is not None and seed != random_state:
+        raise ValueError("seed and random_state must match when both are specified")
+    return seed if seed is not None else random_state
 
 
 class BaseCoeffPost:
@@ -134,7 +143,7 @@ class QuantileCoeffPost(BaseCoeffPost):
         if n_quantiles is None:
             self._n_quantiles = 1000
         else:
-            self._n_quantiles = int(n_quantiles)
+            self._n_quantiles = integer_parameter(n_quantiles, "n_quantiles")
             if self._n_quantiles <= 0:
                 raise ValueError("n_quantiles must be > 0 for quantile")
         self._output_distribution = str(cfg["output_distribution"]).strip().lower()
@@ -144,13 +153,14 @@ class QuantileCoeffPost(BaseCoeffPost):
         if subsample is None:
             self._subsample = None
         else:
-            self._subsample = int(subsample)
+            self._subsample = integer_parameter(subsample, "subsample")
             if self._subsample <= 0:
                 raise ValueError("subsample must be > 0 for quantile")
-        seed = cfg["seed"]
-        self._random_state = int(seed) if seed is not None else None
+        self._random_state = _random_seed(cfg)
         self._copy = bool(cfg["copy"])
         ignore_implicit = cfg["ignore_implicit_zeros"]
+        if ignore_implicit is not None and not isinstance(ignore_implicit, (bool, np.bool_)):
+            raise ValueError("ignore_implicit_zeros must be boolean or None")
         self._ignore_implicit_zeros = bool(ignore_implicit) if ignore_implicit is not None else None
         self._transformer: QuantileTransformer | None = None
 
@@ -277,8 +287,7 @@ class PCACoeffPost(BaseCoeffPost):
         if solver not in {"auto", "full", "arpack", "randomized"}:
             raise ValueError(f"Unsupported PCA svd_solver: {solver}")
         self._svd_solver = cast(Literal["auto", "full", "arpack", "randomized"], solver)
-        seed = cfg["seed"]
-        self._random_state = int(seed) if seed is not None else None
+        self._random_state = _random_seed(cfg)
         self._resolved_components = self._resolve_components()
         self._pca: PCA | None = None
         self.latent_dim: int | None = None
@@ -292,7 +301,7 @@ class PCACoeffPost(BaseCoeffPost):
                 raise ValueError("energy_threshold must be in (0, 1]")
             return None if threshold == 1.0 else threshold
         if self._n_components is not None:
-            n_components = int(self._n_components)
+            n_components = integer_parameter(self._n_components, "n_components")
             if n_components <= 0:
                 raise ValueError("n_components must be > 0")
             return n_components
@@ -369,13 +378,13 @@ class DictLearningCoeffPost(BaseCoeffPost):
         if n_components is None:
             self._n_components = None
         else:
-            self._n_components = int(n_components)
+            self._n_components = integer_parameter(n_components, "n_components")
             if self._n_components <= 0:
                 raise ValueError("n_components must be > 0 for dict_learning")
         self._alpha = float(cfg["alpha"])
         if self._alpha <= 0.0:
             raise ValueError("alpha must be > 0 for dict_learning")
-        self._max_iter = int(cfg["max_iter"])
+        self._max_iter = integer_parameter(cfg["max_iter"], "max_iter")
         if self._max_iter <= 0:
             raise ValueError("max_iter must be > 0 for dict_learning")
         self._tol = float(cfg["tol"])
@@ -395,7 +404,7 @@ class DictLearningCoeffPost(BaseCoeffPost):
         if transform_n_nonzero is None:
             self._transform_n_nonzero = None
         else:
-            self._transform_n_nonzero = int(transform_n_nonzero)
+            self._transform_n_nonzero = integer_parameter(transform_n_nonzero, "transform_n_nonzero")
             if self._transform_n_nonzero <= 0:
                 raise ValueError("transform_n_nonzero_coefs must be > 0 for dict_learning")
         transform_alpha = cfg["transform_alpha"]
@@ -408,7 +417,7 @@ class DictLearningCoeffPost(BaseCoeffPost):
         self._positive_code = bool(cfg["positive_code"])
         self._positive_dict = bool(cfg["positive_dict"])
         seed = cfg["seed"]
-        self._seed = int(seed) if seed is not None else None
+        self._seed = integer_parameter(seed, "seed") if seed is not None else None
         self._dict: DictionaryLearning | None = None
         self.latent_dim: int | None = None
 

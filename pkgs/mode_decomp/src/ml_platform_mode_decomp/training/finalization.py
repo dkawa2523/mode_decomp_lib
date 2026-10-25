@@ -3,6 +3,7 @@ import pandas as pd
 from ml_platform_core.io import write_json, write_table
 
 from ..evaluation import score_surrogate, prepare_objective
+from ..inputs import subset_inputs
 from ..model_artifact import evaluation_identity, fingerprint, save_model
 from ..policy import METRIC_DIRECTIONS
 from ..stage_result import write_prediction_batches
@@ -22,7 +23,7 @@ def _prediction_batches(model, predictions):
             yield prediction, *model.calibrator.intervals(prediction)
 
 
-def finalize_selected(cfg, result, dataset, split, candidates):
+def finalize_selected(cfg, result, dataset, split, candidates, *, inputs=None):
     metric = cfg["model"]["selection_metric"]
     sign = 1 if METRIC_DIRECTIONS[metric] == "min" else -1
     for item in candidates:
@@ -40,13 +41,19 @@ def finalize_selected(cfg, result, dataset, split, candidates):
         }
     )
     train, test = dataset._subset_validated(split["train_indices"]), dataset._subset_validated(split["test_indices"])
-    model = FieldSurrogate(winner["candidate"]).fit(train)
-    calibrate_from_split(model, dataset, split, cfg["uncertainty"])
-    if test.conditions is None:
-        raise ValueError("Final test samples require conditions")
+    train_inputs = subset_inputs(inputs, split["train_indices"])
+    test_inputs = subset_inputs(inputs, split["test_indices"])
+    model = FieldSurrogate(winner["candidate"])
+    if train_inputs is None:
+        model.fit(train)
+    else:
+        model.fit(train, inputs=train_inputs)
+    calibrate_from_split(model, dataset, split, cfg["uncertainty"], inputs=inputs)
+    if test_inputs is None and test.conditions is None:
+        raise ValueError("Final test samples require conditions or paired inputs")
     options = selection_options(cfg, scope="final_test")
     prepared = prepare_objective(test, options, training=train, data=cfg["data"])
-    report = score_surrogate(model, train, test, options, prepared=prepared)
+    report = score_surrogate(model, train, test, options, prepared=prepared, inputs=test_inputs)
     add_uncertainty_report(report, model, test, options)
     metrics = report.metrics
     provenance = {
@@ -55,6 +62,7 @@ def finalize_selected(cfg, result, dataset, split, candidates):
         "split_fingerprint": split["fingerprint"],
         "candidate_fingerprint": fingerprint(winner["candidate"]),
         "evaluation_identity": winner["evaluation_identity"],
+        **({"input_revision": inputs.revision} if inputs is not None else {}),
     }
     result.metrics.update(metrics)
     result.artifacts["metrics"] = write_json(metrics, result.run_dir / "metrics.json")

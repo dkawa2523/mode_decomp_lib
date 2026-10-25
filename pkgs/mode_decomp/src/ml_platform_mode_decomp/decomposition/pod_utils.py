@@ -6,7 +6,18 @@ from typing import Any, Mapping
 
 import numpy as np
 
+from ml_platform_mode_decomp.config import integer_parameter
+
 from .base import parse_bool
+
+
+def resolve_centering(cfg: Mapping[str, Any], *, default: bool) -> bool:
+    """Resolve the two nullable centering names without ignoring a contradiction."""
+    center, mean_centered = cfg.get("center"), cfg.get("mean_centered")
+    if center is not None and mean_centered is not None:
+        if parse_bool(center, default=default) != parse_bool(mean_centered, default=default):
+            raise ValueError("center and mean_centered must match when both are specified")
+    return parse_bool(center if center is not None else mean_centered, default=default)
 
 
 def snapshot_matrix(fields: np.ndarray, mask_indices: np.ndarray | None, *, method: str) -> np.ndarray:
@@ -138,7 +149,7 @@ def parse_n_modes(value: Any, *, method: str) -> int | None:
         if text == "auto":
             return None
     if isinstance(value, (int, np.integer)):
-        num = int(value)
+        num = integer_parameter(value, "n_modes")
         if num <= 0:
             raise ValueError(f"decompose.n_modes must be > 0 for {method}")
         return num
@@ -249,7 +260,7 @@ def resolve_rank_select(cfg: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("options.rank_select.energy must be in (0, 1]")
     max_modes = rank_cfg.get("max_modes", None)
     if max_modes is not None:
-        max_modes = int(max_modes)
+        max_modes = integer_parameter(max_modes, "options.rank_select.max_modes")
         if max_modes <= 0:
             raise ValueError("options.rank_select.max_modes must be > 0")
     return {"enable": enable, "method": method, "energy": energy, "max_modes": max_modes}

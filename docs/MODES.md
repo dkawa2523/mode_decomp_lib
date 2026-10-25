@@ -1,4 +1,4 @@
-# モードと係数座標の解析（mode 0.10 / core 0.2.1）
+# モードと係数座標の解析（mode 0.11 / core 0.2.1）
 
 学習済み `FieldRepresentation` は、モードの一覧、指定座標の場への応答、選択・累積再構成を共通 API で扱えます。基底画像は要求した座標だけ生成します。既定の解析空間は、係数後処理に入る前の実数 packed **A** です。
 
@@ -10,6 +10,11 @@
 A の index は、この fit 済み表現の codec 順です。手法間で同じ index や同じ `n_modes` が同じ形状・自由度を意味するわけではありません。Z は回帰用の座標で、PCA 後の Z を Fourier モードとは呼びません。
 
 独立POD/Gappy/pod_svdの新fitは成分別のKcを保持します。Aは成分順のblockで、component_offsetsが区間を示し、list_modesは成分名と成分内indexを返します。rank0成分にはモードを作らず、学習meanまたはzero baselineとして復元します。全成分rank0なら一覧は空です。旧モデルのCK順序は読み続けます。
+
+TuckerのAはy/x/component coreのC順です。`core_index`は学習因子のindexで、component因子は物理channelを混合できます。
+Quadratic manifoldのAは全成分を結合したPOD潜在座標です。二次decoderの応答は`latent_coordinate`、`additive=false`で、
+`mode_fields()`には明示referenceが必要です。`inverse(0)`は学習した二次切片を含み、training meanと異なる場合があります。
+設定と部分観測での解釈は[数値手法](METHODS.md#定常分布のtuckerとquadratic-manifold)を参照してください。
 
 ## 単一場を1つの YAML で解析する
 

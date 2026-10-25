@@ -19,19 +19,30 @@ def _normalize_field(field: np.ndarray) -> tuple[np.ndarray, bool]:
     raise ValueError(f"field must be 2D or 3D, got shape {field.shape}")
 
 
+def _mask_values(mask: np.ndarray) -> np.ndarray:
+    mask = np.asarray(mask)
+    if mask.dtype.kind not in "bfiu" or (mask.dtype.kind != "b" and not np.isin(mask, (0, 1)).all()):
+        raise ValueError("masks must contain boolean or 0/1 values")
+    return mask.astype(bool, copy=False)
+
+
 def _normalize_mask(mask: np.ndarray | None, shape: tuple[int, int]) -> np.ndarray | None:
     if mask is None:
         return None
-    mask = np.asarray(mask)
+    mask = _mask_values(mask)
     if mask.shape != shape:
         raise ValueError(f"mask shape {mask.shape} does not match {shape}")
-    return mask.astype(bool)
+    return mask
 
 
 def _combine_masks(
     field_mask: np.ndarray | None,
     domain_mask: np.ndarray | None,
 ) -> np.ndarray | None:
+    if field_mask is not None:
+        field_mask = _mask_values(field_mask)
+    if domain_mask is not None:
+        domain_mask = _mask_values(domain_mask)
     if field_mask is None and domain_mask is None:
         return None
     if field_mask is None:
@@ -84,6 +95,8 @@ class FieldBatch:
 
     def __init__(self, fields: np.ndarray, masks: np.ndarray | None = None):
         self.fields = np.asarray(fields)
+        if masks is not None:
+            masks = _mask_values(masks)
         self.masks = masks
 
     def __len__(self) -> int:
@@ -125,8 +138,12 @@ def field_arrays(dataset: Any, domain_spec: DomainSpec, *, scalar: bool = False)
             raise ValueError("mask must be present for all samples or none")
         else:
             masks = np.stack([np.asarray(sample.mask) for sample in samples])
+    if fields.dtype.kind not in "fiu":
+        raise ValueError("Training fields must contain real numeric values")
     if scalar and fields.ndim == 4 and fields.shape[-1] == 1:
         fields = fields[..., 0]
+    if masks is not None:
+        masks = _mask_values(masks)
     expected_ndim = 3 if scalar else 4
     if not len(fields) or fields.ndim != expected_ndim or tuple(fields.shape[1:3]) != domain_spec.grid_shape:
         raise ValueError(f"Training field batch does not match domain {domain_spec.grid_shape}: {fields.shape}")
@@ -315,7 +332,7 @@ class GridDecomposerBase(BaseDecomposer[np.ndarray]):
             raise ValueError(f"Field batch does not match domain {domain_spec.grid_shape}: {fields.shape}")
         combined = domain_spec.mask
         if masks is not None:
-            masks = np.asarray(masks, dtype=bool)
+            masks = _mask_values(masks)
             if masks.shape not in (fields.shape[1:3], fields.shape[:3]):
                 raise ValueError("Batch masks must be spatial or sample-by-spatial")
             combined = masks if combined is None else masks & combined

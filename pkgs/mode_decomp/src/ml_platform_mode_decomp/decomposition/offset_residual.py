@@ -10,7 +10,7 @@ packed alongside residual coefficients via a specialized codec.
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from dataclasses import dataclass
 from typing import Any, Mapping
@@ -21,7 +21,7 @@ from ml_platform_mode_decomp.config import resolve_component
 from ml_platform_mode_decomp.geometry import DomainSpec
 from ml_platform_mode_decomp.catalog import build_decomposer
 
-from .base import BaseDecomposer, _FieldInput
+from .base import BaseDecomposer, _FieldInput, _mask_values
 
 
 _ENABLED_OPTIONS = {"auto", "true", "false"}
@@ -37,7 +37,7 @@ def _normalize_field(field: np.ndarray) -> tuple[np.ndarray, bool]:
 
 
 def _normalize_spatial_mask(mask: Any, spatial_shape: tuple[int, int], *, label: str) -> np.ndarray:
-    m = np.asarray(mask).astype(bool)
+    m = _mask_values(mask)
     if m.shape == spatial_shape:
         return m
     # mesh domain mask/weights can be 1D with W=1 spatial shape.
@@ -204,7 +204,7 @@ class OffsetResidualDecomposer(BaseDecomposer):
         self._f_offset = float(cfg["f_offset"])
         if self._f_offset <= 0.0:
             raise ValueError("offset_residual.f_offset must be > 0")
-        self._max_samples = int(cfg["max_samples"])
+        self._max_samples = integer_parameter(cfg["max_samples"], "max_samples")
         self._seed = cfg["seed"] if cfg["seed"] is not None else cfg["random_state"]
         self._min_residual_rms = float(cfg["min_residual_rms"])
         if not np.isfinite(self._min_residual_rms) or self._min_residual_rms <= 0.0:

@@ -11,7 +11,7 @@ from ml_platform_mode_decomp.config import cfg_get
 
 from ml_platform_mode_decomp.geometry import DomainSpec, validate_decomposer_compatibility
 
-from .base import BaseDecomposer, ChannelwiseAdapter, FieldBatch, field_arrays
+from .base import BaseDecomposer, ChannelwiseAdapter, FieldBatch, _mask_values, field_arrays
 from .pod import _PODScalarDecomposer, _pod_channel_diagnostics
 from .pod_utils import solve_ridge, component_blocks_meta, resolve_mode_weight as _resolve_mode_weight
 from .base import _combine_masks, _normalize_field
@@ -150,7 +150,7 @@ class _GappyPODScalarDecomposer(BaseDecomposer[np.ndarray]):
         if field.shape[:2] != self._grid_shape or field.shape[-1] != 1:
             raise ValueError("gappy_pod requires the fitted scalar grid")
         if masks is not None:
-            batch_masks: np.ndarray = np.broadcast_to(np.asarray(masks, dtype=bool), (len(fields), *self._grid_shape))
+            batch_masks: np.ndarray = np.broadcast_to(_mask_values(masks), (len(fields), *self._grid_shape))
             if domain_spec.mask is not None:
                 batch_masks = batch_masks & domain_spec.mask
             if any(not np.array_equal(mask, batch_masks[0]) for mask in batch_masks[1:]):

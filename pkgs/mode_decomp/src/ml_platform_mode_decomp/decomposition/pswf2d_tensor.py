@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Mapping
 
 import numpy as np
 
 from ml_platform_mode_decomp.geometry import DomainSpec
-from ml_platform_mode_decomp.decomposition.base import GridDecomposerBase, parse_bool, require_cfg
+from ml_platform_mode_decomp.decomposition.base import GridDecomposerBase, _mask_values, parse_bool, require_cfg
 
 from scipy.signal.windows import dpss as _dpss
 
@@ -18,12 +18,7 @@ _DPSS_NORM = 2
 
 
 def _parse_positive_int(value: Any, *, key: str) -> int:
-    if isinstance(value, (int, np.integer)):
-        num = int(value)
-    elif isinstance(value, str) and value.strip():
-        num = int(value)
-    else:
-        raise ValueError(f"decompose.{key} must be a positive int for pswf2d_tensor")
+    num = integer_parameter(value, f"decompose.{key}")
     if num <= 0:
         raise ValueError(f"decompose.{key} must be positive for pswf2d_tensor")
     return num
@@ -191,7 +186,7 @@ class PSWF2DTensorDecomposer(GridDecomposerBase):
         # Compute combined mask for mean estimation / centering.
         combined_mask: np.ndarray | None = None
         if mask is not None:
-            mask_arr = np.asarray(mask).astype(bool)
+            mask_arr = _mask_values(mask)
             if mask_arr.ndim == 3:
                 mask_arr = mask_arr[..., 0]
             if mask_arr.shape != domain_spec.grid_shape:

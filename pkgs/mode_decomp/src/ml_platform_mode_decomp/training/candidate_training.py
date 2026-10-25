@@ -23,24 +23,30 @@ def selection_options(cfg, *, scope=None):
     return options
 
 
-def evaluate_candidate(cfg, candidate, training, selection=None, *, prepared=None, folds=None):
+def evaluate_candidate(
+    cfg, candidate, training, selection=None, *, prepared=None, folds=None, inputs=None, selection_inputs=None
+):
     """Accept fit/selection roles only; final-test truth cannot enter this kernel."""
     evaluation = selection_options(cfg)
     search = None
     if cfg.get("tuning", {}).get("enabled", False):
-        searched = search_candidate(cfg, candidate, training, evaluation, folds=folds)
+        searched = search_candidate(cfg, candidate, training, evaluation, folds=folds, inputs=inputs)
         if searched.candidate is None or searched.report is None:
             return None, None, searched
         candidate, report = searched.candidate, searched.report
         fit_ids = fold_training_ids(training, searched.folds)
         search = {"settings": cfg["tuning"], "best_trial": searched.best_trial}
     else:
-        if selection is None or selection.conditions is None:
-            raise ValueError("Candidate selection requires held-out selection conditions")
+        if selection is None or (selection_inputs is None and selection.conditions is None):
+            raise ValueError("Candidate selection requires held-out selection conditions or paired inputs")
         if prepared is None:
             prepared = prepare_objective(selection, evaluation, training=training, data=cfg["data"])
-        model = FieldSurrogate(candidate).fit(training)
-        report = score_surrogate(model, training, selection, evaluation, prepared=prepared)
+        model = FieldSurrogate(candidate)
+        if inputs is None:
+            model.fit(training)
+        else:
+            model.fit(training, inputs=inputs)
+        report = score_surrogate(model, training, selection, evaluation, prepared=prepared, inputs=selection_inputs)
         fit_ids = list(model.fit_sample_ids)
         searched = None
     payload = {
@@ -53,6 +59,7 @@ def evaluate_candidate(cfg, candidate, training, selection=None, *, prepared=Non
         "metric_scope": selection_scope(cfg),
         "fit_ids": fit_ids,
         "search": search,
+        **({"input_revision": inputs.revision} if inputs is not None else {}),
     }
     return payload, report, searched
 

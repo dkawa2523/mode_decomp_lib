@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Mapping
 
@@ -12,7 +12,15 @@ from scipy.fft import dct, idct
 from ml_platform_mode_decomp.geometry import DomainSpec, validate_decomposer_compatibility
 from ml_platform_mode_decomp.geometry.identity import geometry_fingerprint
 
-from .base import BaseDecomposer, _combine_masks, _normalize_field, _normalize_mask, parse_bool, require_cfg
+from .base import (
+    BaseDecomposer,
+    _combine_masks,
+    _mask_values,
+    _normalize_field,
+    _normalize_mask,
+    parse_bool,
+    require_cfg,
+)
 
 _RADIAL_TRANSFORMS = {"dct"}
 _ANGULAR_TRANSFORMS = {"fft"}
@@ -75,7 +83,7 @@ def _bilinear_sample_cart(
     b = np.clip(b, 0.0, 1.0)
 
     support = (xq >= x_axis[0]) & (xq <= x_axis[-1]) & (yq >= y_axis[0]) & (yq <= y_axis[-1])
-    vm = np.ones(img.shape, dtype=bool) if valid_mask is None else np.asarray(valid_mask, dtype=bool)
+    vm = np.ones(img.shape, dtype=bool) if valid_mask is None else _mask_values(valid_mask)
     if vm.shape != img.shape:
         raise ValueError("valid_mask shape mismatch for bilinear sampler")
     # Remove unobserved NaN before multiplying by interpolation weights.
@@ -159,8 +167,8 @@ class PolarFFTDecomposer(BaseDecomposer[np.ndarray]):
         self.name = "polar_fft"
         n_r = require_cfg(cfg, "n_r", label="decompose")
         n_theta = require_cfg(cfg, "n_theta", label="decompose")
-        self._n_r = int(n_r)
-        self._n_theta = int(n_theta)
+        self._n_r = integer_parameter(n_r, "n_r")
+        self._n_theta = integer_parameter(n_theta, "n_theta")
         if self._n_r < 8:
             raise ValueError("decompose.n_r must be >= 8 for polar_fft")
         if self._n_theta < 16:

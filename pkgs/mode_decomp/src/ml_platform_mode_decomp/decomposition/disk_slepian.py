@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Mapping
 from collections.abc import Callable
@@ -66,24 +66,26 @@ class DiskSlepianDecomposer(EigenBasisDecomposerBase):
         super().__init__(cfg=cfg)
         self.name = "disk_slepian"
         n_modes = require_cfg(cfg, "n_modes", label="decompose")
-        self._n_modes = int(n_modes)
+        self._n_modes = integer_parameter(n_modes, "n_modes")
         if self._n_modes <= 0:
             raise ValueError("decompose.n_modes must be > 0 for disk_slepian")
         freq_radius = require_cfg(cfg, "freq_radius", label="decompose")
-        self._freq_radius = int(freq_radius)
+        self._freq_radius = integer_parameter(freq_radius, "freq_radius")
         if self._freq_radius < 1:
             raise ValueError("decompose.freq_radius must be >= 1 for disk_slepian")
 
         self._solver = str(require_cfg(cfg, "solver", label="decompose")).strip().lower()
         if self._solver not in _SOLVERS:
             raise ValueError(f"decompose.solver must be one of {_SOLVERS}, got {self._solver}")
-        self._dense_threshold = int(require_cfg(cfg, "dense_threshold", label="decompose"))
+        self._dense_threshold = integer_parameter(
+            require_cfg(cfg, "dense_threshold", label="decompose"), "dense_threshold"
+        )
         if self._dense_threshold <= 0:
             raise ValueError("decompose.dense_threshold must be > 0 for disk_slepian")
         self._eigsh_tol = float(require_cfg(cfg, "eigsh_tol", label="decompose"))
         if self._eigsh_tol <= 0:
             raise ValueError("decompose.eigsh_tol must be > 0 for disk_slepian")
-        self._eigsh_maxiter = int(require_cfg(cfg, "eigsh_maxiter", label="decompose"))
+        self._eigsh_maxiter = integer_parameter(require_cfg(cfg, "eigsh_maxiter", label="decompose"), "eigsh_maxiter")
         if self._eigsh_maxiter <= 0:
             raise ValueError("decompose.eigsh_maxiter must be > 0 for disk_slepian")
 

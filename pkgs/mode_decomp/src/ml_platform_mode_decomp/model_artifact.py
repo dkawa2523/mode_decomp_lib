@@ -39,9 +39,10 @@ def fingerprint(value: Any) -> str:
     ).hexdigest()
 
 
-def bundle_schema(bundle: Bundle, *, schema_version: int = 3) -> dict[str, Any]:
+def bundle_schema(bundle: Bundle, *, schema_version: int = 4) -> dict[str, Any]:
     surrogate = isinstance(bundle, FieldSurrogate)
     rep = bundle.representation if surrogate else bundle
+    input_representation = getattr(bundle, "input_representation", None) if surrogate else None
     layout_keys = (
         "method",
         "field_shape",
@@ -83,6 +84,20 @@ def bundle_schema(bundle: Bundle, *, schema_version: int = 3) -> dict[str, Any]:
                 "prediction_kind": getattr(bundle, "prediction_kind", "regression") if surrogate else "representation",
             }
             if schema_version >= 3
+            else {}
+        ),
+        **(
+            {
+                "input_kind": getattr(bundle, "input_kind", "conditions"),
+                "input_dimension": getattr(bundle, "input_dimension", len(bundle.condition_columns)),
+                "input_representation": (
+                    bundle_schema(input_representation, schema_version=schema_version)
+                    if input_representation is not None
+                    else None
+                ),
+                "input_model_sha256": getattr(bundle, "input_model_sha256", None),
+            }
+            if surrogate and schema_version >= 4
             else {}
         ),
         **uncertainty,
@@ -144,6 +159,12 @@ def save_model(bundle: Bundle, path: str | Path, *, provenance: dict | None = No
         raise FileExistsError(f"Choose a new model artifact path: {path}")
     rep = bundle.representation if isinstance(bundle, FieldSurrogate) else bundle
     rep._require_fitted()
+    if isinstance(bundle, FieldSurrogate):
+        if not bundle._fitted:
+            raise ValueError("Surrogate must be fitted before saving")
+        input_representation = getattr(bundle, "input_representation", None)
+        if input_representation is not None:
+            input_representation._require_fitted()
     optional, uses_sklearn = _persisted_backends(bundle)
     for package in optional:
         version(package)  # A selected backend must be present, not silently omitted from provenance.
@@ -211,6 +232,7 @@ def _persisted_backends(bundle: Bundle) -> tuple[set[str], bool]:
 
     visit(rep)
     if isinstance(bundle, FieldSurrogate):
+        visit(getattr(bundle, "input_representation", None))
         visit(bundle.regressor)
     return optional, uses_sklearn
 
@@ -249,14 +271,20 @@ def load_model(
     info = read_json(info_path or _info_path(path))
     if info.get("model_artifact_schema_version") != 1:
         raise ValueError("Model sidecar version does not match")
-    if not isinstance(info.get("input_schema"), dict) or info["input_schema"].get("schema_version") not in {1, 2, 3}:
+    if not isinstance(info.get("input_schema"), dict) or info["input_schema"].get("schema_version") not in {1, 2, 3, 4}:
         raise ValueError("Unsupported field model schema")
     schema_version = info["input_schema"]["schema_version"]
     validate_artifact_integrity(path, info, expected_context)
     _validate_backend_runtime(info, schema_version)
-    for name in ("dataset_revision", "split_fingerprint", "candidate_fingerprint"):
-        expected = (expected_context or {}).get(name)
-        if expected and info.get("provenance", {}).get(name) != expected:
+    provenance = info.get("provenance") or {}
+    for name, expected in (expected_context or {}).items():
+        if name == "model_sha256" or expected is None or (isinstance(expected, str) and not expected):
+            continue
+        if name == "execution_release_id":
+            actual = provenance.get("source_release_id")
+        else:
+            actual = provenance.get(name)
+        if fingerprint(actual) != fingerprint(expected):
             raise ValueError(f"Model provenance differs: {name}")
     bundle = load_joblib(path)
     if not isinstance(bundle, (FieldRepresentation, FieldSurrogate)):
@@ -284,6 +312,11 @@ def load_model(
         rep.layout = CoefficientLayout.from_meta(rep.raw_meta, rep.packed_dim, rep.decomposer.synthesis_kind)
         if isinstance(bundle, FieldSurrogate):
             bundle.prediction_kind = "regression"
+    if isinstance(bundle, FieldSurrogate) and schema_version < 4:
+        bundle.input_representation = None
+        bundle.input_kind = "conditions"
+        bundle.input_dimension = len(bundle.condition_columns)
+        bundle.input_model_sha256 = None
     return bundle
 
 

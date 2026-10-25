@@ -26,11 +26,11 @@ def representation_size(model: FieldRepresentation) -> dict:
         input_dimension = int(np.count_nonzero(model.geometry.mask)) * model.field_shape[-1]
     codec = model.codec.coeff_meta(model.raw_meta, np.broadcast_to(0.0, (model.packed_dim,))).get("codec", {})
     return {
-        "input_dimension": input_dimension,
-        "ambient_input_dimension": ambient_dimension,
+        "field_dimension": input_dimension,
+        "ambient_field_dimension": ambient_dimension,
         "packed_dimension": model.packed_dim,
         "target_dimension": model.target_dim,
-        "target_to_input_ratio": model.target_dim / input_dimension,
+        "coefficient_to_field_ratio": model.target_dim / input_dimension,
         "decomposition": model.config["decomposition"]["name"],
         "method_role": decomposition_role(model.config["decomposition"]["name"]),
         "codec": codec,
@@ -101,15 +101,15 @@ def analyze_surrogate(
     prepared=None,
     retain_coefficients=False,
     retain_fields=True,
+    inputs=None,
 ) -> EvaluationReport:
-    if reference.conditions is None:
-        raise ValueError("Surrogate evaluation requires reference conditions")
+    query = _surrogate_query(inputs, reference)
     prepared = prepared or prepare_objective(reference, options, training=training)
     represented = analyze_representation(
         model.representation, training, reference, options, prepared=prepared, retain_fields=retain_fields
     )
     started = perf_counter()
-    targets = model.predict_coefficients(reference.conditions)
+    targets = model.predict_coefficients(query)
     predicted = model.representation.inverse_transform(targets)
     prediction_seconds = perf_counter() - started
     report = prepared.score(predicted)
@@ -138,6 +138,7 @@ def analyze_surrogate(
         regression_method=model.candidate["regression"]["name"],
         prediction_seconds=prediction_seconds,
     )
+    _input_evaluation_scope(report, inputs, model)
     report.fields.update(represented.fields)
     if retain_coefficients:
         report.packed_coefficients = model.representation.post.inverse_transform(targets)
@@ -213,16 +214,37 @@ def load_observation_mask(data, dataset, path):
     return values[_indices(samples, index_column, len(dataset))].astype(bool, copy=False)
 
 
-def score_surrogate(model, training, reference, options=None, *, prepared=None):
-    """Predict once and score; detailed representation inverses are opt-in."""
+def _input_evaluation_scope(report, inputs, model):
+    report.summary.update(
+        prediction_input_kind=getattr(model, "input_kind", "conditions"),
+        prediction_input_dimension=getattr(model, "input_dimension", len(model.condition_columns)),
+    )
+    if inputs is not None:
+        report.summary["input_representation_fit_scope"] = (
+            "fixed_input_representation" if hasattr(inputs, "coefficients") else "training_partition"
+        )
+
+
+def _surrogate_query(inputs, reference):
+    if inputs is not None:
+        from ..inputs import align_inputs
+
+        return align_inputs(inputs, reference)
     if reference.conditions is None:
-        raise ValueError("Surrogate evaluation requires reference conditions")
+        raise ValueError("Surrogate evaluation requires reference conditions or paired inputs")
+    return reference.conditions
+
+
+def score_surrogate(model, training, reference, options=None, *, prepared=None, inputs=None):
+    """Predict once and score; detailed representation inverses are opt-in."""
+    query = _surrogate_query(inputs, reference)
     prepared = prepared or prepare_objective(reference, options, training=training)
     started = perf_counter()
-    predictions = model.predict(reference.conditions)
+    predictions = model.predict(query)
     prediction_seconds = perf_counter() - started
     report = prepared.score(predictions)
     report.summary.update(analysis_kind="surrogate_score", prediction_seconds=prediction_seconds)
+    _input_evaluation_scope(report, inputs, model)
     return report
 
 
@@ -266,8 +288,6 @@ def mode_reconstruction_curve(representation, coefficients, settings, prepared, 
         }
     )
     table = pd.DataFrame(rows)
-    if metric == "hidden_rmse" and prepared.options.get("_legacy_hidden_aliases", False):
-        table["field_rmse"] = table[metric]
     return table
 
 
@@ -290,7 +310,8 @@ def prepare_imputation_reference(training, reference, observed, options=None):
     )
     baseline = mean_field_prediction(training, reference)
     options = dict(options or {})
-    options.setdefault("_legacy_hidden_aliases", "reference" not in options)
+    if options.get("reference", "hidden") != "hidden":
+        raise ValueError("Imputation evaluation requires metrics.reference: hidden")
     loss_options = {**(options or {}), "names": []}
     return ImputationReference(
         input_data,

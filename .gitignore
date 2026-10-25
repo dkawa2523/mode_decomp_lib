@@ -15,6 +15,7 @@ work/verification/
 work/analysis_reports/
 data/tiny_fields/
 data/single_field/
+data/field_mapping/
 data/nonlinear_fields/
 data/scattered_measurements/
 data/scattered_fields/

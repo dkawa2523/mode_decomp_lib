@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Mapping
 
@@ -49,8 +49,8 @@ class FourierJacobiDecomposer(WeightedBasisDecomposerBase):
         self.name = "fourier_jacobi"
         m_max = require_cfg(cfg, "m_max", label="decompose")
         k_max = require_cfg(cfg, "k_max", label="decompose")
-        self._m_max = int(m_max)
-        self._k_max = int(k_max)
+        self._m_max = integer_parameter(m_max, "m_max")
+        self._k_max = integer_parameter(k_max, "k_max")
         if self._m_max < 0:
             raise ValueError("decompose.m_max must be >= 0 for fourier_jacobi")
         if self._k_max < 0:

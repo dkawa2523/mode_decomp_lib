@@ -75,7 +75,7 @@ def _semantics(representation: FieldRepresentation, space: str, codec: dict[str,
         and field_affine
         and (space == "a" or representation.post.name in _AFFINE_POSTS)
     )
-    if space == "z" or method == "autoencoder":
+    if space == "z" or method in {"autoencoder", "quadratic_manifold"}:
         return "latent_coordinate", additive
     if method in _COMPOSITES:
         return "composite_coordinate", False
@@ -150,6 +150,9 @@ def _raw_labels(representation: FieldRepresentation, result: list[dict[str, Any]
     for item in result:
         position = [int(x) for x in np.unravel_index(item["index"], shape, order="F" if order == "F" else "C")]
         item["raw_index"] = position
+        if raw["method"] == "tucker":
+            item["core_index"] = dict(zip(("y", "x", "component"), position, strict=True))
+            item["component_interpretation"] = "learned_component_factor; may mix physical channels"
         if raw.get("parts") is not None and raw.get("part_axis") is not None:
             part = position[raw["part_axis"]]
             item["part"] = raw["parts"][part]

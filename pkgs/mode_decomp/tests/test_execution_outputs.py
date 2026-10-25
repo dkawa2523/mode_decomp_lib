@@ -154,6 +154,7 @@ def test_physical_field_output_moves_without_model_or_input_and_preserves_existi
         )
     observed = np.ones(data.fields.shape[:-1], dtype=bool)
     observed[0].reshape(-1)[0] = False
+    data.fields[~observed] = np.nan
     support = np.ones(data.fields.shape[1:-1], dtype=bool)
     directory = tmp_path / "original"
     paths = write_field_batches(
@@ -174,6 +175,7 @@ def test_physical_field_output_moves_without_model_or_input_and_preserves_existi
         np.testing.assert_array_equal(output["arrays"]["geometry_" + name], coordinates)
     np.testing.assert_array_equal(output["arrays"]["observation_mask"], observed)
     np.testing.assert_array_equal(output["arrays"]["calibration_support"], support)
+    np.testing.assert_allclose(output["arrays"]["predictions"], data.fields, equal_nan=True)
     before = (moved / paths["predictions"].name).read_bytes()
     with pytest.raises(FileExistsError):
         write_field_batches(
@@ -294,7 +296,7 @@ def test_reader_preserves_legacy_npy_fields_without_inventing_geometry(tmp_path)
 
 
 @pytest.mark.parametrize("suffix", ["npz", "npy"])
-@pytest.mark.parametrize("mismatch", ["shape", "ids", "bands"])
+@pytest.mark.parametrize("mismatch", ["shape", "ids", "duplicate_ids", "empty_id", "bands"])
 def test_reader_rejects_arrays_that_no_longer_match_the_saved_declarations(tmp_path, suffix, mismatch):
     data = FieldDataset.from_arrays(np.arange(24.0).reshape(2, 3, 4, 1))
     path = tmp_path / f"fields.{suffix}"
@@ -306,6 +308,8 @@ def test_reader_rejects_arrays_that_no_longer_match_the_saved_declarations(tmp_p
             arrays["predictions"] = arrays["predictions"][:1]
         elif mismatch == "ids":
             arrays["sample_ids"] = arrays["sample_ids"][:1]
+        elif mismatch in {"duplicate_ids", "empty_id"}:
+            arrays["sample_ids"] = np.asarray(["same", "same" if mismatch == "duplicate_ids" else ""])
         else:
             arrays["lower"] = arrays["predictions"]
         np.savez_compressed(path, **arrays)
@@ -313,13 +317,84 @@ def test_reader_rejects_arrays_that_no_longer_match_the_saved_declarations(tmp_p
         np.save(path, data.fields[:1])
     elif mismatch == "ids":
         np.save(tmp_path / "fields_sample_ids.npy", data.sample_ids[:1])
+    elif mismatch in {"duplicate_ids", "empty_id"}:
+        np.save(tmp_path / "fields_sample_ids.npy", ["same", "same" if mismatch == "duplicate_ids" else ""])
     else:
         metadata_path = tmp_path / "fields_metadata.json"
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         metadata["arrays"]["lower"] = "fields.npy"
         metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
-    with pytest.raises(ValueError, match="shape|sample IDs|both lower"):
+    with pytest.raises(ValueError, match="shape|sample IDs|sample_ids|both lower"):
         read_field_output(path)
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        "duplicate_ids",
+        "empty_id",
+        "missing_id",
+        "components",
+        "duplicate_components",
+        "units",
+        "kind",
+        "shape",
+        "geometry",
+        "array_name",
+    ],
+)
+def test_writer_rejects_invalid_field_meaning_before_consuming_or_publishing(tmp_path, invalid):
+    from dataclasses import replace
+
+    data = FieldDataset.from_arrays(np.ones((2, 3, 4, 2)))
+    ids, spec, geometry, array_name = data.sample_ids, FieldSpec.from_dataset(data), data.geometry, "predictions"
+    if invalid in {"duplicate_ids", "empty_id", "missing_id"}:
+        ids = ["one", {"duplicate_ids": "one", "empty_id": " ", "missing_id": None}[invalid]]
+    elif invalid == "components":
+        spec = replace(spec, components=("one",))
+    elif invalid == "duplicate_components":
+        spec = replace(spec, components=("one", "one"))
+    elif invalid == "units":
+        spec = replace(spec, units=("K",))
+    elif invalid == "kind":
+        spec = replace(spec, kind="scalar")
+    elif invalid == "shape":
+        spec = replace(spec, shape=(0, 4, 2))
+    elif invalid == "geometry":
+        geometry = FieldDataset.from_arrays(np.ones((2, 4, 3, 2))).geometry
+    else:
+        array_name = "sample_ids"
+
+    def unexpected():
+        pytest.fail("Invalid declarations must not consume expensive field predictions")
+        yield data.fields
+
+    path = tmp_path / "fields.npz"
+    with pytest.raises(ValueError):
+        write_field_batches(path, ids, unexpected(), spec, geometry, array_name=array_name)
+    assert not path.exists()
+
+
+def test_manifest_exposes_only_task_inputs_with_supported_meaning():
+    from ml_platform_mode_decomp.manifest import MODE_DECOMP_MANIFEST
+
+    paths = {task.key: {param.config_path for param in task.parameters} for task in MODE_DECOMP_MANIFEST.tasks}
+    assert {("import",), ("data", "fields")} <= paths["mode_decomp_import"]
+    assert not any(
+        path[0] in {"metrics", "report", "output", "uncertainty", "model"} for path in paths["mode_decomp_import"]
+    )
+    assert {("data", "input"), ("model", "artifact_path")} <= paths["mode_decomp_infer"]
+    assert not any(path[0] in {"metrics", "report"} for path in paths["mode_decomp_infer"])
+    assert (
+        not {("model", key) for key in ("source_type", "source_task_id", "model_selector")} & paths["mode_decomp_infer"]
+    )
+    assert ("data", "input") not in paths["mode_decomp_representation"]
+    assert ("model", "selection_metric") not in paths["mode_decomp_analysis"]
+    assert ("split", "selection_size") not in paths["mode_decomp_analysis"]
+    assert ("stage_inputs", "canonical_dataset") not in paths["mode_decomp_pipeline"]
+    assert all(
+        ("data", "input") in {param.config_path for param in stage.parameters} for stage in MODE_DECOMP_MANIFEST.stages
+    )
 
 
 def test_reader_rejects_an_unrelated_json_instead_of_returning_empty_fields(tmp_path):

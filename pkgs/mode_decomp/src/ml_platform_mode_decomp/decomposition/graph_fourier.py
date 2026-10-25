@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Mapping
 
@@ -12,7 +12,7 @@ from scipy.sparse.linalg import eigsh
 
 from ml_platform_mode_decomp.geometry import DomainSpec, validate_decomposer_compatibility
 
-from .base import EigenBasisDecomposerBase, _combine_masks, _normalize_field, _normalize_mask, require_cfg
+from .base import EigenBasisDecomposerBase, _combine_masks, _mask_values, _normalize_field, _normalize_mask, require_cfg
 
 _MASK_POLICIES = {"require_mask", "allow_full"}
 _LAPLACIAN_TYPES = {"combinatorial", "normalized"}
@@ -27,7 +27,7 @@ def _parse_n_modes(value: Any) -> int | None:
             return None
         value = text
     if isinstance(value, (int, np.integer)):
-        num = int(value)
+        num = integer_parameter(value, "n_modes")
         if num <= 0:
             raise ValueError("decompose.n_modes must be > 0 for graph_fourier")
         return num
@@ -153,7 +153,7 @@ class GraphFourierDecomposer(EigenBasisDecomposerBase):
         self._n_modes = _parse_n_modes(n_modes)
         self._n_modes_config = n_modes
         self._n_modes_effective: int | None = None
-        self._connectivity = int(require_cfg(cfg, "connectivity", label="decompose"))
+        self._connectivity = integer_parameter(require_cfg(cfg, "connectivity", label="decompose"), "connectivity")
         if self._connectivity not in _CONNECTIVITY:
             raise ValueError(f"decompose.connectivity must be one of {_CONNECTIVITY}, got {self._connectivity}")
         self._laplacian_type = str(require_cfg(cfg, "laplacian_type", label="decompose"))
@@ -165,13 +165,15 @@ class GraphFourierDecomposer(EigenBasisDecomposerBase):
         self._solver = str(require_cfg(cfg, "solver", label="decompose"))
         if self._solver not in _SOLVERS:
             raise ValueError(f"decompose.solver must be one of {_SOLVERS}, got {self._solver}")
-        self._dense_threshold = int(require_cfg(cfg, "dense_threshold", label="decompose"))
+        self._dense_threshold = integer_parameter(
+            require_cfg(cfg, "dense_threshold", label="decompose"), "dense_threshold"
+        )
         if self._dense_threshold <= 0:
             raise ValueError("decompose.dense_threshold must be > 0 for graph_fourier")
         self._eigsh_tol = float(require_cfg(cfg, "eigsh_tol", label="decompose"))
         if self._eigsh_tol <= 0:
             raise ValueError("decompose.eigsh_tol must be > 0 for graph_fourier")
-        self._eigsh_maxiter = int(require_cfg(cfg, "eigsh_maxiter", label="decompose"))
+        self._eigsh_maxiter = integer_parameter(require_cfg(cfg, "eigsh_maxiter", label="decompose"), "eigsh_maxiter")
         if self._eigsh_maxiter <= 0:
             raise ValueError("decompose.eigsh_maxiter must be > 0 for graph_fourier")
 
@@ -190,7 +192,7 @@ class GraphFourierDecomposer(EigenBasisDecomposerBase):
         domain_spec: DomainSpec,
         masks: list[np.ndarray | None] | None,
     ) -> np.ndarray | None:
-        domain_mask = domain_spec.mask
+        domain_mask = None if domain_spec.mask is None else _mask_values(domain_spec.mask)
         mask = domain_mask
         if masks:
             sample_mask = masks[0]
@@ -198,11 +200,11 @@ class GraphFourierDecomposer(EigenBasisDecomposerBase):
                 if any(mask_item is not None for mask_item in masks):
                     raise ValueError("graph_fourier mask must be present for all samples or none")
             else:
-                sample_mask = np.asarray(sample_mask).astype(bool)
+                sample_mask = _mask_values(sample_mask)
                 for mask_item in masks[1:]:
                     if mask_item is None:
                         raise ValueError("graph_fourier mask must be present for all samples or none")
-                    if not np.array_equal(sample_mask, np.asarray(mask_item).astype(bool)):
+                    if not np.array_equal(sample_mask, _mask_values(mask_item)):
                         raise ValueError("graph_fourier requires a fixed mask across samples")
                 mask = sample_mask if mask is None else (mask & sample_mask)
         if mask is None:
@@ -270,7 +272,7 @@ class GraphFourierDecomposer(EigenBasisDecomposerBase):
         self._n_nodes = int(n_nodes)
         self._n_edges = int(n_edges)
         self._solver_effective = solver
-        self._n_modes_effective = int(n_modes)
+        self._n_modes_effective = integer_parameter(n_modes, "n_modes")
 
     def fit(self, dataset: Any | None = None, domain_spec: DomainSpec | None = None) -> "GraphFourierDecomposer":
         if domain_spec is None:

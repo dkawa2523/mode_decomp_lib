@@ -45,15 +45,24 @@ class DomainSpec:
         if self.weights is None:
             return None
         weights = np.asarray(self.weights)
+        expected = (self.grid_shape[0],) if self.name == "mesh" else self.grid_shape
+        if self.name == "mesh" and weights.shape == self.grid_shape:
+            weights = weights[:, 0]
+        if weights.shape != expected or weights.dtype.kind not in "fiu":
+            raise ValueError("Geometry weights must be real numeric values matching the spatial shape")
         if self.mask is None:
+            if not np.isfinite(weights).all() or np.any(weights < 0):
+                raise ValueError("Active geometry weights must be finite and non-negative")
             return weights
         mask = np.asarray(self.mask)
-        if mask.shape != weights.shape:
-            if mask.ndim == 2 and weights.ndim == 1 and mask.shape[1] == 1:
-                mask = mask[:, 0]
-            else:
-                raise ValueError(f"mask shape {mask.shape} does not match weights {weights.shape}")
-        return np.where(mask, weights, 0.0)
+        if self.name == "mesh" and mask.shape == self.grid_shape:
+            mask = mask[:, 0]
+        if mask.shape != expected or mask.dtype.kind not in "bui" or not np.isin(mask, (0, 1)).all():
+            raise ValueError("Geometry mask must be boolean or 0/1 and match the spatial shape")
+        active = mask.astype(bool, copy=False)
+        if not np.isfinite(weights).all(where=active) or np.any(weights < 0, where=active):
+            raise ValueError("Active geometry weights must be finite and non-negative")
+        return np.where(active, weights, 0.0)
 
     def mass_matrix(self) -> np.ndarray | None:
         return self._mass_matrix
@@ -75,11 +84,17 @@ def _normalize_field_shape(field_shape: tuple[int, ...]) -> tuple[int, int]:
 
 
 def _parse_range(value: Any, name: str) -> tuple[float, float]:
-    if value is None:
-        raise ValueError(f"{name} is required in domain config")
-    if hasattr(value, "__len__") and len(value) == 2:
-        return float(value[0]), float(value[1])
-    raise ValueError(f"{name} must be a pair, got {value}")
+    values = np.asarray(value)
+    if values.shape != (2,) or values.dtype.kind not in "fiu" or not np.isfinite(values).all():
+        raise ValueError(f"{name} must be a pair of finite real numbers")
+    return float(values[0]), float(values[1])
+
+
+def _finite_scalar(value: Any, name: str) -> float:
+    values = np.asarray(value)
+    if values.ndim != 0 or values.dtype.kind not in "fiu" or not np.isfinite(values):
+        raise ValueError(f"{name} must be a finite real number")
+    return float(values)
 
 
 def _axis_values(domain_cfg: Mapping[str, Any], name: str, count: int, range_key: str) -> np.ndarray:
@@ -92,13 +107,22 @@ def _axis_values(domain_cfg: Mapping[str, Any], name: str, count: int, range_key
     elif "values" in axis:
         if any(key in axis for key in ("start", "step", "count")):
             raise ValueError("Axis values and generated coordinates cannot be combined.")
-        values = np.asarray(axis["values"], dtype=np.float64)
+        values = np.asarray(axis["values"])
+        if values.dtype.kind not in "fiu":
+            raise ValueError(f"geometry.axes.{name}.values must be real numeric coordinates")
+        values = values.astype(np.float64)
     else:
         if not all(key in axis for key in ("start", "step", "count")):
             raise ValueError(f"geometry.axes.{name} needs start, step, and count.")
-        if isinstance(axis["count"], bool) or int(axis["count"]) != axis["count"] or int(axis["count"]) != count:
+        if (
+            isinstance(axis["count"], bool)
+            or not isinstance(axis["count"], (int, np.integer))
+            or axis["count"] != count
+        ):
             raise ValueError(f"geometry.axes.{name}.count must match the field dimension.")
-        values = float(axis["start"]) + float(axis["step"]) * np.arange(count, dtype=np.float64)
+        values = _finite_scalar(axis["start"], f"geometry.axes.{name}.start") + _finite_scalar(
+            axis["step"], f"geometry.axes.{name}.step"
+        ) * np.arange(count, dtype=np.float64)
     if values.shape != (count,) or count < 2 or not np.isfinite(values).all() or not (np.diff(values) > 0).all():
         raise ValueError(f"Axis {name} needs at least two finite, strictly increasing coordinates matching the field.")
     return values
@@ -179,9 +203,7 @@ def _build_domain_spec(
         meta["weight_source"] = "vertex_area"
         mass_matrix_cfg = cfg_get(domain_cfg, "mass_matrix", False)
         mass_matrix = None
-        if isinstance(mass_matrix_cfg, str):
-            mass_matrix_cfg = mass_matrix_cfg.strip().lower()
-        if mass_matrix_cfg in {True, "diag", "diagonal"}:
+        if mass_matrix_cfg is not False and mass_matrix_cfg is not None:
             raise ValueError("domain.mass_matrix is retired: numerical methods use the linear-size integration weights")
         return DomainSpec(
             name=name,
@@ -211,13 +233,17 @@ def _build_domain_spec(
             raise ValueError("domain.angle_unit must be deg/degree/degrees or rad/radian/radians for sphere_grid")
         n_lat = cfg_get(domain_cfg, "n_lat", None)
         n_lon = cfg_get(domain_cfg, "n_lon", None)
-        if n_lat is not None and int(n_lat) != height:
+        if n_lat is not None and (
+            isinstance(n_lat, bool) or not isinstance(n_lat, (int, np.integer)) or n_lat != height
+        ):
             raise ValueError(f"domain.n_lat {n_lat} does not match field height {height}")
-        if n_lon is not None and int(n_lon) != width:
+        if n_lon is not None and (
+            isinstance(n_lon, bool) or not isinstance(n_lon, (int, np.integer)) or n_lon != width
+        ):
             raise ValueError(f"domain.n_lon {n_lon} does not match field width {width}")
         if height < 2 or width < 2:
             raise ValueError("sphere_grid requires field_shape with height/width >= 2")
-        radius = float(cfg_get(domain_cfg, "radius", 1.0))
+        radius = _finite_scalar(cfg_get(domain_cfg, "radius", 1.0), "geometry.radius")
         if not np.isfinite(radius) or radius <= 0.0:
             raise ValueError("domain.radius must be > 0 for sphere_grid")
 
@@ -296,8 +322,8 @@ def _build_domain_spec(
         center = cfg_get(domain_cfg, "center", None)
         if center is None or not hasattr(center, "__len__") or len(center) != 2:
             raise ValueError("domain.center must be a pair for disk")
-        cx, cy = float(center[0]), float(center[1])
-        radius = float(cfg_get(domain_cfg, "radius", 0.0))
+        cx, cy = _parse_range(center, "geometry.center")
+        radius = _finite_scalar(cfg_get(domain_cfg, "radius", 0.0), "geometry.radius")
         if radius <= 0:
             raise ValueError("domain.radius must be > 0 for disk")
         radius_f = np.float32(radius)
@@ -323,9 +349,9 @@ def _build_domain_spec(
         center = cfg_get(domain_cfg, "center", None)
         if center is None or not hasattr(center, "__len__") or len(center) != 2:
             raise ValueError("domain.center must be a pair for annulus")
-        cx, cy = float(center[0]), float(center[1])
-        r_inner = float(cfg_get(domain_cfg, "r_inner", 0.0))
-        r_outer = float(cfg_get(domain_cfg, "r_outer", 0.0))
+        cx, cy = _parse_range(center, "geometry.center")
+        r_inner = _finite_scalar(cfg_get(domain_cfg, "r_inner", 0.0), "geometry.r_inner")
+        r_outer = _finite_scalar(cfg_get(domain_cfg, "r_outer", 0.0), "geometry.r_outer")
         if r_outer <= 0:
             raise ValueError("domain.r_outer must be > 0 for annulus")
         if r_inner < 0:
@@ -375,7 +401,57 @@ def build_domain_spec(domain_cfg: Mapping[str, Any], field_shape: tuple[int, ...
     if not isinstance(domain_cfg, Mapping):
         raise ValueError("geometry must be a mapping.")
     config = dict(domain_cfg)
-    config["name"] = str(config.pop("kind", config.get("name", "")))
+    if "kind" in config and "name" in config:
+        raise ValueError("Specify geometry.kind or geometry.name, not both")
+    config["name"] = config.pop("kind", config.get("name", ""))
+    name = config["name"]
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("geometry.name must be a non-empty string")
+    config["name"] = name = name.strip()
+    metadata_keys = {
+        "units",
+        "coordinate_units",
+        "field_units",
+        "boundary_condition",
+        "component_basis",
+        "fit_weight_policy",
+    }
+    grid_keys = {"name", "axes", "x_range", "y_range"}
+    domain_keys = {
+        "rectangle": grid_keys,
+        "disk": grid_keys | {"center", "radius"},
+        "annulus": grid_keys | {"center", "r_inner", "r_outer"},
+        "mask": grid_keys | {"mask", "mask_source", "mask_path"},
+        "arbitrary_mask": grid_keys | {"mask", "mask_source", "mask_path"},
+        "sphere_grid": grid_keys | {"lat_range", "lon_range", "n_lat", "n_lon", "radius", "angle_unit"},
+        "mesh": {"name", "vertices", "faces", "mask", "vertex_mask", "mass_matrix"},
+    }
+    if name in domain_keys and (unknown := set(config) - domain_keys[name] - metadata_keys):
+        raise ValueError(f"Unknown {name} geometry settings: {sorted(unknown, key=str)}")
+    axes = config.get("axes", {})
+    if not isinstance(axes, Mapping):
+        raise ValueError("geometry.axes must be a mapping")
+    axis_names = {"lat", "lon"} if name == "sphere_grid" else {"x", "y"}
+    if set(axes) - axis_names:
+        raise ValueError(f"geometry.axes for {name} must use {sorted(axis_names)}")
+    if name == "sphere_grid":
+        for canonical, alias in (("lat_range", "y_range"), ("lon_range", "x_range")):
+            if alias in config:
+                if canonical in config and not np.allclose(
+                    _parse_range(config[canonical], canonical), _parse_range(config[alias], alias)
+                ):
+                    raise ValueError(f"Conflicting geometry {canonical} and {alias}")
+                config[canonical] = config.pop(alias)
+    for axis_name, axis in axes.items():
+        if not isinstance(axis, Mapping) or set(axis) - {"values", "start", "step", "count", "periodic"}:
+            raise ValueError(f"Unknown or invalid geometry.axes.{axis_name} settings")
+        if f"{axis_name}_range" in config:
+            count = field_shape[1] if axis_name in {"x", "lon"} else field_shape[0]
+            values = _axis_values(config, axis_name, count, f"{axis_name}_range")
+            bounds = _parse_range(config[f"{axis_name}_range"], f"{axis_name}_range")
+            if not np.allclose((values[0], values[-1]), bounds, rtol=1e-12, atol=1e-12):
+                raise ValueError(f"geometry.axes.{axis_name} disagrees with {axis_name}_range")
+            config.pop(f"{axis_name}_range")
     result = _build_domain_spec(config, field_shape)
     metadata = {**result.meta, "weight_measure": "physical_area"}
     for key in (
@@ -429,6 +505,8 @@ def validate_decomposer_compatibility(
         "hodge": {"rectangle", "disk", "annulus", "arbitrary_mask", "mask"},
         # Rectangle-only.
         "pswf2d_tensor": {"rectangle"},
+        "tucker": {"rectangle"},
+        "quadratic_manifold": {"rectangle", "disk", "annulus", "arbitrary_mask", "mask", "sphere_grid", "mesh"},
         # Wavelet can operate on masked grids (with caveats).
         "wavelet2d": {"rectangle", "disk", "arbitrary_mask", "mask"},
         # Sphere-grid.
@@ -456,6 +534,7 @@ def validate_decomposer_compatibility(
             "hodge": "hodge requires a masked Cartesian grid domain",
             "wavelet2d": "wavelet2d requires rectangle or mask-compatible domain",
             "pswf2d_tensor": "pswf2d_tensor requires rectangle domain",
+            "tucker": "tucker requires a rectangular tensor-product grid",
             "spherical_harmonics": "spherical_harmonics requires sphere_grid domain",
             "spherical_slepian": "spherical_slepian requires sphere_grid domain",
         }

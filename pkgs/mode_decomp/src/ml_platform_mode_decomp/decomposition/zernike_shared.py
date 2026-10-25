@@ -7,7 +7,7 @@ from typing import Any, Callable, Mapping
 import numpy as np
 from scipy.special import comb, gammaln
 
-from ml_platform_mode_decomp.config import cfg_get
+from ml_platform_mode_decomp.config import cfg_get, integer_parameter
 from .base import ZernikeFamilyBase
 from ml_platform_mode_decomp.geometry import DomainSpec
 
@@ -170,8 +170,8 @@ class ZernikeBasisDecomposer(ZernikeFamilyBase):
     ) -> None:
         super().__init__(cfg=cfg)
         self.name = name
-        self._n_max = int(n_max)
-        self._m_max = int(m_max)
+        self._n_max = integer_parameter(n_max, "n_max")
+        self._m_max = integer_parameter(m_max, "m_max")
         self._ordering = str(ordering)
         self._normalization = str(normalization)
         self._boundary_condition = str(boundary_condition)

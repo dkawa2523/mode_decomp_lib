@@ -14,17 +14,22 @@ _OPERATIONS = {
 
 
 def train_candidate(cfg, result):
-    from .stage_inputs import load_stage_dataset
+    from .stage_inputs import load_stage_execution
+    from .inputs import subset_inputs
     from .training.candidate_training import evaluate_candidate, selection_options, write_candidate
     from .training.preparation import needs_selection
     from .training.search import prepare_folds
 
-    dataset, split = load_stage_dataset(cfg)
+    prepared = load_stage_execution(cfg)
+    dataset, split, inputs = prepared.dataset, prepared.split, prepared.inputs
     if not needs_selection(cfg):
         raise ValueError("A fixed single candidate does not require a train_candidate Stage")
     tuning = cfg.get("tuning", {}).get("enabled", False)
-    training = dataset._subset_validated(split["train_indices"] if tuning else split["fit_indices"])
+    fit_indices = split["train_indices"] if tuning else split["fit_indices"]
+    training = dataset._subset_validated(fit_indices)
+    training_inputs = subset_inputs(inputs, fit_indices)
     selection = None if tuning else dataset._subset_validated(split["selection_indices"])
+    selection_inputs = None if tuning else subset_inputs(inputs, split["selection_indices"])
     folds = (
         prepare_folds(
             training,
@@ -36,7 +41,15 @@ def train_candidate(cfg, result):
         if tuning
         else None
     )
-    payload, report, searched = evaluate_candidate(cfg, cfg["candidate"], training, selection, folds=folds)
+    payload, report, searched = evaluate_candidate(
+        cfg,
+        cfg["candidate"],
+        training,
+        selection,
+        folds=folds,
+        inputs=training_inputs,
+        selection_inputs=selection_inputs,
+    )
     if payload is not None:
         payload.update(
             dataset_revision=dataset.revision,
@@ -47,13 +60,18 @@ def train_candidate(cfg, result):
 
 
 def finalize_surrogate(cfg, result):
-    from .stage_inputs import load_candidate_results, load_stage_dataset
+    from .stage_inputs import load_candidate_results, load_stage_execution
     from .training.candidate_training import selection_scope
     from .training.finalization import finalize_selected
 
-    dataset, split = load_stage_dataset(cfg)
-    candidates = load_candidate_results(cfg, dataset, split) if selection_scope(cfg) != "fixed_configuration" else []
-    finalize_selected(cfg, result, dataset, split, candidates)
+    prepared = load_stage_execution(cfg)
+    dataset, split, inputs = prepared.dataset, prepared.split, prepared.inputs
+    candidates = (
+        load_candidate_results(cfg, dataset, split, inputs=inputs)
+        if selection_scope(cfg) != "fixed_configuration"
+        else []
+    )
+    finalize_selected(cfg, result, dataset, split, candidates, inputs=inputs)
 
 
 def run_stage(cfg: dict[str, Any]) -> RunResult:

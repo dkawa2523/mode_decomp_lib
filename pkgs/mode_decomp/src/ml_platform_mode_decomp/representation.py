@@ -25,6 +25,17 @@ def _batch_slices(count: int, sample_bytes: int):
         yield slice(start, min(start + size, count))
 
 
+def _observation_mask(mask, shape):
+    if mask is None:
+        return None
+    values = np.asarray(mask)
+    if values.shape not in (shape[1:-1], shape[:-1]):
+        raise ValueError("Input masks must be spatial or sample-by-spatial")
+    if values.dtype.kind not in "bui" or not np.isin(values, (0, 1)).all():
+        raise ValueError("Input masks must contain boolean or 0/1 values")
+    return values.astype(bool, copy=False)
+
+
 class FieldRepresentation:
     """A fixed geometry, field transform, decomposer, codec and target transform.
 
@@ -89,6 +100,7 @@ class FieldRepresentation:
         return packed, targets
 
     def _inputs(self, value, masks=None):
+        dataset_mask = None
         if hasattr(value, "geometry") and hasattr(value, "fields"):
             if geometry_fingerprint(value.geometry) != self.geometry_sha256:
                 raise ValueError("Input geometry differs from the fitted representation")
@@ -99,19 +111,17 @@ class FieldRepresentation:
             if value.field_kind != self.field_kind:
                 raise ValueError("Input field kind differs from the fitted representation")
             fields = np.asarray(value.fields)
-            masks = value.observation_mask
+            dataset_mask = value.observation_mask
         else:
             fields = np.asarray(value)
         if fields.ndim != len(self.field_shape) + 1 or tuple(fields.shape[1:]) != self.field_shape:
             raise ValueError(f"Expected a batch with field shape {self.field_shape}; got {fields.shape}")
         if fields.dtype.kind not in "fiu":
             raise ValueError("Input fields must contain real numeric values")
-        if masks is not None:
-            masks = np.asarray(masks)
-            if masks.shape not in (fields.shape[1:-1], fields.shape[:-1]):
-                raise ValueError("Input masks must be spatial or sample-by-spatial")
-            if masks.dtype.kind not in "bui" or not np.isin(masks, (0, 1)).all():
-                raise ValueError("Input masks must contain boolean or 0/1 values")
+        masks = _observation_mask(masks, fields.shape)
+        dataset_mask = _observation_mask(dataset_mask, fields.shape)
+        if dataset_mask is not None:
+            masks = dataset_mask if masks is None else masks & dataset_mask
         if self.mesh:
             fields = fields[:, :, None, :]
             if masks is not None:
@@ -157,6 +167,7 @@ class FieldRepresentation:
     def transform(
         self, fields: FieldDataset | np.ndarray, masks: np.ndarray | None = None, *, space: str = "z"
     ) -> np.ndarray:
+        """Encode observations; an extra mask can only restrict the Dataset's support."""
         self._require_fitted()
         if space not in {"a", "z"}:
             raise ValueError("space must be 'a' or 'z'")

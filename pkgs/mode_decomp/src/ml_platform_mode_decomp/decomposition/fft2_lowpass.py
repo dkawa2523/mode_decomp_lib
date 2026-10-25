@@ -13,7 +13,7 @@ Notes:
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Mapping
 
@@ -57,7 +57,7 @@ class FFT2LowpassDecomposer(GridDecomposerBase):
         block_size = cfg["block_size"]
         if block_size is None:
             raise ValueError("decompose.block_size is required for fft2_lowpass")
-        self._block_size = int(block_size)
+        self._block_size = integer_parameter(block_size, "block_size")
         if self._block_size <= 0:
             raise ValueError("decompose.block_size must be >= 1 for fft2_lowpass")
 

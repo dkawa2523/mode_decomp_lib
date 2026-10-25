@@ -1,13 +1,18 @@
 name: Package quality
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   base:
+    timeout-minutes: 20
     strategy:
+      fail-fast: false
       matrix:
         include:
           - {os: ubuntu-latest, python: '3.11'}
@@ -19,20 +24,52 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: uv sync --locked
-      - run: uv run --no-sync python -m pytest -q
+      - run: uv run --no-sync python -m pytest -q --junitxml=work/test-results.xml
       - run: uv run --no-sync ruff check .
       - run: uv run --no-sync ruff format --check .
-      - run: uv run --no-sync pyrefly check
+      - run: uv run --no-sync pyrefly check --python-interpreter-path .venv/${{ runner.os == 'Windows' && 'Scripts/python.exe' || 'bin/python' }}
       - run: uv run --no-sync lint-imports --config pyproject.toml
+      - name: Preserve test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tests-${{ matrix.os }}-python-${{ matrix.python }}
+          path: work/test-results.xml
+          if-no-files-found: warn
+          retention-days: 14
 
   wheel:
     needs: base
-    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           python-version: '3.12'
-      - run: uv run --no-project python scripts/build_distribution.py
-      - run: uv run --no-project python scripts/verify_distribution.py --bundle dist/ml_platform_mode_decomp-*.zip --work-dir work/distribution-acceptance
-      - run: work/distribution-acceptance/environment/bin/python scripts/verify_wheels.py --work-dir work/wheel-acceptance
+      - name: Build source archive, wheels and consumer ZIP
+        run: uv run --no-project python scripts/build_distribution.py
+      - name: Accept ZIP in a fresh pip environment
+        run: uv run --no-project python scripts/verify_distribution.py --bundle dist/*/ml_platform_mode_decomp-*.zip --work-dir work/distribution-acceptance
+      - name: Verify installed wheel against checkout
+        run: work/distribution-acceptance/environment/${{ runner.os == 'Windows' && 'Scripts/python.exe' || 'bin/python' }} scripts/verify_wheels.py --work-dir work/wheel-acceptance
+      - name: Preserve distribution and acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: distribution-acceptance-${{ matrix.os }}-python-3.12
+          path: |
+            dist/*/
+            work/distribution-acceptance/*.json
+            work/distribution-acceptance/*.log
+            work/wheel-acceptance/report.json
+            work/wheel-acceptance/scattered_verification.json
+          if-no-files-found: warn
+          retention-days: 14

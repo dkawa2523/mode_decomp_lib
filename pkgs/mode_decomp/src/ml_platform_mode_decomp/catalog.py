@@ -37,9 +37,11 @@ _DECOMPOSERS: dict[str, str] = {
     "polar_fft": "ml_platform_mode_decomp.decomposition.polar_fft:PolarFFTDecomposer",
     "pseudo_zernike": "ml_platform_mode_decomp.decomposition.pseudo_zernike:PseudoZernikeDecomposer",
     "pswf2d_tensor": "ml_platform_mode_decomp.decomposition.pswf2d_tensor:PSWF2DTensorDecomposer",
+    "quadratic_manifold": "ml_platform_mode_decomp.decomposition.quadratic_manifold:QuadraticManifoldDecomposer",
     "rbf_expansion": "ml_platform_mode_decomp.decomposition.rbf_expansion:RBFExpansionDecomposer",
     "spherical_harmonics": "ml_platform_mode_decomp.decomposition.spherical_harmonics:SphericalHarmonicsDecomposer",
     "spherical_slepian": "ml_platform_mode_decomp.decomposition.spherical_slepian:SphericalSlepianDecomposer",
+    "tucker": "ml_platform_mode_decomp.decomposition.tucker:TuckerDecomposer",
     "wavelet2d": "ml_platform_mode_decomp.decomposition.wavelet2d:Wavelet2DDecomposer",
     "zernike": "ml_platform_mode_decomp.decomposition.zernike_decomposer:ZernikeDecomposer",
 }
@@ -147,7 +149,7 @@ def decomposition_role(name: str) -> str:
         return "field_component_separation"
     if name in {"gappy_pod", "gappy_graph_fourier", "pod_em", "pod_joint_em"}:
         return "partial_observation_representation"
-    if name in {"pod", "pod_svd", "pod_joint", "autoencoder", "dict_learning"}:
+    if name in {"pod", "pod_svd", "pod_joint", "autoencoder", "dict_learning", "tucker", "quadratic_manifold"}:
         return "learned_representation"
     if name in {"fft2", "dct2", "wavelet2d"}:
         return "coordinate_transform"

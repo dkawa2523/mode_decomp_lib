@@ -66,7 +66,11 @@ def _condition_array(value: Any, count: int, columns: Sequence[str]) -> np.ndarr
         raise ValueError("conditions must have shape (N,P), with P >= 1.")
     if array.dtype.kind not in "fiu" or not np.isfinite(array).all():
         raise ValueError("conditions must contain finite real numbers.")
-    if len(columns) != array.shape[1] or len(set(columns)) != len(columns) or any(not col for col in columns):
+    if (
+        len(columns) != array.shape[1]
+        or any(not isinstance(col, str) or not col.strip() for col in columns)
+        or len(set(columns)) != len(columns)
+    ):
         raise ValueError("condition_columns must uniquely name all condition columns in order.")
     return array
 
@@ -135,7 +139,9 @@ class ConditionBatch:
         array = np.asarray(self.conditions)
         if array.ndim != 2:
             raise ValueError("conditions must have shape (N,P).")
-        columns = tuple(str(col) for col in self.condition_columns)
+        if isinstance(self.condition_columns, (str, bytes)):
+            raise ValueError("condition_columns must be a sequence of column names, not one string.")
+        columns = tuple(self.condition_columns)
         object.__setattr__(self, "conditions", _condition_array(array, len(array), columns))
         object.__setattr__(self, "sample_ids", _ids(self.sample_ids, len(array)))
         object.__setattr__(self, "condition_columns", columns)
@@ -205,6 +211,8 @@ class FieldDataset(Sequence[FieldSample]):
         if geometry is None:
             geometry = _array_geometry(values.shape[1:], x, y)
         condition_values = None if conditions is None else np.asarray(conditions)
+        if isinstance(condition_columns, (str, bytes)) or isinstance(components, (str, bytes)):
+            raise ValueError("Condition columns and components must be sequences of names, not one string.")
         columns = (
             tuple(condition_columns)
             if condition_columns is not None
@@ -245,7 +253,9 @@ class FieldDataset(Sequence[FieldSample]):
             raise ValueError(f"field spatial shape {spatial} disagrees with geometry {expected}.")
         object.__setattr__(self, "fields", fields)
         object.__setattr__(self, "sample_ids", _ids(self.sample_ids, len(fields)))
-        columns = tuple(str(col) for col in self.condition_columns)
+        if isinstance(self.condition_columns, (str, bytes)):
+            raise ValueError("condition_columns must be a sequence of column names, not one string.")
+        columns = tuple(self.condition_columns)
         object.__setattr__(self, "condition_columns", columns)
         if self.conditions is not None:
             object.__setattr__(self, "conditions", _condition_array(self.conditions, len(fields), columns))
@@ -259,8 +269,14 @@ class FieldDataset(Sequence[FieldSample]):
             if mask.dtype.kind not in "bui" or not np.isin(mask, (0, 1)).all():
                 raise ValueError("observation_mask must contain boolean or 0/1 values.")
             object.__setattr__(self, "observation_mask", mask.astype(bool, copy=False))
-        components = tuple(self.components)
-        if components and (len(components) != fields.shape[-1] or len(set(components)) != len(components)):
+        if isinstance(self.components, (str, bytes)):
+            raise ValueError("components must be a sequence of channel names, not one string.")
+        components = tuple(self.components) or tuple(f"component_{index}" for index in range(fields.shape[-1]))
+        if (
+            len(components) != fields.shape[-1]
+            or any(not isinstance(name, str) or not name.strip() for name in components)
+            or len(set(components)) != len(components)
+        ):
             raise ValueError("components must uniquely name each field channel.")
         object.__setattr__(self, "components", components)
         # Read the former manifest representation only at the construction

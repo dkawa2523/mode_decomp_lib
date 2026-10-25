@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Mapping, Sequence
 
@@ -10,9 +10,10 @@ import numpy as np
 
 from ml_platform_mode_decomp.geometry import DomainSpec, validate_decomposer_compatibility
 
-from .base import BaseDecomposer, require_cfg_stripped
+from .base import BaseDecomposer, _mask_values, require_cfg_stripped
 
-import pywt
+# This module is loaded only when the optional wavelet backend is selected.
+import pywt  # pyrefly: ignore[missing-import]
 
 _MASK_POLICIES = {"error", "zero_fill"}
 _MASK_FILL_OPTIONS = {"zero", "mean"}
@@ -23,7 +24,7 @@ def _parse_level(value: Any) -> int | None:
     if value is None or value == "" or value == "null":
         return None
     if isinstance(value, (int, np.integer)):
-        level = int(value)
+        level = integer_parameter(value, "level")
         if level <= 0:
             raise ValueError("decompose.level must be positive for wavelet2d")
         return level
@@ -127,7 +128,7 @@ class Wavelet2DDecomposer(BaseDecomposer[np.ndarray]):
         if self._mask_fill == "mean":
             combined_mask: np.ndarray | None = None
             if mask is not None:
-                mask_arr = np.asarray(mask).astype(bool)
+                mask_arr = _mask_values(mask)
                 if mask_arr.ndim == 3:
                     mask_arr = mask_arr[..., 0]
                 if mask_arr.shape != domain_spec.grid_shape:

@@ -10,8 +10,8 @@ import numpy as np
 
 from ml_platform_mode_decomp.geometry import DomainSpec, validate_decomposer_compatibility
 
-from .base import BaseDecomposer, _combine_masks, _normalize_mask, parse_bool, require_cfg
-from .pod_utils import parse_n_modes, svd_snapshots_basis
+from .base import BaseDecomposer, _combine_masks, _normalize_mask, require_cfg
+from .pod_utils import parse_n_modes, resolve_centering, svd_snapshots_basis
 
 _MASK_POLICIES = {"error", "zero_fill"}
 _INNER_PRODUCTS = {"euclidean", "domain_weights"}
@@ -44,9 +44,7 @@ class JointPODDecomposer(BaseDecomposer[np.ndarray]):
         self._inner_product = str(require_cfg(cfg, "inner_product", label="decompose")).strip().lower()
         if self._inner_product not in _INNER_PRODUCTS:
             raise ValueError(f"decompose.inner_product must be one of {_INNER_PRODUCTS}, got {self._inner_product}")
-        self._mean_centered = parse_bool(
-            cfg.get("center") if cfg.get("center") is not None else cfg.get("mean_centered"), default=False
-        )
+        self._mean_centered = resolve_centering(cfg, default=False)
         self._mu: np.ndarray | None = None
 
         self._basis: np.ndarray | None = None  # (F, K) in weighted feature space if domain_weights

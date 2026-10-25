@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ml_platform_mode_decomp.config import constructor_config
+from ml_platform_mode_decomp.config import constructor_config, integer_parameter
 
 from typing import Any, Mapping
 
@@ -18,8 +18,8 @@ from ml_platform_mode_decomp.regressors.base import (
 )
 
 try:  # optional dependency
-    import torch
-    import gpytorch
+    import torch  # pyrefly: ignore[missing-import]
+    import gpytorch  # pyrefly: ignore[missing-import]
 except ImportError:  # pragma: no cover - gpytorch is optional
     torch = None
     gpytorch = None
@@ -53,9 +53,9 @@ def _resolve_random_state(cfg: Mapping[str, Any]) -> int | None:
     seed = cfg["seed"]
     random_state = cfg["random_state"]
     if seed is not None:
-        seed = int(seed)
+        seed = integer_parameter(seed, "seed")
     if random_state is not None:
-        random_state = int(random_state)
+        random_state = integer_parameter(random_state, "random_state")
     if seed is not None and random_state is not None and seed != random_state:
         raise ValueError("seed and random_state must match when both are provided")
     return seed if seed is not None else random_state
@@ -71,14 +71,14 @@ def _resolve_kernel(cfg: Mapping[str, Any]) -> str:
 
 
 def _resolve_rank(cfg: Mapping[str, Any]) -> int:
-    rank = int(cfg["rank"])
+    rank = integer_parameter(cfg["rank"], "rank")
     if rank <= 0:
         raise ValueError("rank must be > 0")
     return rank
 
 
 def _resolve_training_iter(cfg: Mapping[str, Any]) -> int:
-    training_iter = int(cfg["training_iter"])
+    training_iter = integer_parameter(cfg["training_iter"], "training_iter")
     if training_iter <= 0:
         raise ValueError("training_iter must be > 0")
     return training_iter
