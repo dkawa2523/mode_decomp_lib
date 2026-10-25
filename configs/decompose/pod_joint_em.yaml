@@ -1,5 +1,0 @@
-# Source: configs/decompose/analytic/pod_joint_em.yaml
-
-defaults:
-  - /decompose/analytic/pod_joint_em
-

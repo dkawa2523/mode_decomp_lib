@@ -1,0 +1,48 @@
+[project]
+name = "ml-platform-mode-decomp"
+version = "0.10.4"
+description = "Field representations and condition-to-field surrogates for ML Platform."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "ml-platform-core>=0.2.1,<0.3",
+  "numpy>=2.0",
+  "pandas>=2.0",
+  "PyYAML>=6.0",
+  "scipy>=1.15",
+  "scikit-learn>=1.6",
+]
+
+[project.optional-dependencies]
+wavelet = ["PyWavelets>=1.6"]
+pod = ["modred"]
+torch = ["torch>=2.4"]
+mtgp = ["torch>=2.4", "gpytorch>=1.13"]
+gbdt = ["xgboost>=2", "lightgbm>=4", "catboost>=1.2"]
+
+[project.scripts]
+ml-platform-mode-decomp = "ml_platform_mode_decomp.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["ml_platform_mode_decomp", "ml_platform_mode_decomp.*"]
+namespaces = false
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+src = ["src", "tests"]
+exclude = ["build", "dist"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "B", "BLE", "S110", "S112"]
+
+[tool.pyrefly]
+project-includes = ["src"]
+search-path = ["src"]
+# Optional backends are checked when installed; base-package checks need no GPU stack.
+ignore-missing-imports = ["torch", "torch.*", "gpytorch", "gpytorch.*", "modred", "pywt"]

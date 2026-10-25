@@ -1,0 +1,36 @@
+task: mode_decomp_representation
+run:
+  name: annular_hodge
+  seed: 42
+data:
+  format: npy
+  local_path: data/hodge_fields
+  fields:
+    path: field.npy
+    layout: NHWC
+    kind: vector
+    components: [u_x, u_y]
+    units: [m/s, m/s]
+  geometry:
+    kind: annulus
+    center: [0, 0]
+    r_inner: 0.3
+    r_outer: 1.0
+    coordinate_units: {x: m, y: m}
+    axes:
+      x: {start: -1, step: 0.08333333333333333, count: 25}
+      y: {start: -1, step: 0.08333333333333333, count: 25}
+analysis:
+  components:
+    enabled: true
+report:
+  enabled: true
+representation:
+  field_preprocess: {name: none}
+  decomposition:
+    name: hodge
+    params:
+      boundary: natural
+      tolerance: 1.0e-11
+metrics:
+  names: [field_rmse, field_mae]

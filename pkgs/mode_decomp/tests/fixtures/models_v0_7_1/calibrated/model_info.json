@@ -1,0 +1,63 @@
+{
+  "model_artifact_schema_version": 1,
+  "model_sha256": "236f622b10f610337e8bc60ce4a815b96c5edc12881a0174577ac142fd9db36e",
+  "runtime": {
+    "python": "3.12.13",
+    "packages": {
+      "joblib": "1.5.3",
+      "ml-platform-core": "0.2.0",
+      "ml-platform-mode-decomp": "0.7.1",
+      "numpy": "2.4.2",
+      "scikit-learn": "1.8.0",
+      "scipy": "1.17.0"
+    }
+  },
+  "input_schema": {
+    "schema_version": 1,
+    "bundle_kind": "surrogate",
+    "field_shape": [
+      4,
+      5,
+      1
+    ],
+    "components": [
+      "temperature"
+    ],
+    "field_units": [
+      "K"
+    ],
+    "geometry_sha256": "4bbd51224fbf8697c480f07dbdb0d634c7e8827271bfd07367ea574aef519fa8",
+    "packed_dim": 20,
+    "target_dim": 20,
+    "condition_columns": [
+      "a",
+      "b"
+    ],
+    "coefficient_space": "z",
+    "coefficient_layout": {
+      "method": "dct2",
+      "field_shape": [
+        4,
+        5,
+        1
+      ],
+      "field_layout": "HWC",
+      "channels": 1,
+      "coeff_shape": [
+        1,
+        4,
+        5
+      ],
+      "coeff_layout": "CHW",
+      "flatten_order": "C",
+      "complex_format": "real"
+    },
+    "field_uncertainty": {
+      "method": "split_conformal",
+      "coverage": 0.9,
+      "scope": "simultaneous",
+      "normalization": "channel"
+    }
+  },
+  "provenance": {}
+}

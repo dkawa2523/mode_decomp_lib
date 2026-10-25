@@ -1,2 +1,0 @@
-name: basic
-metrics: [field_rmse, coeff_rmse_a, energy_cumsum]

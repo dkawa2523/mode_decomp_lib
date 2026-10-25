@@ -1,0 +1,24 @@
+{
+  "version": "0.7.1",
+  "runtime": {
+    "ml-platform-core": "0.2.0",
+    "numpy": "2.4.2",
+    "scipy": "1.17.0",
+    "scikit-learn": "1.8.0",
+    "joblib": "1.5.3"
+  },
+  "bundles": {
+    "dct": {
+      "payload_sha256": "d510efdcc2fb48dcaaae328a025b6d7b7a13eead0e80f517504a7759eb689d9c",
+      "verified_in_producer": true
+    },
+    "pod_ridge": {
+      "payload_sha256": "3d09e73905f7ba6c646b5863ba58589847832e8bc996e0be7e98d216e6e51e8e",
+      "verified_in_producer": true
+    },
+    "calibrated": {
+      "payload_sha256": "236f622b10f610337e8bc60ce4a815b96c5edc12881a0174577ac142fd9db36e",
+      "verified_in_producer": true
+    }
+  }
+}

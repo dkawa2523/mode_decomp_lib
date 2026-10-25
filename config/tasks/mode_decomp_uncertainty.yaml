@@ -1,0 +1,33 @@
+task: mode_decomp_pipeline
+run:
+  name: calibrated_field_surrogate
+  seed: 42
+data:
+  local_path: data/nonlinear_fields
+  source_manifest: field_dataset.yaml
+split:
+  method: random
+  valid_size: 0.25
+  selection_size: 0.25
+uncertainty:
+  enabled: true
+  method: split_conformal
+  coverage: 0.9
+  scope: simultaneous
+  normalization: channel
+  calibration_size: 0.2
+  calibration_seed: 49
+  # calibration_method defaults to the outer random/group/time split method.
+tuning: {enabled: false}
+model:
+  candidates:
+    - id: pod4_ridge
+      representation:
+        decomposition: {name: pod_svd, params: {n_modes: 4, inner_product: domain_weights}}
+      regression: {name: ridge, params: {alpha: 0.01}}
+    - id: pod6_ridge
+      representation:
+        decomposition: {name: pod_svd, params: {n_modes: 6, inner_product: domain_weights}}
+      regression: {name: ridge, params: {alpha: 0.01}}
+metrics:
+  names: [field_rmse, field_mae]

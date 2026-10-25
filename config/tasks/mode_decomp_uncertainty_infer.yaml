@@ -1,0 +1,10 @@
+task: mode_decomp_infer
+run: {name: calibrated_field_inference}
+data:
+  local_path: data/nonlinear_fields/new_conditions.csv
+model:
+  artifact_path: null  # Set to the trained model.joblib with --set.
+  info_path: null
+uncertainty:
+  enabled: true  # Reuse the model's saved coverage/scope/normalization.
+output: {prediction_name: predictions.npz}

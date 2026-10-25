@@ -1,0 +1,38 @@
+task: mode_decomp_pipeline
+run:
+  name: field_cv_search
+  seed: 42
+data:
+  local_path: data/tiny_fields
+  source_manifest: field_dataset.yaml
+split:
+  method: random
+  valid_size: 0.2
+model:
+  selection_metric: field_rmse
+  candidates:
+    - id: pod_ridge
+      representation:
+        decomposition: {name: pod_svd, params: {n_modes: 2, inner_product: domain_weights}}
+      regression: {name: ridge}
+    - id: dct_ridge
+      representation:
+        decomposition: {name: dct2}
+      regression: {name: ridge}
+tuning:
+  enabled: true
+  method: grid
+  n_trials: 6
+  seed: 81
+  cv:
+    method: random
+    n_splits: 3
+    seed: 23
+  search_spaces:
+    pod_ridge:
+      representation.decomposition.params.n_modes: [1, 2]
+      regression.params.alpha: [0.0001, 0.01, 1.0]
+    dct_ridge:
+      regression.params.alpha: [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0]
+metrics:
+  names: [field_rmse, field_mae]

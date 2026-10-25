@@ -1,6 +1,0 @@
-# Auto-generated shim for Hydra compatibility.
-# Source: configs/decompose/data_driven/gappy_pod.yaml
-
-defaults:
-  - /decompose/data_driven/gappy_pod
-  - _self_

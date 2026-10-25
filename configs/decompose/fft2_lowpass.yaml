@@ -1,7 +1,0 @@
-# Auto-generated shim for Hydra compatibility.
-# Source: configs/decompose/analytic/fft2_lowpass.yaml
-
-defaults:
-  - /decompose/analytic/fft2_lowpass
-  - _self_
-

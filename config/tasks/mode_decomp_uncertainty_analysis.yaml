@@ -1,0 +1,29 @@
+task: mode_decomp_analysis
+run: {name: calibrated_field_comparison, seed: 42}
+data:
+  local_path: data/nonlinear_fields
+  source_manifest: field_dataset.yaml
+split: {method: random, valid_size: 0.25}
+uncertainty:
+  enabled: true
+  coverage: 0.9
+  scope: simultaneous
+  normalization: channel
+  calibration_size: 0.2
+analysis:
+  kind: surrogate
+  split_seeds: [11, 23]
+  model_seeds: [42]
+  bootstrap_samples: 200
+  save_models: true
+report: {enabled: true}
+model:
+  candidates:
+    - id: pod4_ridge
+      representation:
+        decomposition: {name: pod_svd, params: {n_modes: 4, inner_product: domain_weights}}
+      regression: {name: ridge, params: {alpha: 0.01}}
+    - id: pod6_ridge
+      representation:
+        decomposition: {name: pod_svd, params: {n_modes: 6, inner_product: domain_weights}}
+      regression: {name: ridge, params: {alpha: 0.01}}

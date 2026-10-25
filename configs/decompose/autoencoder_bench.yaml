@@ -1,7 +1,0 @@
-# Auto-generated shim for Hydra compatibility.
-# Source: configs/decompose/data_driven/autoencoder_bench.yaml
-
-defaults:
-  - /decompose/data_driven/autoencoder_bench
-  - _self_
-

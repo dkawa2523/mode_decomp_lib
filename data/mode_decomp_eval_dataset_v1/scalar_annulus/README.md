@@ -1,17 +1,11 @@
-# scalar / annulus サブセット
+# scalar_annulus
 
-このフォルダには annulus ドメイン用のスカラー場データが入っています。
+固定パターンの生成係数を条件とする旧形式のsynthetic入力です。`cond.npy`、`field.npy`、`mask.npy`と`manifest.json`は原データとして保持しています。
 
-## 含まれるファイル
-- `cond.npy` : cond: shape [N,8]
-- `field.npy`: field: shape [N,H,W,1]
-- `mask.npy` : shape [H,W]（0/1, annulus 内のみ 1）
-- `conditions.csv` : 条件テーブル（id + x1..x8）
-- `fields/` : 各条件の `x,y,f` CSV（1条件1ファイル）
+現行の読込には別Dataset rootへ明示変換します。配列の値は変更しません。
 
-## 生成方法（概要）
-- annulus 内部の固定 8 パターンの線形結合。
-- 外側は 0 に固定。
+```powershell
+uv run python scripts/import_legacy_dataset.py data/mode_decomp_eval_dataset_v1/scalar_annulus data/normalized/scalar_annulus
+```
 
-## CSV 利用例
-`dataset=csv_fields` と `dataset.conditions_csv` / `dataset.fields_dir` を指定してください。
+条件名x1等は位置名で、物理量名ではありません。元のgeometry情報はmanifest.json、現行入力仕様は[DATA_FORMAT](../../../docs/DATA_FORMAT.md)を参照してください。旧Hydra設定とCLIは廃止しました。

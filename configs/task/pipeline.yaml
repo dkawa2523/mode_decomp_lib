@@ -1,3 +1,0 @@
-name: pipeline
-stages: [decomposition, preprocessing, train]
-energy_threshold: 0.9

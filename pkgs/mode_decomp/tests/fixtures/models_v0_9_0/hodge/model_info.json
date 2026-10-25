@@ -1,0 +1,63 @@
+{
+  "model_artifact_schema_version": 1,
+  "model_sha256": "6b736358381c66f3bce41b90bee4cffb26029f3e79c4bc8829be1e443d238fc9",
+  "runtime": {
+    "python": "3.12.13",
+    "packages": {
+      "joblib": "1.5.3",
+      "ml-platform-core": "0.2.1",
+      "ml-platform-mode-decomp": "0.9.0",
+      "numpy": "2.4.2",
+      "scikit-learn": "1.8.0",
+      "scipy": "1.17.0"
+    }
+  },
+  "required_packages": [
+    "joblib",
+    "numpy",
+    "scipy"
+  ],
+  "input_schema": {
+    "schema_version": 2,
+    "bundle_kind": "representation",
+    "field_shape": [
+      5,
+      6,
+      2
+    ],
+    "components": [
+      "u_x",
+      "u_y"
+    ],
+    "field_units": [
+      "m/s",
+      "m/s"
+    ],
+    "geometry_sha256": "eefc3d9c2f3c1dc90fc52717ba3b64326d725091f851a83e68b04e12edc46239",
+    "packed_dim": 240,
+    "target_dim": 240,
+    "condition_columns": [],
+    "coefficient_space": "z",
+    "coefficient_layout": {
+      "method": "hodge",
+      "field_shape": [
+        5,
+        6,
+        2
+      ],
+      "field_layout": "HWC",
+      "channels": 2,
+      "coeff_shape": [
+        4,
+        5,
+        6,
+        2
+      ],
+      "coeff_layout": "PHWC",
+      "flatten_order": "C",
+      "complex_format": "real"
+    },
+    "field_kind": "vector"
+  },
+  "provenance": {}
+}

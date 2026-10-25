@@ -1,5 +1,7 @@
 # RFC: Hodge/Poisson decomposition on arbitrary masks (grid domains)
 
+これは移行前の検討を保持した歴史資料です。0.6の現行実装は[非周期Hodgeの物理仕様](../../docs/HODGE.md)、現在の優先順位は[実装状況](../../docs/IMPLEMENTATION_STATUS.md)を参照してください。旧helmholtz_poissonは廃止し、下記の旧提案を現行仕様として使用しません。
+
 ## 背景
 `helmholtz` / `helmholtz_poisson` は rectangle 上のベクトル場に対して curl-free / div-free を提供するが、
 任意マスク（不規則境界）の領域上で同等の “物理解釈” を提供できていない。

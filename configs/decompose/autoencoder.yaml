@@ -1,4 +1,0 @@
-# Source: configs/decompose/data_driven/autoencoder.yaml
-
-defaults:
-  - /decompose/data_driven/autoencoder

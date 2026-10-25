@@ -1,0 +1,47 @@
+task: mode_decomp_analysis
+run:
+  name: scattered_surrogate_comparison
+  seed: 42
+data:
+  local_path: data/scattered_measurements
+  format: scattered
+  samples: {path: samples.csv}
+  conditions: {format: table, columns: [control_a, control_b]}
+  observations:
+    format: npy
+    coordinates: points.npy
+    values: values.npy
+  fields:
+    layout: NHWC
+    kind: scalar
+    components: [signal]
+    units: [arb]
+  geometry:
+    kind: rectangle
+    axes:
+      x: {start: 0.0, step: 0.0625, count: 17}
+      y: {start: 0.0, step: 0.0625, count: 17}
+split:
+  method: random
+  valid_size: 0.25
+analysis:
+  kind: surrogate
+  split_seeds: [11, 23]
+  model_seeds: [42]
+  bootstrap_samples: 200
+  scattered:
+    enabled: true
+  modes:
+    enabled: false
+model:
+  candidates:
+    - id: pod2_ridge
+      representation:
+        decomposition: {name: pod_svd, params: {n_modes: 2, inner_product: domain_weights}}
+      regression: {name: ridge, params: {alpha: 0.01}}
+    - id: pod6_ridge
+      representation:
+        decomposition: {name: pod_svd, params: {n_modes: 6, inner_product: domain_weights}}
+      regression: {name: ridge, params: {alpha: 0.01}}
+metrics:
+  names: [field_rmse, field_mae]

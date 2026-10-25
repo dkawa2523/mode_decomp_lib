@@ -1,0 +1,56 @@
+{
+  "model_artifact_schema_version": 1,
+  "model_sha256": "3d09e73905f7ba6c646b5863ba58589847832e8bc996e0be7e98d216e6e51e8e",
+  "runtime": {
+    "python": "3.12.13",
+    "packages": {
+      "joblib": "1.5.3",
+      "ml-platform-core": "0.2.0",
+      "ml-platform-mode-decomp": "0.7.1",
+      "numpy": "2.4.2",
+      "scikit-learn": "1.8.0",
+      "scipy": "1.17.0"
+    }
+  },
+  "input_schema": {
+    "schema_version": 1,
+    "bundle_kind": "surrogate",
+    "field_shape": [
+      4,
+      5,
+      1
+    ],
+    "components": [
+      "temperature"
+    ],
+    "field_units": [
+      "K"
+    ],
+    "geometry_sha256": "4bbd51224fbf8697c480f07dbdb0d634c7e8827271bfd07367ea574aef519fa8",
+    "packed_dim": 2,
+    "target_dim": 2,
+    "condition_columns": [
+      "a",
+      "b"
+    ],
+    "coefficient_space": "z",
+    "coefficient_layout": {
+      "method": "pod_svd",
+      "field_shape": [
+        4,
+        5,
+        1
+      ],
+      "field_layout": "HWC",
+      "channels": 1,
+      "coeff_shape": [
+        1,
+        2
+      ],
+      "coeff_layout": "CK",
+      "flatten_order": "C",
+      "complex_format": "real"
+    }
+  },
+  "provenance": {}
+}

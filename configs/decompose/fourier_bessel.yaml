@@ -1,4 +1,0 @@
-# Source: configs/decompose/analytic/fourier_bessel.yaml
-
-defaults:
-  - /decompose/analytic/fourier_bessel

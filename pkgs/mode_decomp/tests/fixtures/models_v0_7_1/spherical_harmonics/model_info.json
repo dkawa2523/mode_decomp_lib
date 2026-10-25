@@ -1,0 +1,51 @@
+{
+  "model_artifact_schema_version": 1,
+  "model_sha256": "c95fe096a764e7a38664f2b2387a27039dadb68f0d3859ce5e395c355559e151",
+  "runtime": {
+    "python": "3.12.13",
+    "packages": {
+      "joblib": "1.5.3",
+      "ml-platform-core": "0.2.0",
+      "ml-platform-mode-decomp": "0.7.1",
+      "numpy": "2.4.2",
+      "scikit-learn": "1.8.0",
+      "scipy": "1.17.0"
+    }
+  },
+  "input_schema": {
+    "schema_version": 1,
+    "bundle_kind": "representation",
+    "field_shape": [
+      7,
+      12,
+      1
+    ],
+    "components": [
+      "component_0"
+    ],
+    "field_units": [],
+    "geometry_sha256": "93a0d05e30a9bda0cf1fd553690880f7b25fa1c18c8f0beaf8a4d4c4e5c8fb3b",
+    "packed_dim": 9,
+    "target_dim": 9,
+    "condition_columns": [],
+    "coefficient_space": "z",
+    "coefficient_layout": {
+      "method": "spherical_harmonics",
+      "field_shape": [
+        7,
+        12,
+        1
+      ],
+      "field_layout": "HWC",
+      "channels": 1,
+      "coeff_shape": [
+        1,
+        9
+      ],
+      "coeff_layout": "CK",
+      "flatten_order": "C",
+      "complex_format": "real"
+    }
+  },
+  "provenance": {}
+}

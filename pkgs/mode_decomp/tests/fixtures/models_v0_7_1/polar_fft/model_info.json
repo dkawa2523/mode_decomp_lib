@@ -1,0 +1,52 @@
+{
+  "model_artifact_schema_version": 1,
+  "model_sha256": "19090ddc8bf58a6521b8f92de0b691d760142f623c4ba9693f6157cbdce3c415",
+  "runtime": {
+    "python": "3.12.13",
+    "packages": {
+      "joblib": "1.5.3",
+      "ml-platform-core": "0.2.0",
+      "ml-platform-mode-decomp": "0.7.1",
+      "numpy": "2.4.2",
+      "scikit-learn": "1.8.0",
+      "scipy": "1.17.0"
+    }
+  },
+  "input_schema": {
+    "schema_version": 1,
+    "bundle_kind": "representation",
+    "field_shape": [
+      9,
+      9,
+      1
+    ],
+    "components": [
+      "component_0"
+    ],
+    "field_units": [],
+    "geometry_sha256": "9eb9c84a38325ad4adc46a7208441f5843181881683e91847fdd677205f00910",
+    "packed_dim": 144,
+    "target_dim": 144,
+    "condition_columns": [],
+    "coefficient_space": "z",
+    "coefficient_layout": {
+      "method": "polar_fft",
+      "field_shape": [
+        9,
+        9,
+        1
+      ],
+      "field_layout": "HWC",
+      "channels": 1,
+      "coeff_shape": [
+        1,
+        8,
+        9
+      ],
+      "coeff_layout": "CRT",
+      "flatten_order": "C",
+      "complex_format": "complex"
+    }
+  },
+  "provenance": {}
+}

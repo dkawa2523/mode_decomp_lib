@@ -1,4 +1,0 @@
-# Source: configs/decompose/analytic/dct2.yaml
-
-defaults:
-  - /decompose/analytic/dct2

@@ -1,0 +1,3 @@
+profile: local
+runtime:
+  output_dir: outputs

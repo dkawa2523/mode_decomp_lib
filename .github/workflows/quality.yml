@@ -1,0 +1,38 @@
+name: Package quality
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  base:
+    strategy:
+      matrix:
+        include:
+          - {os: ubuntu-latest, python: '3.11'}
+          - {os: windows-latest, python: '3.12'}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: ${{ matrix.python }}
+      - run: uv sync --locked
+      - run: uv run --no-sync python -m pytest -q
+      - run: uv run --no-sync ruff check .
+      - run: uv run --no-sync ruff format --check .
+      - run: uv run --no-sync pyrefly check
+      - run: uv run --no-sync lint-imports --config pyproject.toml
+
+  wheel:
+    needs: base
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: '3.12'
+      - run: uv run --no-project python scripts/build_distribution.py
+      - run: uv run --no-project python scripts/verify_distribution.py --bundle dist/ml_platform_mode_decomp-*.zip --work-dir work/distribution-acceptance
+      - run: work/distribution-acceptance/environment/bin/python scripts/verify_wheels.py --work-dir work/wheel-acceptance

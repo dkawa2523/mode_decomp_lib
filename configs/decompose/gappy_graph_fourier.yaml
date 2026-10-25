@@ -1,7 +1,0 @@
-# Auto-generated shim for Hydra compatibility.
-# Source: configs/decompose/analytic/gappy_graph_fourier.yaml
-
-defaults:
-  - /decompose/analytic/gappy_graph_fourier
-  - _self_
-

@@ -1,0 +1,244 @@
+{
+  "date": "2026-10-25",
+  "title": "運用再利用・評価measure・容量の継続改良受入",
+  "versions": {
+    "mode": "0.10.1",
+    "core": "0.2.1",
+    "input_schema": 3,
+    "field_output_schema": "field_output_v1"
+  },
+  "previous": "work/reviews/package_implementation_validation_20261025.json",
+  "plan": "work/reviews/package_implementation_plan_20261025.json",
+  "status": "Operational follow-up implemented and locally accepted; remote CI, publication and real-observation validation remain",
+  "units": [
+    {
+      "id": "O1",
+      "status": "locally_accepted",
+      "title": "設定の再解決と再実行",
+      "changes": [
+        "random mask defaultsはmask無しimputationだけへ注入。明示maskへ不要defaultや新markerを増やさない。",
+        "explicit mask APIのdummy fraction/seedを撤去。解決済みconfigと保存configを同じrun入口へ再投入可能。",
+        "manifestfile入力を準備境界でroot＋source_manifestへ正規化。空/型不正mask pathと明示random競合は入口で拒否。"
+      ],
+      "acceptance": "非identity array_index、manifestfile、explicit maskを含む公開workflowのsample/MSE/指標が、解決済みconfig・保存config再実行で一致。"
+    },
+    {
+      "id": "O2",
+      "status": "locally_accepted",
+      "title": "評価measureの分離と数値安定性",
+      "changes": [
+        "sample/channel ScoreWeightsをgrid quadratureから分離。元点主評価と補助reportは無関係なgrid正measureを要求しない。",
+        "sample/channel/point/空間weightsを評価support内でmax rescaleして正規化。有限重みのsum overflowとsupport外巨大重みによるunderflowを回避。",
+        "重み0sampleは未採点NaNとして表へ残し、集約・paired・previewから除外。CVの全0validation foldはglobal pooled重みと区別。",
+        "独立性を仮定しない時系列かつ明示group無しでは、draws>0でもiid bootstrap区間を生成しない。",
+        "帯のrank/complete truth等のstatic条件を候補fit前に検査。既存helperを共有し、事前検査のためのfield subset copyを撤去。"
+      ],
+      "acceptance": "巨大有限weights、zero-weight NaN、zero-weight CV fold、点/格子measure分離、時系列CI抑止を独立oracleと公開workflowで確認。"
+    },
+    {
+      "id": "O3",
+      "status": "locally_accepted",
+      "title": "field出力再利用とbounded baseline",
+      "changes": [
+        "readerが誤用途JSONや宣言不整合field/ID/band/supportを成功扱いしない。shape中心の境界確認で、field値の全面走査/hash契約は増やさない。",
+        "旧0.9.0 NPYの未記録geometryをNoneへ統一。読込失敗時mmap解放、mesh supportのV空間正規化。",
+        "writerのsupport shapeをbatch消費前に確認。canonical入力の重複config snapshot保存を削除。",
+        "linear baselineの全N×F mask groupingを空間block内へ限定し、欠測OLSの数学を維持。"
+      ],
+      "acceptance": "新旧NPY/NPZの部分読込、破損・誤入力、pre-consumption拒否、masked OLS解析解と大field計測を確認。"
+    },
+    {
+      "id": "O4",
+      "status": "locally_accepted",
+      "title": "Gappyの固定domainとbatch solve",
+      "changes": [
+        "固定domain外を欠測と誤認するbasis fit拒否を修正。domain内の完全観測だけを要求し、学習mean/basisを物理gridへ配置。",
+        "scalar transformを共通batch projectionへ統一。同じsupportの複数RHSを成分ごとに共有し、異なるmaskは正しい個別solveを維持。",
+        "ridge helperをvector/multiple RHSへ拡張し、zero modeに不要なsolveをしない。安定な増大行列法・既存reg_lambda/mode weightを維持。",
+        "新fitのcomponent blocksだけnative batch経路を使い、旧CKの読込・inverseを維持。"
+      ],
+      "acceptance": "非連続/read-only入力、weighted partial LSの独立小行列oracle、rank0混在、domain外NaN、旧14bundle、同梱200sample workloadの新旧一致を確認。"
+    },
+    {
+      "id": "O5",
+      "status": "locally_accepted",
+      "title": "単体配布と文書の更新",
+      "changes": [
+        "0.10.1 wheelをbuildしisolated base環境へ再インストール。source bytes・同梱YAML・fresh process inferenceを確認。",
+        "distはcore0.2.1とmode0.10.1だけへ整理。0.10.0 wheelは不変比較基準へ保持。",
+        "現仕様のguide/statusを更新し、旧0.10.0受入は履歴へ位置付け。"
+      ],
+      "acceptance": "development586pass/3skip、installed wheel556pass/33skip、静的検査と旧モデル/原入力不変。"
+    }
+  ],
+  "findings": [
+    "保存・正規化済み設定の明示maskが、注入されたrandom defaultsと競合して再実行不能。",
+    "巨大有限weightの和がoverflowし、正しい重み付き損失が誤って0になる。",
+    "元点主評価へ不要なgrid正measure制約が戻る経路。",
+    "重み0sample/CV foldのNaNや全0重みで、有効な全体評価が失敗する。",
+    "非独立時系列をIID bootstrapしてしまい、説明と異なる区間を出力。",
+    "readerが誤JSON・shape不整合をfieldとして成功扱いし、legacygeometry未記録を揃えていない。",
+    "Gappyのdomain外maskを学習欠測とみなし、有効なdomain内学習を拒否。",
+    "baselineの全mask groupingとGappyの反復LSが不要な作業量を持つ。"
+  ],
+  "acceptance": {
+    "development": {
+      "passed": 586,
+      "skipped": 3,
+      "failures": 0,
+      "python": "3.12.13",
+      "environment": "wavelet/pod/torch/MTGP extras",
+      "xml": "work/verification/operational_20261025/pytest_final.xml",
+      "log": "work/verification/operational_20261025/pytest_final.log"
+    },
+    "installed_wheel": {
+      "passed": 556,
+      "skipped": 33,
+      "failures": 0,
+      "python": "3.11.15",
+      "environment": "isolated base environment reused after replacement install; not a newly created environment",
+      "xml": "work/verification/operational_20261025/pytest311.xml",
+      "log": "work/verification/operational_20261025/pytest311.log"
+    },
+    "static": {
+      "ruff": "passed",
+      "format": "208 files unchanged",
+      "pyrefly_errors": 0,
+      "import_direction": "2 kept, 0 broken",
+      "lock": "78 packages checked offline"
+    },
+    "source": {
+      "files": 105,
+      "sha256": "2c04d1ec5a07516343369480f1cc68cb005bacc94e1965b338eb30d04684dfab",
+      "wheel_bytes_match": true,
+      "record": "work/verification/operational_20261025/final_source.json"
+    },
+    "original_arrays": {
+      "count": 67,
+      "hashes_unchanged": true
+    },
+    "legacy_models": {
+      "actual_071": 8,
+      "actual_090": 6,
+      "status": "matching producer environment all pass; isolated py311 skips producer-minor-incompatible fixtures"
+    },
+    "wheel": {
+      "success": true,
+      "report": "work/verification/operational_20261025/wheel_acceptance/report.json",
+      "sdk_absent": true,
+      "training_hidden_before_fresh_process_inference": true,
+      "formats": [
+        "npz",
+        "npy"
+      ]
+    },
+    "test_cleanup": "Removed an exact lstsq-call-count assertion from the new numerical test after full suite; its eight Gappy cases passed again. Efficiency counts are measured in the workload harness; numerical tests keep independent solution oracles.",
+    "documentation_links": "passed"
+  },
+  "measurements": {
+    "gappy": {
+      "record": "work/verification/operational_20261025/gappy_comparison.json",
+      "data": "unchanged repository synthetic vector_rect (200,64,64,2), train120/query80",
+      "scope": "one numerical thread, old/new independent process, median of 3 warmed calls",
+      "transform_seconds": {
+        "old": 0.028007399989292026,
+        "new": 0.013393200002610683
+      },
+      "lstsq_calls": {
+        "old": 160,
+        "new": 32
+      },
+      "maximum_prediction_difference": 4.218847493575595e-15,
+      "maximum_coefficient_difference": 4.085620730620576e-14
+    },
+    "linear_baseline": {
+      "record": "work/verification/continuation_20261025/linear_baseline_comparison.json",
+      "shape": [
+        64,
+        512,
+        512,
+        1
+      ],
+      "mask_grouping_elements": {
+        "old": 16777216,
+        "new": 262144
+      },
+      "seconds": {
+        "old": 1.951064399909228,
+        "new": 1.2109306999482214
+      },
+      "peak_working_set_bytes": {
+        "old": 429723648,
+        "new": 426467328
+      },
+      "maximum_prediction_difference": 1.7763568394002505e-15
+    },
+    "limits": "Repository inputs and generated fields, not real observations. One process per implementation. Grouping/solve work reductions do not establish a total memory bound or universal speedup."
+  },
+  "cleanup": {
+    "removed": [
+      "irrelevant random-mask defaults and dummy API arguments",
+      "duplicate uncertainty-option validation",
+      "unnecessary full-data subsets in static band checks",
+      "whole-field mask grouping in baseline",
+      "duplicate single-sample Gappy projection path",
+      "invalid bootstrap draw workaround",
+      "duplicate config snapshot for canonical input",
+      "internal exact solve-count test contract",
+      "old normal dist 0.10.0 wheel after identical baseline verification"
+    ],
+    "preserved": [
+      "actual old model fixtures",
+      "67 original NPY arrays",
+      "historical acceptance/review evidence",
+      "0.10.0 baseline wheel"
+    ],
+    "blocked_previous_environment": {
+      "path": "work/verification/implementation_20261025/wheel_env",
+      "status": "retained and reused for isolated base-wheel acceptance",
+      "deletion_retried": false,
+      "reason": "prior automatic approval rejection (blocked by policy) was respected"
+    },
+    "new_runtime_configuration_keys": [],
+    "new_diagnostic_framework": false,
+    "new_source_modules": []
+  },
+  "remaining": [
+    {
+      "priority": 1,
+      "item": "実観測・将来truth・実際の物理境界要求での受入",
+      "detail": "実測データは未提供。同梱生成データと大field容量計測は実施したが、実測coverage/将来被覆率/境界の適合認定は別に必要。"
+    },
+    {
+      "priority": 2,
+      "item": "リモートCIと配布先",
+      "detail": "ローカルの二Python環境・wheel受入は完了。現未コミットsourceのremote CI実行・公開index配布は未実施。"
+    },
+    {
+      "priority": 3,
+      "item": "実測に基づく残るbackend容量対策",
+      "detail": "dense/global SVD、joint/EM、GP、配列全件返却の必要stateは残る。確認した支配負荷だけを対象にする。"
+    },
+    {
+      "priority": 4,
+      "item": "別数学仕様の拡張とSDK統合",
+      "detail": "任意点帯、条件/依存sample較正、任意PDE境界、3D/移動geometry、長期中立state等は別仕様。SDKは単体運用受入後。"
+    },
+    {
+      "priority": 5,
+      "item": "前回削除拒否の一時環境",
+      "detail": "削除は再試行していない。今回のbase-wheel環境として再利用し、新規重複環境を増設していない。"
+    }
+  ],
+  "external_actions": {
+    "git_commit": false,
+    "push": false,
+    "remote_ci": false,
+    "publication": false,
+    "sdk_integration": false
+  },
+  "wheels": {
+    "ml_platform_core-0.2.1-py3-none-any.whl": "50eb272a670c0515c10ed1d1899d47b0c80a458da5ab5926d8f509c6d337b746",
+    "ml_platform_mode_decomp-0.10.1-py3-none-any.whl": "fd92c45e7ca688595d27e1d9b81aedc8f269b978a596b1bcac78fb0e038174d1"
+  }
+}

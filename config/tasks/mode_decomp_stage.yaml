@@ -1,0 +1,8 @@
+task: mode_decomp_stage
+run:
+  name: field_stage
+  stage: prepare_fields
+  seed: 42
+data:
+  local_path: data/tiny_fields
+  source_manifest: field_dataset.yaml

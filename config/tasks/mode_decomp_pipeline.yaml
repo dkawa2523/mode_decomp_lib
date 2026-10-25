@@ -1,0 +1,24 @@
+task: mode_decomp_pipeline
+run:
+  name: field_baseline
+  seed: 42
+data:
+  local_path: data/tiny_fields
+  source_manifest: field_dataset.yaml
+split:
+  method: random
+  valid_size: 0.2
+  selection_size: 0.25
+model:
+  selection_metric: field_rmse
+  candidates:
+    - id: pod_ridge
+      representation:
+        decomposition: {name: pod_svd, params: {n_modes: 2}}
+      regression: {name: ridge, params: {alpha: 0.001}}
+    - id: dct_ridge
+      representation:
+        decomposition: {name: dct2}
+      regression: {name: ridge, params: {alpha: 0.001}}
+metrics:
+  names: [field_rmse, field_mae]

@@ -1,6 +1,0 @@
-work/.autopilot/
-__pycache__/
-*.pyc
-outputs/
-work/_logs/
-.pytest_cache/

@@ -3,12 +3,43 @@
   "grid": {
     "H": 64,
     "W": 64,
-    "x_range": [-1.0, 1.0],
-    "y_range": [-1.0, 1.0]
+    "x_range": [
+      -1.0,
+      1.0
+    ],
+    "y_range": [
+      -1.0,
+      1.0
+    ]
   },
   "domain": {
     "type": "disk",
-    "center": [0.0, 0.0],
+    "center": [
+      0.0,
+      0.0
+    ],
     "radius": 1.0
+  },
+  "geometry": {
+    "kind": "disk",
+    "center": [
+      0.0,
+      0.0
+    ],
+    "radius": 1.0,
+    "axes": {
+      "x": {
+        "start": -1.0,
+        "step": 0.031746031746031744,
+        "count": 64,
+        "periodic": false
+      },
+      "y": {
+        "start": -1.0,
+        "step": 0.031746031746031744,
+        "count": 64,
+        "periodic": false
+      }
+    }
   }
 }

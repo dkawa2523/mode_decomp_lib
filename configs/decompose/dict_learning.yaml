@@ -1,4 +1,0 @@
-# Source: configs/decompose/data_driven/dict_learning.yaml
-
-defaults:
-  - /decompose/data_driven/dict_learning

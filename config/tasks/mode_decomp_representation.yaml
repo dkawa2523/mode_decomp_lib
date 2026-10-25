@@ -1,0 +1,9 @@
+task: mode_decomp_representation
+run:
+  name: direct_field_decomposition
+data:
+  local_path: data/single_field
+  fields: {path: field.npy, layout: HWC}
+representation:
+  decomposition: {name: dct2}
+report: {enabled: true}

@@ -1,0 +1,223 @@
+{
+  "completed_local_acceptance": "2026-10-25",
+  "title": "統合実装計画の単体パッケージ受入",
+  "versions": {
+    "mode": "0.10.0",
+    "core": "0.2.1",
+    "field_input_schema": 3,
+    "field_output_schema": "field_output_v1",
+    "independent_pod_raw_format": "component_blocks_v1"
+  },
+  "plan": "work/reviews/package_implementation_plan_20261025.json",
+  "previous_acceptance": "work/reviews/package_capacity_validation_20261025.json",
+  "status": "I00-I12 implemented and locally accepted; I13 local release accepted, remote CI and real-use acceptance remain",
+  "implementation": {
+    "numerical": "FieldSpecと不変CoefficientLayout。物理前提はdecomposerが所有しoffsetはinnerへ委譲。offset float64保持、forced auto診断削除。独立POD/Gappy/pod_svdのKc blocks/rank0/D=0 baseline。旧CK/旧bundleを維持。",
+    "physical": "decomposition/physical.pyがHodge/Helmholtzの数値結果と軽量preflightを所有。学習表現に依存しないfield解析。method/params/単位/geometryと境界意味を出力へ接続。",
+    "objectives": "PreparedObjectiveによるgrid/observations/hidden、固定support/point・channel・sample重み、selection/CV/final/paired比較の共通化。secondary未定義とprimary失敗を分離。通常採点は予測一度、CVはsample十分統計だけをpool。",
+    "observation_mask_and_bands": "任意NPY sensor/blocked mask、array_index整列とhiddentruth入力除去。raw変換時の参照付随。既計算sample/channel帯coverageとequal/weighted同時被覆率を公開。帯の対象はgrid固定supportを維持。",
+    "execution": "数値確定と要求出力を分離。保存・mode・描画の失敗で有効な数値結果を破棄しない。成功0件でも原因とschema付き表を保持。HTML無効はpreviewなし、有効時は縮小所有copy。",
+    "inputs": "同run/inputへrawを一度変換。canonical入力はcopyしない。外部prepareは参照集合を持つcanonical_datasetとsplitを渡し、後続はraw再変換なし。形式adapter共通_sourcesとStage wrapper所有を整理。",
+    "output": "run/model非依存の共通streaming field writer/reader。既存key/file名を保ち座標/topology/単位/domain/観測/calibration supportを付随。NPZとNPYの可搬性・部分読込・失敗時rollbackを確認。",
+    "persistence": "新schema3、旧1/2は旧規則で検証後に互換layoutを付与。実保存stateからbackend要件を導出。実0.7.1全8bundleと旧0.9.0wheel由来6bundleをmatching環境で受入。",
+    "cleanup": "共通最小rank、Gappy trainer/basis二重保持、未使用dense mass生成、point GP予測の未使用std、同一操作A/Z再変換、post:none fitの全train encode、固定supportの反復solve、量変換二重copy、no-op設定/二重runと不要shimを削除。固定supportはmulti-RHS、変動maskは正しい個別solveを維持。"
+  },
+  "acceptance": {
+    "python312": {
+      "passed": 556,
+      "skipped": 3,
+      "failures": 0,
+      "errors": 0,
+      "python": "3.12.13",
+      "host": "Windows",
+      "extras": [
+        "wavelet",
+        "pod",
+        "torch",
+        "mtgp"
+      ],
+      "log": "work/verification/implementation_20261025/pytest_final.log",
+      "xml": "work/verification/implementation_20261025/pytest_final.xml"
+    },
+    "python311_installed_wheel": {
+      "passed": 526,
+      "skipped": 33,
+      "failures": 0,
+      "errors": 0,
+      "python": "3.11.15",
+      "host": "Windows",
+      "environment": "fresh base numerical dependencies",
+      "skip_breakdown": {
+        "optional_backends": 19,
+        "legacy_python_minor": 14
+      },
+      "log": "work/verification/implementation_20261025/pytest311.log",
+      "xml": "work/verification/implementation_20261025/pytest311.xml"
+    },
+    "static": {
+      "ruff": "passed",
+      "format": "208 files already formatted",
+      "pyrefly_errors": 0,
+      "import_direction": "2 kept, 0 broken",
+      "lock": "78 packages checked offline"
+    },
+    "old_models": {
+      "actual_071": 8,
+      "actual_090_schema2": 6,
+      "status": "passed in matching producer Python312 environment",
+      "fixture_090_wheel_sha256": "05475a542651a4cc5cf735fa448594a787f25906b65b7ef17f1521951d05c2f4",
+      "offset_precision": "Old offset transform/inverse uses an original-float32 rounding tolerance (2e-6 absolute in this fixture). Expected values remain the actual old-wheel values. No bit-identity claim for the deliberate precision fix."
+    },
+    "wheel": {
+      "report": "work/verification/implementation_20261025/wheel_acceptance/report.json",
+      "source_files": 105,
+      "source_bytes_match": true,
+      "training_input_hidden_before_fresh_process_inference": true,
+      "sdk_absent": true,
+      "prediction_formats": [
+        "npz",
+        "npy"
+      ],
+      "extensions": [
+        "one-YAML scalar/array API",
+        "calibrated prediction/inference",
+        "scattered raw input and points",
+        "annular native Hodge"
+      ]
+    },
+    "source": {
+      "python_files": 105,
+      "sha256": "9aadda0b399827b8038765c69d016556b69c172a935ac8589ba56a400b54d92d",
+      "record": "work/verification/implementation_20261025/source.json"
+    },
+    "original_inputs": {
+      "npy_count": 67,
+      "hashes_unchanged": true,
+      "record": "work/verification/implementation_20261025/original_data_hashes.json"
+    }
+  },
+  "findings_during_implementation": [
+    {
+      "issue": "Mode curve quietly scored grid under observations objective",
+      "resolution": "numeric curve moved to evaluation and uses the same PreparedObjective; full-coordinate endpoint checked against primary score."
+    },
+    {
+      "issue": "Raw conversion lost the explicit observation-mask path",
+      "resolution": "resolve against original root, attach mask to canonical input, align array_index once."
+    },
+    {
+      "issue": "Physical params validated but not passed, and Helmholtz HTML used Hodge edge wording",
+      "resolution": "pass method/params at each caller; shared preflight and method-specific descriptions."
+    },
+    {
+      "issue": "Unused optional regressor recipe was required by provenance for D=0",
+      "resolution": "provenance records installed optional versions; actual fit/save/load retains its necessary backend requirements; pipeline/analysis D=0 E2E accepted."
+    },
+    {
+      "issue": "Legacy imputation and explicit hidden namespaces were not separated",
+      "resolution": "resolve compatibility once; legacy field aliases/curve retained, explicit hidden uses hidden names and rejects explicit field metric conflict."
+    },
+    {
+      "issue": "Windows canonical-snapshot test retained an mmap while deleting source",
+      "resolution": "release the reader before source removal; verify the relocated self-contained snapshot without forcing source deletion through open mappings."
+    }
+  ],
+  "measurements": {
+    "report": "work/verification/implementation_20261025/benchmark_comparison.json",
+    "workload": "128 samples, 32x32x2 float64, fit96/query32, numerical1thread, independent old/new process; score median of 5 warmed calls",
+    "old_version": "0.9.0",
+    "new_version": "0.10.0",
+    "gappy_joblib_bytes": {
+      "old": 129725,
+      "new": 80106
+    },
+    "ordinary_scoring_median_seconds": {
+      "old": 0.008129699970595539,
+      "new": 0.002235699910670519
+    },
+    "gappy_fit_seconds": {
+      "old": 0.5380436000414193,
+      "new": 0.46076889999676496
+    },
+    "peak_working_set_bytes": {
+      "old": 178184192,
+      "new": 173883392
+    },
+    "maximum_field_difference": {
+      "gappy": 0,
+      "surrogate": 0
+    },
+    "limits": "One generated workload, one process per version. This verifies removed work/state; it is not a general speed or memory-bound guarantee.",
+    "source_sha256": "9aadda0b399827b8038765c69d016556b69c172a935ac8589ba56a400b54d92d"
+  },
+  "cleanup": {
+    "removed_distribution": "dist/ml_platform_mode_decomp-0.9.0-py3-none-any.whl",
+    "retained_baseline": "work/verification/implementation_20261025/baseline/ml_platform_mode_decomp-0.9.0-py3-none-any.whl",
+    "dist": "current core0.2.1 and mode0.10.0 only",
+    "removed_source_modules": [],
+    "added_source_modules": [
+      "coefficients/layout.py",
+      "data/_sources.py",
+      "decomposition/physical.py",
+      "evaluation/objectives.py",
+      "evaluation/observations.py",
+      "field_output.py",
+      "training/calibration.py"
+    ],
+    "rationale": "Existing files with necessary numerical, public or compatibility roles were retained. Ownership moves removed old bodies/helpers instead of forcing directory deletion. No-op duplicate pipeline and internal-shape tests were removed or replaced with independent scientific/public behavior checks.",
+    "retained": [
+      "original67NPY",
+      "actual071eight bundles",
+      "actual090six bundles",
+      "prior audits and acceptance",
+      "Hodge RFC",
+      "historical SDK evidence"
+    ],
+    "extra_frameworks_added": false,
+    "temporary_wheel_environment": {
+      "path": "work/verification/implementation_20261025/wheel_env",
+      "status": "retained_policy_blocked",
+      "attempt": "Native PowerShell recursive removal after resolved absolute target verification",
+      "reason": "Automatic approval review rejected the command: blocked by policy",
+      "retry": false
+    }
+  },
+  "remaining": [
+    {
+      "priority": 1,
+      "item": "代表的な実観測・将来truth・物理用途の受入",
+      "content": "実規模N/格子・点数/Cで全工程の時間/RSS/一時disk、点coverageと解像度、独立将来truthで帯幅/被覆率、Hodgeの単位/topology/境界要求を照合。合成成功と実データの有効性を区別。"
+    },
+    {
+      "priority": 2,
+      "item": "リモートCIと単体配布の外部確認",
+      "content": "既存Linux/Windows CIをremoteで実行し、配布先を決める。現在のローカルwheel受入をremote/publication済みとはしない。"
+    },
+    {
+      "priority": 3,
+      "item": "実測ボトルネックに限定した後続容量対策",
+      "content": "dense/global SVD、joint/EM、GP、全件配列返却等は必要な状態を持つ。実規模で支配的なものだけ改良。"
+    },
+    {
+      "priority": 4,
+      "item": "別数学仕様を要する拡張",
+      "content": "任意点較正帯、条件/依存sample向け較正、任意PDE境界、3D/移動geometry、中立長期保存形式は別設計。SDK再統合は単体受入後。"
+    },
+    {
+      "priority": 5,
+      "item": "Temporary verification environment cleanup",
+      "content": "work/verification/implementation_20261025/wheel_env remains because automatic approval review rejected its recursive removal (blocked by policy). No alternate deletion attempted."
+    }
+  ],
+  "external_actions": {
+    "git_commit": false,
+    "push": false,
+    "remote_ci": false,
+    "package_publication": false,
+    "sdk_integration": false
+  },
+  "wheels": {
+    "ml_platform_core-0.2.1-py3-none-any.whl": "50eb272a670c0515c10ed1d1899d47b0c80a458da5ab5926d8f509c6d337b746",
+    "ml_platform_mode_decomp-0.10.0-py3-none-any.whl": "3ce35b190cd9bf71ccaa7c592aa7e912d294dbb8202160ffa278f1da34e9b134"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "version": "0.9.0",
+  "wheel_sha256": "05475a542651a4cc5cf735fa448594a787f25906b65b7ef17f1521951d05c2f4",
+  "source": "C:\\Users\\user\\Desktop\\mode_decomp_lib-1\\work\\verification\\implementation_20261025\\baseline\\ml_platform_mode_decomp-0.9.0-py3-none-any.whl\\ml_platform_mode_decomp\\__init__.py",
+  "runtime": {
+    "python": "3.12.13",
+    "packages": {
+      "joblib": "1.5.3",
+      "ml-platform-core": "0.2.1",
+      "ml-platform-mode-decomp": "0.9.0",
+      "numpy": "2.4.2",
+      "scikit-learn": "1.8.0",
+      "scipy": "1.17.0"
+    }
+  },
+  "fixtures": [
+    "weighted_pod",
+    "weighted_gappy",
+    "pod_svd",
+    "offset_dct",
+    "hodge",
+    "calibrated"
+  ],
+  "schema_version": 2
+}

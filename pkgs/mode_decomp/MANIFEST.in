@@ -1,0 +1,6 @@
+prune tests
+prune build
+prune dist
+prune .pytest_cache
+prune .ruff_cache
+global-exclude *.pyc *.pyo

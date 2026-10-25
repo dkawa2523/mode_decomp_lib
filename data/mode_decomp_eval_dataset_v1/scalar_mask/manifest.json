@@ -16,5 +16,22 @@
     "type": "arbitrary_mask",
     "mask_source": "file",
     "mask_path": "mask.npy"
+  },
+  "geometry": {
+    "kind": "arbitrary_mask",
+    "axes": {
+      "x": {
+        "start": -1.0,
+        "step": 0.031746031746031744,
+        "count": 64,
+        "periodic": false
+      },
+      "y": {
+        "start": -1.0,
+        "step": 0.031746031746031744,
+        "count": 64,
+        "periodic": false
+      }
+    }
   }
 }

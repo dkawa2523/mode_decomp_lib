@@ -1,22 +1,11 @@
-# vector / mask サブセット
+# vector_mask
 
-このフォルダには `vector` 場（2Dベクトル場）の synthetic データが入っています。
+固定パターンの生成係数を条件とする旧形式のsynthetic入力です。`cond.npy`、`field.npy`、`mask.npy`と`manifest.json`は原データとして保持しています。
 
-## 含まれるファイル
-- `cond.npy` : cond: shape [N,16] （vx用8係数 + vy用8係数）
-- `field.npy`: field: shape [N,H,W,2] （ベクトル場：vx,vy）
-- `mask.npy` : shape [N,H,W]（0/1, 1が有効領域）
-- `conditions.csv` : 条件テーブル（id + x1..x16）
-- `fields/` : 各条件の `x,y,f` CSV（1条件2ファイル: `_fx`, `_fy`）
+現行の読込には別Dataset rootへ明示変換します。配列の値は変更しません。
 
-## 生成方法（概要）
-- 各サンプルは **固定の8個の空間パターン**の線形結合で作られています。
-- `cond` はその線形結合係数（ベクトル場は vx,vy 別々の係数）です。
-- `mask` 外（0領域）の field 値は 0 にしてあります。
+```powershell
+uv run python scripts/import_legacy_dataset.py data/mode_decomp_eval_dataset_v1/vector_mask data/normalized/vector_mask
+```
 
-## 目的
-- 分布モード分解の再構成精度比較（FFT/Zernike/Bessel/POD/Graph...）
-- `cond -> mode係数` 回帰モデル（Ridge/GPR/...）の学習・推論評価
-
-## CSV 利用例（vector + mask）
-`dataset=csv_fields` で `field_components: [fx, fy]` と `mask_file=mask.npy` を指定してください。
+条件名x1等は位置名で、物理量名ではありません。元のgeometry情報はmanifest.json、現行入力仕様は[DATA_FORMAT](../../../docs/DATA_FORMAT.md)を参照してください。旧Hydra設定とCLIは廃止しました。

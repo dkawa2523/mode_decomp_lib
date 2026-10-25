@@ -1,0 +1,261 @@
+{
+  "scope": "直前2監査の数値基盤を実装可能な単位へ具体化した計画片。製品コードの実装・修正は行っていない。",
+  "source_version": "0.9.0",
+  "principle": "数値手法の数学的差、raw/A/Z、有限精度、固定geometry、実旧bundleを保ち、状態の寿命と所有だけを揃える。capability registry、汎用契約framework、全backendの一斉置換は導入しない。",
+  "evidence": [
+    "work/reviews/package_reviewer_audit_20261025.json#R01,R02,R05,R07,R08,R15,R19",
+    "work/reviews/package_structural_synthesis_20261025.json#D02,D03,D04,D05,D06,D07,D08",
+    "work/verification/structural_review_20261025/numerics/probe_results.json",
+    "work/verification/reviewer_audit_20261025/architecture/channel_rank_reproduction.json",
+    "work/verification/reviewer_audit_20261025/root_report.json"
+  ],
+  "target_flow": [
+    "FieldDataset -> 所有したgeometryとFieldSpec -> field前処理 -> fit済み数値演算",
+    "fit済み演算 -> 不変CoefficientLayout -> concrete codec -> A(N,D) -> coefficient post -> Z(N,L)",
+    "conditions -> regressorまたはD=0 baseline -> Z -> 物理field",
+    "入力field/再構成field/予測field -> 独立したHodgeまたはHelmholtz解析 -> 数値結果 -> writer/render"
+  ],
+  "minimal_types": {
+    "location": "FieldSpecは既存data/schema.pyのfield意味の型へ追加。CoefficientLayoutだけcoefficients/layout.pyを新設して所有。FieldSpecをlayoutへ従属させず、物理解析や前処理が係数moduleを知る必要をなくす。数値手法の実装をここへ移さない。",
+    "FieldSpec": {
+      "shape": "tuple[int,...]。単一fieldの公開shape。現在のmesh V×Cとgrid H×W×Cを維持。",
+      "kind": "scalar | multichannel | vector。2成分というshapeからvectorと推測しない。",
+      "components": "tuple[str,...]。順序が意味を持つ。",
+      "units": "tuple[str,...]。未指定は空。単位変換は自動実行しない。"
+    },
+    "CoefficientLayout": {
+      "raw_format": "既存array/FFT/wavelet/offset形式、または独立POD用channel_blocks_v1。",
+      "raw_shape": "tuple[int,...]または既存の構造記述。POD blocksは(D,)でD=0も有効。",
+      "raw_order": "C/F等の既存packing順序。",
+      "component_offsets": "独立POD/Gappy/pod_svdのみ長さC+1のtuple[int,...]。Kc=offset[c+1]-offset[c]。rank0成分は同じoffsetの繰返し。joint手法へ偽の成分分割を付けない。",
+      "packed_dim": "codec fit後に確定するAの実数次元。",
+      "synthesis_kind": "linear | affine | nonlinear | component。演算の実際の逆写像の意味を記述し、method名の一覧からmodes側が再推測しない。",
+      "coordinate_kind": "basis | component | composite | latent。additiveと独立性/直交性を同一視しない。"
+    },
+    "owned_state": [
+      "geometry配列はRepresentation.geometryが所有するsnapshotを正本とする。layoutはgeometry本体を複製せず指紋を参照。",
+      "FieldSpec/Layoutはfrozen dataclass相当で十分。配列basis、全sample診断、cfg、artifact pathを入れない。",
+      "既存raw_metaはdecoder互換と公開metadataの互換viewとして残す。固定構造のみをlayoutから生成し、診断を同じdictへ逐次上書きしない。",
+      "fit_diagnosticsはfit終了後の小さいdict。mask_valid_countのようなquery依存情報はlayoutへ入れず、必要な評価sample tableへ操作側が記録。全診断をclass化しない。"
+    ]
+  },
+  "implementation_units": [
+    {
+      "id": "N0",
+      "title": "物理前提とoffset精度の先行修正",
+      "priority": "first",
+      "depends_on": [],
+      "changes": [
+        "FieldRepresentationの外側method名によるHodge専用ifを、fit前の小さいvalidate_field_spec(spec, preprocess)呼出へ置き換える。Baseは通常演算の既定動作、Hodge/Helmholtzはvector・同一field単位・成分基底・geometry・許容前処理を検査し、Offsetはinnerへ必ず委譲する。これは機能登録registryではなく合成演算1箇所の入力境界。",
+        "Hodge/Helmholtzは2成分Cartesian vectorを要求。field標準化等で物理意味が変わった入力を直接物理分解しない。高水準APIはkind/unitsを渡す。意味情報を持たない下位array数値APIは明示的なCartesian vectorを受ける数学APIとして文書化し、shapeだけで物理的妥当性の保証を追加しない。",
+        "offset/residualの平均・減算・逆変換から無条件float32変換を削除。weighted meanと減算は少なくともfloat64で実行し、精度を落とす操作は既存codec.dtype_policy等の明示設定だけに限定する。float32入力をfloat64で処理しても既に失われた入力精度は復元できない。",
+        "enabled:falseはinnerの結果と合成意味をそのまま採用。enabled:trueではsplit自体だけを行い、auto判定用RMS/中央値を計算しない。enabled:autoだけ既存seed/max_samplesでfit時に一度決定する。",
+        "offsetの計算とauto選択の統計を分ける。lazy residual replayは維持し、全残差をmodelにcacheしない。"
+      ],
+      "files": {
+        "modify": [
+          "representation.py",
+          "decomposition/base.py",
+          "data/schema.py",
+          "decomposition/offset_residual.py",
+          "decomposition/hodge.py",
+          "decomposition/helmholtz.py",
+          "coefficients/codecs/offset_residual_pack.py",
+          "modes.py"
+        ],
+        "remove_logic": [
+          "Representationの外側method=hodgeだけに依存する前提検査",
+          "offset計算/逆変換でのfloat32固定cast",
+          "enabled:true時のauto判定用走査",
+          "disabled offsetを無条件nonadditiveとするmethod名判定"
+        ]
+      },
+      "acceptance": [
+        "float64の1e8±1をtrue/autoのoffset+DCTで復元し、±1変動を保持。float64 direct DCT oracleとscaleに応じた許容差で一致。shapeだけのroundtrip試験を追加しない。",
+        "directとoffset true/false/autoを通した不適合kind・異単位・field標準化が同じ入口で拒否される。合法Cartesian vectorの再構成/edge不変条件は維持。",
+        "disabled offset+DCTが同じ係数・mode additive意味を返す。forced trueにauto統計を注入しても呼ばれない。",
+        "未観測NaNとdomain外ゼロの現在の意味、元入力不変、重み付きoffset定義を維持。"
+      ],
+      "compatibility": "既存offset class/codec名、raw mappingとpacking順序を維持。旧モデルに対する逆変換のfloat64 cast除去は、旧payloadに残る低精度情報を創造せず、旧予測を数値受入で確認する。"
+    },
+    {
+      "id": "N1",
+      "title": "不変layout、成分別自由度、定数baselineを一体で導入",
+      "priority": "foundation",
+      "depends_on": ["N0", "保存schema移行の事前設計とschema2固定fixture"],
+      "changes": [
+        "fit/prepareの終了時にgeometry・入力shape・raw構造・component offsets・synthesis意味を確定する。transformは固定layoutを変更しない。固定基底手法は入力shapeとgeometryをfit_batchで準備する。sample APIの互換入口だけは初回prepareを許し、次の異geometryは全数値identityで再準備または明示拒否する。",
+        "POD/Gappyから_align_pod_channelsを削除し、pod_svdのmin(ranks)と共通mode count選択も削除する。各成分が自身のrank/energyから選んだKcをそのまま採用する。新規fitの独立POD/Gappy/pod_svdは常にchannel-major 1D実数rawを返す。raw_metaはcoeff_format=channel_blocks_v1, coeff_shape=[sum(Kc)], coeff_layout=D, component_offsets=[...]。",
+        "既存NoOpCodecでそのままreal flattenする。ragged object ndarray、ゼロpadding、偽modeを入れない。equal Kでも新fitは同じflat形式を使い、CK/blocksを新fit内で使い分けない。FFT/wavelet/complex用の既存codecはそのまま維持する。",
+        "channel adapterは旧sample/channel viewの一箇所に置く。POD/Gappyのblocks経路と旧CK経路を区別するだけにし、全手法へ可変structured packingを一般化しない。pod_svdは既存のchannel別basis listを保持して共通component offsetsでencode/decodeし、centered scalar POD trainerへ無理に統合しない。scalar inverseへoffset sliceを渡し、centered POD/GappyのKc=0なら空sliceから学習mean fieldを返す。",
+        "rank0を『各空間点の値がsample間で変化しないfield』として扱う。一様なscalar定数だけを指すのではない。scalar PODはmeanを保持しbasis(F,0)/eigvals(0)を返す。数値rank判定の相対基準を維持し、新たな絶対epsilonで小信号を定数へ丸めない。",
+        "直前のconstant/rank0規則はcentered POD/Gappyに限る。pod_svdはcentered:falseを維持し、全weighted snapshotがzero numerical rankの成分だけKc0/zero synthesisとする。sample不変の非zero spatial profileはrank1のまま保持し、meanへ移さない。eigvalsの既存singular²/max(N-1,1) scale、重み座標、mode_weightを変更しない。",
+        "fit_summaryにchannel_effective_ranks, selected_modes_by_component, packed_dimを保存。零energyのchannelはretained_fraction/threshold_metをnullとし、0/0を1と偽らない。aggregateは非零channelの実energyの和で定義する。",
+        "D=0をrepresentation全体で有効な状態とする。A/Zは(N,0)、inverseはmean/preprocessを経由したbaseline field、list_modesは空。reshape(N,-1)の曖昧なzero要素推論を明示dimへ置換する。",
+        "D=0ではcoeff_post.name:noneのみを許容する。既定noneの空座標は恒等に扱い、非identity postが明示されていれば『constant fieldで学習可能な係数がなく、そのpostをfitできない。coeff_post:noneを選ぶ』という理由付きで拒否する。standardize/PCA等を黙ってnoneへ変更しない。",
+        "D=0で許容されたpost:noneは不要なfitを行わず、設定済みregressorも構築・fit・保存しない。regressor stateはNoneとし、surrogateのfit_summaryとschema3へprediction_kind:constant_fieldを記録する。要求されたregression recipeはprovenanceに残す。dummy target列、偽の回帰、constant専用のYAML選択は追加しない。",
+        "constant-only surrogateでもcondition列順/shape/finiteとquery順、row IDsを検査する。predict_coefficientsは(N,0)、predict/iter_predictは同じbaselineを返す。較正は独立holdoutの真のfield残差で通常どおり可能で、将来fieldが変化しないという保証は主張しない。",
+        "保存runtime依存は新bundleの実際に保持するestimator/codec stateに基づいて求める。D=0で構築していないoptional regressorをrecipeに書いたという理由だけで保存時に必須化しない。設定名/parameterの誤りの入口検出は省略しない。旧sidecarのrequired_packagesは従来どおり尊重する。",
+        "modesはcomponent_offsetsから成分名とlocal mode indexを表示。合成のaffine性はdecomposer/codec/post/preprocessの実効逆写像の小さいbooleanまたは記述値を合成して決定し、additiveと物理orthogonalityを別にする。Zは従来どおりlatent座標。"
+      ],
+      "n_modes_semantics": {
+        "new_independent_pod_gappy_and_pod_svd": "整数は非rank0成分ごとの明示countという従来の意味を維持。Kc=要求K、rank不足なら成分名・要求K・available rankを明示して拒否する。整数を黙って上限budgetへ意味変更しない。自動選択とrank0成分の対応に必要のないAPI変更は避ける。",
+        "auto_or_null": "POD/pod_svdの現行YAMLではn_modes:nullが自動を意味する。文字列autoを受ける他backendの仕様はそのbackendで維持し、全手法共通aliasを新設しない。自動PODは各成分で利用可能なrankを独立採用。rank_select有効なら各成分自身の全training energyを分母として閾値を満たす最小Kcを選ぶ。POD/Gappyはcentered energy、pod_svdはuncentered energyを維持。rank_select.max_modesはそのauto選択の上限。",
+        "explicit_n_modes_with_rank_select": "明示整数のbudgetを優先し、energy目標の達否だけを既存summaryへ記録。max_modesがauto向け上限である現在の役割を維持し、複数の隠れたmin規則を増やさない。",
+        "rank_zero": "rank0はKc0。整数>0を指定していても、rank0だけはcentered POD/Gappyでは学習mean、pod_svdではzeroで完全に表せる例外としてfitを成立させ、summaryにrank0とKc0を明示。偽modeを作らない。非rank0のrank不足の意味を変えない。",
+        "joint_and_other_methods": "pod_joint、EM、graph/mesh等のn_modes意味は一括変更しない。それぞれ単一全体rankと数値仕様を維持。独立pod_svdは既存数学仕様を保って今回のblocks対象へ含める。"
+      },
+      "files": {
+        "new": ["coefficients/layout.py", "decomposition/adapters.py（既存ChannelwiseAdapter/FieldBatch等の所有を実際に移す場合だけ）"],
+        "modify": [
+          "decomposition/base.py",
+          "data/schema.py",
+          "decomposition/pod.py",
+          "decomposition/pod_svd.py",
+          "decomposition/gappy_pod.py",
+          "decomposition/pod_utils.py",
+          "representation.py",
+          "surrogate.py",
+          "coefficients/codecs/basic.py",
+          "coefficients/codecs/auto.py",
+          "coefficients/codecs/offset_residual_pack.py",
+          "coefficients/post/basic.py",
+          "modes.py",
+          "model_artifact.py"
+        ],
+        "move_only_with_ownership_change": [
+          "base.pyのchannel/sample変換をadapters.pyへ寄せる場合、旧base.ChannelwiseAdapter等は旧pickle読込用aliasを残す。",
+          "Zernike固有base処理は既存zernike_shared.pyへ戻す。ただし保存class経路を先に固定受入する。"
+        ],
+        "remove_logic_and_tests": [
+          "独立POD/Gappyの_align_pod_channelsとpod_svdのmin(ranks)による共通Kへの切詰め",
+          "common minimum Kを仕様の正解として固定する試験",
+          "queryでmutable coeff_metaから過去layoutを上書きする処理",
+          "modesがmethod名だけからdisabled wrapperを非線形と推測する分岐"
+        ]
+      },
+      "acceptance": [
+        "rank[1,3]の独立POD autoがKc=[1,3], offsets=[0,1,4]を返し、独立したscalar POD oracleの復元/energyと一致する。rank[1,0]でも第1成分を切らず、定数成分のspatial meanを復元。",
+        "pod_svdのrank[1,3]を独立した各channelのNumPy uncentered SVDと比較し、Kc/重み付き復元/retained uncentered energyが一致。非zero sample不変profileはrank1のまま、zero channelのみKc0とし、nonzero側のmodeを切らない。全zeroではD=0/zero baselineが成立する。",
+        "centered POD/Gappyではall-constant spatially nonuniform field、post:noneでD=0のfit/transform/inverse/predict/iter_predict/較正/保存再読込を一つのend-to-endで確認。pod_svdでは同じD=0経路を全zero fieldで確認。post/regressor fitが呼ばれず、regressor estimatorを保存せず、prediction_kind:constant_fieldを保持する。NaN条件と誤列順は拒否される。",
+        "同じD=0 fieldで非identity postを指定した場合は理由付きで拒否し、単にpost:noneへ置換して成功させない。未構築optional regressorをprovenanceへ記録しても、保存bundleの実依存に追加しない。",
+        "n_modes integer/null/energy/max_modesの各役割を少数の独立数値oracleで確認。direct/randomized/incremental、weighted、mask、zero-measure、mode_weightの既存受入を維持。",
+        "query maskが80から77/74に変わってもlayout同一。異geometryはdirect低位APIでも古いdisk basisを使わない。",
+        "実0.7.1全8bundleと新変更前0.9.0 schema2 fixtureのpredictions/packing順序を維持。新schema3のblocks、constant、offset、非線形codecの保存/再読込を確認。"
+      ]
+    },
+    {
+      "id": "N2",
+      "title": "物理component解析を学習表現から独立させる",
+      "priority": "foundation_after_layout",
+      "depends_on": ["N0", "N1", "数値結果とwriterを分けるworkflow改良"],
+      "changes": [
+        "component_reportingがfitted Hodge representationを要求する依存を外す。geometry、FieldSpec、plain component設定と供給fieldを受ける数値操作を用意し、既存HodgeDecompositionを一度prepareしてbatchのfieldを処理する。",
+        "現在のHodgeDecompositionとFFT Helmholtz projectionをそのまま利用。学習済みbasisや条件regressorは不要。POD/DCT/他表現の予測fieldに同じ物理解析を適用できる。",
+        "analysis.componentsの現在のenabledを維持し、method: hodge|helmholtzと既存backendの必要設定のみ明示可能にする。method既定値はhodgeで旧enabled:trueの意味を維持。natural/periodicをgeometryから黙って切り替えない。Hodgeはboundary:naturalのみ、Helmholtzはboundary_condition:periodicのみを受理。未知keyは入口で拒否する。",
+        "Hodge: vector/同一field単位/同一x-y座標単位、非周期Cartesian、固定正のdomain measure、全domain観測という既存前提を使用。naturalは外部fluxや境界速度の指定ではないことを出力summaryへ残す。",
+        "Hodgeのexact/coexact/harmonic energyとorthogonalityはnative edge cochainだけ。node liftとsampling residualを別に出し、node上の直交性やedge energy=格子energyという主張をしない。",
+        "Helmholtzはuniform periodic sampled-grid projectorの既存derivative/Nyquist-zero conventionを維持。zero_fillはambient periodic extensionの解析であり、非周期壁境界の物理解とは解釈しない。",
+        "数値結果はgeometry/field単位とnative parts/metric定義を伴う操作内データとして返す。component_reportingはその結果のtable/array/summary保存だけを担当。数値計算をrendererへ入れない。",
+        "現行のdecomposition.name:hodge/helmholtzを直ちに削除しない。direct解析と旧bundleを維持し、学習recipeは小さい通常表現→field→componentsを推奨例へ変更する。冗長component targetsを物理的に制約した回帰へ自動変換しない。"
+      ],
+      "files": {
+        "modify": [
+          "component_reporting.py",
+          "decomposition/hodge.py",
+          "decomposition/helmholtz.py",
+          "analysis_task.py",
+          "representation_task.py",
+          "policy.py",
+          "docs/ANALYSIS.md",
+          "docs/CONFIGURATION.md",
+          "Hodge/Helmholtzの既存自己完結YAML例"
+        ],
+        "numeric_owner": "decomposition/hodge.py/helmholtz.pyの既存演算を再利用。component解析の共通操作が2backendを束ねる規模に達した場合だけevaluation/components.pyへ小さい関数を置く。新たなanalysis plugin registryは不要。",
+        "remove_logic": [
+          "components出力をrepresentation.config.decomposition.name==hodgeだけで許可する分岐",
+          "report writerの中でfitted representationから物理演算stateを探す処理"
+        ]
+      },
+      "acceptance": [
+        "同じ供給field/geometryでHodge representationを経由する旧reportとPOD/DCT予測を受ける新operationのnative parts/energyが一致する。",
+        "既存annulus/disconnected mask/harmonic dimension/d1d0/orthogonality/edge-lift-residualの独立数学受入を維持。",
+        "不適合kind/単位/周期/欠測を学習表現によらず同じ物理入口で拒否。enabled:falseではoperator構築/物理再分解なし。",
+        "Helmholtzのsum再構成、projection idempotence、derivative nullspace割当、偶数Nyquist sectorsを既存oracleで確認。"
+      ],
+      "defer": "Hodge potential/harmonic独立座標による低次元の制約付きsurrogateは別の数学仕様。今回の責務整理のために新学習手法を開発せず、利用価値・native norm・制約・node bridgeを別途定義できた時に検討する。"
+    },
+    {
+      "id": "N3",
+      "title": "fit結果と操作内solveを所有し、確認できた無駄だけ除く",
+      "priority": "after_foundation",
+      "depends_on": ["N1"],
+      "changes": [
+        "pod_utilsに小さいPODFitResult相当の返却値を置く。mean、basis、eigvals、coordinate_system(weighted|physical)、sqrt_weightsまたはmask index、grid_shape、fit_diagnosticsのみ。trainer全体・全training field・実行pathは含めない。",
+        "Gappy fitは必要なphysical basisへ一度だけ変換して結果を引き取り、完了した_PODScalarDecomposerを新規stateへ保持しない。重み0のphysical復元規則とweighted projectionの意味は変えない。再fitは新しい一時trainer/resultを作る。",
+        "fit/fit_transformとdirect taskの同一操作内でA/Zを一度だけ計算・受渡しする。training targetやcoef post fitで必要な全Aは残すが、post:noneの固定基底fitで全train Aを生成して捨てない。新しい全学習cacheは作らない。",
+        "Zernike/Fourier-Bessel/Fourier-JacobiやGappyの同一geometry・support・weightsのbounded batchのみmulti-RHS lstsqへ束ねる。ridgeは従来同様の安定な増大行列。normal equationsへ置き換えない。",
+        "異なるsample maskは従来の正しいsample solveを維持。任意maskのglobal factorization cache、全件Yの一括stack、巨大projection matrixを保存しない。共有の利益が実測できなければsingle-sample fallbackで止める。"
+      ],
+      "files": {
+        "modify": [
+          "decomposition/pod_utils.py",
+          "decomposition/pod.py",
+          "decomposition/gappy_pod.py",
+          "decomposition/zernike_shared.py",
+          "decomposition/fourier_bessel.py",
+          "decomposition/fourier_jacobi.py",
+          "representation.py",
+          "representation_task.py"
+        ],
+        "remove_state_and_logic": [
+          "新規Gappy modelの完了_pod trainerと重複basis",
+          "同じ操作のA->Z再変換",
+          "固定support batch内の同一行列分解の繰返し"
+        ]
+      },
+      "acceptance": [
+        "Euclideanとdomain-weighted Gappyの係数/fieldを独立lstsq oracleへ照合。新modelにtrainer basisの実duplicateがないことを保持array bytesで確認。pickleサイズ削減率を一般保証にしない。",
+        "同一supportの複数RHSが従来sample solverとscaleに応じた精度で一致。混在maskはsample oracleと一致。非contiguous/read-only inputを変更しない。",
+        "実行回数とpeak memoryを代表1負荷で確認し、RHSのbounded作業量と物理fieldの出力不変を検証。呼出回数の減少だけで速度改善率を約束しない。"
+      ]
+    }
+  ],
+  "persistence_minimum": {
+    "new_writes": "model_artifact_schema_version:1はenvelope/integrityとして維持し、input_schema.schema_versionを3へ進める。component blocks・FieldSpec・synthesis意味は新たな学習/推論意味なので、schema2へ黙って新layoutを混ぜない。全stateのNPZ/JSON独自保存への全面置換は行わない。",
+    "schema3_fields": [
+      "schema2のfield_shape/components/field_units/field_kind/geometry_sha256/packed_dim/target_dim/condition_columns/coefficient_space",
+      "coefficient_layout.layout_version:1",
+      "raw_format/raw_shape/raw_order/component_offsets/synthesis_kind/coordinate_kind",
+      "必要な既存FFT/wavelet/offsetの固定packing情報。basisや学習sample診断はsidecarへ重複保存しない。",
+      "D=0のsurrogateのみprediction_kind:constant_fieldを明示。target_dim/packed_dim=0、post:none、regressor estimatorを保持しないstateと整合させる。representationにはbundle_kind以外のmodel分類を重複追加しない。"
+    ],
+    "read_schema1_2": [
+      "先に既存sidecarのhash、runtime、provenance、元schemaの意味とpayloadを従来関数で検証する。その前にlayoutを変更して検証を通したことにしない。",
+      "検証後に既存raw_metaから小さいlegacy layout viewを組み立てる。旧CKと旧offset/AutoCodecV1とclass import経路を維持し、stored係数/basisは並替え・再fitしない。",
+      "旧Gappy _podはload後に必要stateを一度だけ取り出す移行が可能。移行前後のweighted/Euclidean係数とfieldを比較し、一致を確認できないstateは勝手に削除せず互換readerを維持する。",
+      "旧modelを新しく保存し直す場合、schema3のraw_format=legacy_*として元packingを記録する。新fitのblocks形式へ自動変換しない。"
+    ],
+    "fixtures_before_change": [
+      "実0.7.1の既存8bundleはそのまま保持。mockや現source生成品で置き換えない。",
+      "変更前0.9.0 wheelからschema2のweighted POD/Gappy/pod_svd、offset+DCT、Hodge、較正surrogateの小fixtureを生成し、既知のA/Z/prediction/metadataを別dataとして固定してからclass移動する。旧pod_svd CK packingとcentered:falseも固定する。",
+      "runtime完全一致という現在のbackend制約を緩めて旧読込成功と見なさない。schema2 fixture用環境とbase wheel受入の役割を分ける。"
+    ],
+    "release_note": "新fitの独立POD/Gappy/pod_svd raw shape、成分別の自動Kcとrank0例外、新schema3は0.9.0の既存bundleを読み続ける互換と分けて明記。pod_svdの非中心化は変更しない。次minor等の実装版は全体計画側で決定し、この計画ではrelease済みと扱わない。"
+  },
+  "not_in_scope": [
+    "数学差を消す全POD solver統合、独立PODをjointへ自動切替、FFTを見せかけの複素mode群へ変更。",
+    "全数値moduleのlearned/spectral/physical別directory移動、mesh V×1 bridgeの全面廃止。",
+    "constant-onlyのための別pipeline、dummy target、constant専用YAML enabled設定。",
+    "Hodge自然境界から壁境界/外部flux条件への拡張、3D/移動geometry、新group conformal。",
+    "任意mask全件cache、全残差/全train A/Zをfit済みmodelへ保持。",
+    "数値oracle・旧bundle・入力整合性の検査を行数削減の目的で削除。"
+  ],
+  "handoff_to_other_workstreams": [
+    "FieldSpec/Layoutの物理情報は共通field writerへ渡す。writerが学習modelからprivate属性を探す依存を増やさない。",
+    "Hodge/Helmholtz解析の計算結果とartifact出力状態は別。要求解析の不適合をunavailableで成功に変えない。",
+    "評価目的/measureの統一では成分別Kcとconstant baselineも通常候補として採点し、R2未定義とRMSE有効を分ける。",
+    "geometry identityのdense mass matrix問題は別ownerで対応し、schema1/2の旧identityを検証前に再定義しない。"
+  ],
+  "completion_gate": "N0の最小再現回帰→schema2固定受入→N1と新schema3→N2の学習非依存物理解析→N3の実無駄削除の順。各単位で既存の科学的oracleと実bundleを通し、不要な契約frameworkや細かい診断/試験を新設しない。実データの境界物理・将来予測の被覆率認定は合成数値受入とは別に残す。"
+}

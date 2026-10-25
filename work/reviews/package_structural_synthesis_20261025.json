@@ -1,0 +1,582 @@
+{
+  "review_date": "2026-10-25",
+  "title": "パッケージ全体の構造簡約・責務整理の統合検討",
+  "scope": {
+    "mode": "0.9.0",
+    "core": "0.2.1",
+    "source_files": 98,
+    "source_sha256": "56ab349c37a051b6ab5b49ec97ee333baee75080ad32203b449ba507dbeae3da",
+    "source_unchanged_from_previous_review": true,
+    "product_source_edited": false,
+    "tests_edited": false,
+    "implementation_performed": false,
+    "documentation_changes": [
+      "docs/IMPLEMENTATION_STATUS.md",
+      "work/README.md"
+    ],
+    "previous_findings": "work/reviews/package_reviewer_audit_20261025.json",
+    "accepted_runtime_evidence": "work/reviews/package_capacity_validation_20261025.json"
+  },
+  "conclusion": "改良の中心はファイル数の削減ではなく、固定した数値仕様・操作中の計算結果・出力状態・互換処理の所有を分けること。前回20件を6つの改良単位へ統合する。必要な箇所の境界変更と不要処理の削除を同時に行い、全面的な移動・新しい汎用framework・利用者設定の増加は行わない。",
+  "decision_rules": [
+    "change: 実再現または依存関係で利益を確認でき、既存の不具合・不要計算・責務混在を直接減らす。",
+    "keep: 数値的意味、容量制御、公開入口、互換受入など明確な役割がある。",
+    "defer: 利益が利用規模や次の仕様変更に依存し、今の移行負担を上回らない。",
+    "reject: 見た目の整理、不要な一般化、数学的差の消去、証拠のない一律削除。"
+  ],
+  "additional_structural_findings": [
+    {
+      "id": "D01",
+      "decision": "change",
+      "priority": "P1",
+      "title": "数値結果と出力のphaseが曖昧で、変数の代入位置が失敗分類を変える",
+      "source_refs": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/analysis_task.py:201",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/analysis_task.py:249",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/analysis_task.py:258",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/analysis_task.py:331",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/analysis_task.py:351",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/evaluation/comparison.py:19"
+      ],
+      "evidence": "work/verification/structural_review_20261025/workflows/reproduction.json",
+      "observed": "採点後のsave_modelへOSErrorを注入すると、正常なRMSE約9.23e-15まで候補失敗として破棄され、output_failuresは空。allow_failures:trueではcomplete:falseの通常return。本当に全候補とbaselineが成立しない別例では、空表のgroupbyがKeyError('split_seed')となり、本来の失敗理由・summary・tablesを保存できない。",
+      "interpretation": "実際の不具合。前回の不正mode indexとは別の経路だが、結果確定と出力の混在が共通原因。",
+      "proposal": "採点結果を先に確定してから要求出力を別phaseで記録する。成功0件でも列を持つ表と候補失敗記録を返す。新しいstate machineは不要。",
+      "prior": [
+        "R04",
+        "R13"
+      ]
+    },
+    {
+      "id": "D02",
+      "decision": "change",
+      "priority": "P2",
+      "title": "不変layout、fitの診断、sample別診断が同じmetadataへ混在",
+      "source_refs": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/base.py:155",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/representation.py:142",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/gappy_pod.py:151",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/pod.py:783"
+      ],
+      "evidence": "work/verification/structural_review_20261025/numerics/probe_results.json#/frozen_layout_mixed_with_sample_diagnostics",
+      "observed": "学習80観測点、query77/74点の後、Representation raw_metaは80、wrapper metadataは77、内側scalar metadataは74となる。直接APIではHW→HWCのtransformで、以前の係数を戻すshapeも変わる。",
+      "interpretation": "通常Representationの逆変換誤りは見つからない。ただし同じ名前の情報が異なる寿命を持ち、codec/modes/保存がどの層を信じるか追跡しにくい。",
+      "proposal": "固定geometry・成分block・係数順序・合成意味をfit後の小さいlayoutへ集約。sample診断は必要な操作結果へ分け、transformでlayoutを書き換えない。全metadata keyをclass化しない。",
+      "prior": [
+        "R05",
+        "R15"
+      ]
+    },
+    {
+      "id": "D03",
+      "decision": "change",
+      "priority": "P2",
+      "title": "手法ごとに部分geometry cache keyを持ち、直接APIで古いbasisを再利用する",
+      "source_refs": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/zernike_decomposer.py:65",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/zernike_shared.py:199",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/fourier_bessel.py:22",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/fourier_jacobi.py:21",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/geometry/identity.py:83",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/representation.py:89"
+      ],
+      "evidence": "work/verification/structural_review_20261025/numerics/probe_results.json#/partial_geometry_cache_identity",
+      "observed": "shape・端点が同じで内部座標が異なる2つのdiskで同じdecomposerを再利用するとfresh instanceとの差がfieldでZernike1.0005、Fourier-Bessel0.5050、Fourier-Jacobi0.9355。",
+      "interpretation": "下位decomposer APIで確認した不具合。通常のFieldRepresentationは完全geometry照合でこの再利用を防ぐため、通常pipelineの誤計算とは扱わない。",
+      "proposal": "固定geometryへ準備した演算と、そのidentityを一つの所有箇所へ寄せる。直接APIを維持する場合は完全geometryから再準備する薄い入口にし、独自の部分keyを増やさない。",
+      "prior": [
+        "R01",
+        "R15"
+      ]
+    },
+    {
+      "id": "D04",
+      "decision": "change_with_related_layout_work",
+      "priority": "P2",
+      "title": "array/sample/channel/meshの変換が複数の層を往復",
+      "source_refs": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/base.py:82",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/base.py:113",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/base.py:149",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/base.py:505",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/base.py:525",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/representation.py:112",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/schema.py:302"
+      ],
+      "evidence": "work/verification/structural_review_20261025/numerics/probe_results.json#/dual_input_adapter_conventions",
+      "observed": "arrayをFieldBatchとしてsample APIへ渡し、channel adapterや個別手法が再びarray・squeezeへ戻す経路がある。全観測maskのNone/全Trueやshared/sample maskが入口で別の意味になる例もある。FieldBatchの借用やlazy channel viewは既に機能している。",
+      "proposal": "可変Kcを実装する時にarray batchを内部の基準へ揃え、旧sample/channel変換を一つのadapterへ寄せる。既存のborrowed viewを壊さない。mesh V×1全面廃止と全backendの同時変更は保留。",
+      "prior": [
+        "R05",
+        "R15",
+        "R16"
+      ]
+    },
+    {
+      "id": "D05",
+      "decision": "change",
+      "priority": "P2",
+      "title": "Gappy PODが完了したPOD trainerと不要basisを保持",
+      "source_refs": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/gappy_pod.py:47",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/gappy_pod.py:76",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/gappy_pod.py:169"
+      ],
+      "evidence": "work/verification/structural_review_20261025/numerics/probe_results.json#/gappy_duplicate_retained_basis",
+      "observed": "4096×5のbasisを別arrayで各163840 bytes保持。copied modelの未使用trainer basisだけを除去して係数/field差0、pickle protocol5サイズ362542→198666 bytes。",
+      "interpretation": "1つのscalar・Euclidean例の実証。これは全bundleやjoblib圧縮率の一般的保証ではない。重み付きGappyのphysical basisは必要。",
+      "proposal": "共通のfit済みbasis結果・mean・固有値・必要な診断だけを受け渡し、完了したtrainer全体を新規modelに残さない。再fitと旧bundleの読込を確認する。",
+      "prior": [
+        "R08",
+        "R19"
+      ]
+    },
+    {
+      "id": "D06",
+      "decision": "change_when_same_support",
+      "priority": "P2",
+      "title": "固定supportでも同じ射影行列の分解をsampleごとに繰り返す",
+      "source_refs": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/base.py:155",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/base.py:404",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/zernike_shared.py:219",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/fourier_bessel.py:149",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/fourier_jacobi.py:136"
+      ],
+      "evidence": "work/verification/structural_review_20261025/numerics/probe_results.json#/fixed_support_factorization_repeated_per_sample",
+      "observed": "Zernike8 sample/2成分で同一709×21行列にlstsqを8回実行。1回のmulti-RHSとの差は約2.1e-16。時間/RSSの性能比は未測定。",
+      "proposal": "geometry/support/重みが同一のbatchだけmulti-RHSまたは準備済み安定分解を共有。maskが異なる場合は正しいsample処理を継続。任意maskの全件cacheや全手法一律vectorizeは採用しない。",
+      "prior": [
+        "R08"
+      ]
+    },
+    {
+      "id": "D07",
+      "decision": "change_with_offset_redesign",
+      "priority": "P2",
+      "title": "offset wrapperの有効状態と合成の意味が別の場所で決まる",
+      "source_refs": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/offset_residual.py:263",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/offset_residual.py:138",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/offset_residual.py:292",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/modes.py:62"
+      ],
+      "evidence": "work/verification/structural_review_20261025/numerics/probe_results.json#/disabled_wrapper_changes_synthesis_interpretation",
+      "observed": "offset無効＋DCTは通常DCTと係数差0でもadditive:true→falseとなり、mode_fieldsに参照を要求する。強制有効時もauto判定用集計を行い、6sample/2成分のfitでoffset集計20回、encode込み26回だった。",
+      "proposal": "fitで確定した変換と合成意味を後段へ渡す。強制有効化時の不要なauto診断を除く。一方、lazy residual再読取は容量対策なので全残差cacheへ置き換えない。",
+      "prior": [
+        "R01",
+        "R02",
+        "R15"
+      ]
+    },
+    {
+      "id": "D08",
+      "decision": "change_small_handoffs_keep_constructor_defaults",
+      "priority": "P2",
+      "title": "同じ操作のA/Zを取り直し、所有するcopyの境界も重なる",
+      "source_refs": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/representation.py:77",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/representation_task.py:90",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/coefficients/post/basic.py:187",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/catalog.py:94",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/config.py:79"
+      ],
+      "evidence": "work/verification/structural_review_20261025/root_probe_results.json",
+      "observed": "直接分解で20×30のAからZへのstandardizeをrepresentation._fitとrepresentation_taskで2回実行。Quantileはwrapperがinputをcopyし、copy:trueではbackendがさらに別arrayを返す。固定1候補pipelineでもconstructor既定値照会14回。",
+      "proposal": "同じ操作で必要なA/Zは小さい内部結果として一度受け渡す。postの入力保護とbackendのcopy所有を整理する。constructor由来の既定値は維持し、14回照会を重大性能問題とは扱わない。型registryやglobal model cacheは新設しない。",
+      "prior": [
+        "R08"
+      ]
+    },
+    {
+      "id": "D09",
+      "decision": "change",
+      "priority": "P2",
+      "title": "reportingという配置が学習状態変更と解析計算を隠す",
+      "source_refs": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/uncertainty_reporting.py:4",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/mode_reporting.py:52",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/component_reporting.py:46",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/analysis_reporting.py:139",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/representation_task.py:19"
+      ],
+      "observed": "calibrate_from_splitはmodelをfit済み較正状態へ変更しtrainを再gatherする。mode reportは再構成と採点、component reportはHodge計算を行う。study/directには同じoptional出力規則が重複する。",
+      "proposal": "較正の準備と状態変更はworkflow、数値的な曲線やcomponent計算は数値/評価、rendererは表示へ責務を戻す。既存moduleを使い、小helperの改名だけの新moduleは作らない。二つの実consumerが使う出力登録規則だけを共有する。",
+      "prior": [
+        "R04",
+        "R07",
+        "R09",
+        "R17"
+      ]
+    },
+    {
+      "id": "D10",
+      "decision": "change",
+      "priority": "P2",
+      "title": "外部Stage wrapperが学習moduleと受入moduleの論理循環を作る",
+      "source_refs": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/training/candidate_training.py:7",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/training/candidate_training.py:71",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/training/finalization.py:8",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/stage_inputs.py:43",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/stage_inputs.py:44",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/stage.py:10"
+      ],
+      "observed": "candidate_training→stage_inputs→candidate_training/searchという依存があり、関数内importで初期化時の衝突を避けている。学習kernelと外部wrapperは同じfileにある。",
+      "interpretation": "通常のimport失敗を確認したわけではなく、責務所有と変更波及の問題。",
+      "proposal": "外部Stage wrapperをstage側へ寄せ、受入検証後に既存のtraining関数を呼ぶ。localは現在の普通の関数呼出を維持し、共通DAGや中間JSON往復へ戻さない。",
+      "prior": [
+        "R12",
+        "R18"
+      ]
+    },
+    {
+      "id": "D11",
+      "decision": "change",
+      "priority": "P2",
+      "title": "入力形式adapterが共通I/Oと科学評価の所有者になっている",
+      "source_refs": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/csv_import.py:15",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/scattered_import.py:17",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/scattered_import.py:349",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/scattered_import.py:495",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/loading.py:41"
+      ],
+      "observed": "CSVがcanonical loaderのprivate helper群とlegacy importerへ、散布点がさらにCSV helperへ依存。scattered_importはimport・元点store読込・評価・集計を同居させる。",
+      "proposal": "共通のpath/table/ID参照を形式非依存の一箇所へ抽出し、元点の評価をevaluationへ移す。元点storeの読込と数値補間はそれぞれI/Oと数値の所有を保つ。",
+      "prior": [
+        "R06",
+        "R12",
+        "R16",
+        "R17"
+      ]
+    },
+    {
+      "id": "D12",
+      "decision": "change",
+      "priority": "P2",
+      "title": "field writerがcfg/RunResultと結合し、表示用dictが数値結果と保存journalを兼ねる",
+      "source_refs": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/stage_result.py:15",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/stage_result.py:29",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/stage_result.py:150",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/evaluation/fields.py:57",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/analysis_task.py:84",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/analysis_task.py:254"
+      ],
+      "observed": "stage_resultにfield配列保存とrun寿命が同居。EvaluationReport.summaryへ数値定義・性能・model path・optional出力状態が後付けされ、rendererは同じ文字列keyを読む。直接再構成は別writer。",
+      "proposal": "数値結果、操作の出力状態、表示用の小snapshotを分ける。field writerはpathとplain field情報を受け、登録用path mappingを返す。予測/再構成の物理schema整備と同時に統一する。全dictのclass化やschema frameworkは不要。",
+      "prior": [
+        "R04",
+        "R09",
+        "R11",
+        "R13"
+      ]
+    }
+  ],
+  "integrated_workstreams": [
+    {
+      "id": "W1",
+      "title": "固定した数値演算・係数仕様と物理解析の責務を明確にする",
+      "prior": [
+        "R01",
+        "R02",
+        "R05",
+        "R07",
+        "R15"
+      ],
+      "deep": [
+        "D02",
+        "D03",
+        "D04",
+        "D07"
+      ],
+      "goal": "geometry・単位・成分block・合成意味を一度確定。可変Kcと定数成分、物理解析の前提を同じ境界で扱う。",
+      "retain": "A/Zとraw packing、FFT実数独立座標、非線形応答の参照、solverの数学的差を維持。",
+      "acceptance": "wrapper有無で物理前提と線形意味が変わらない。rankの異なる成分を必要な自由度で復元。新layoutでも実旧bundle8種を読める。"
+    },
+    {
+      "id": "W2",
+      "title": "解析目的と参照対象・measureを一致させる",
+      "prior": [
+        "R06",
+        "R13",
+        "R17",
+        "R20"
+      ],
+      "deep": [
+        "D09",
+        "D11"
+      ],
+      "goal": "格子場、元観測、人工欠測truthの選択/比較/最終評価を一貫させ、明示maskと既計算sample coverageを既存入口へ接続。",
+      "retain": "参照supportと役割分離。補助R2未定義を便宜値で補修しない。group/time較正の保証を拡大解釈しない。",
+      "acceptance": "同じ参照対象では全候補が同一sample/support/重みを使用。目的の違う指標は名称と定義で区別。"
+    },
+    {
+      "id": "W3",
+      "title": "数値結果の確定と要求出力・失敗状態を分ける",
+      "prior": [
+        "R04",
+        "R08",
+        "R09",
+        "R13"
+      ],
+      "deep": [
+        "D01",
+        "D08",
+        "D09",
+        "D12"
+      ],
+      "goal": "採点結果を先に確定し、保存/モード/描画の失敗を後段で記録。表示は小さいsnapshotだけを所有。",
+      "retain": "数値失敗を隠さない、要求出力失敗を成功へ変えない、partial artifactを保持する。",
+      "acceptance": "成功0件でも本来の失敗理由を保存。保存OSErrorで正常な指標を失わない。HTML無効ではpreview準備なし。"
+    },
+    {
+      "id": "W4",
+      "title": "入力正規化・外部Stage・field成果物の所有を揃える",
+      "prior": [
+        "R11",
+        "R12",
+        "R16"
+      ],
+      "deep": [
+        "D10",
+        "D11",
+        "D12"
+      ],
+      "goal": "runがinput変換と失敗を所有し、Stageはcanonical Dataset参照を受け渡す。共通field出力へ座標/support/単位/IDを自動付随。",
+      "retain": "単一YAML/配列API、任意manifest、localと外部受入の分離。",
+      "acceptance": "raw入力の再変換が候補数で増えない。成果物だけで物理fieldを解釈できる。"
+    },
+    {
+      "id": "W5",
+      "title": "実際に不要な計算・保持・検査を削る",
+      "prior": [
+        "R08",
+        "R10",
+        "R14",
+        "R18"
+      ],
+      "deep": [
+        "D05",
+        "D06",
+        "D08",
+        "D09"
+      ],
+      "goal": "使わないtrainer basis・GP std・dense mass matrix・二重Z変換・no-op設定を除き、固定supportだけ分解を共有。",
+      "retain": "入力保護、公開検査、PCA二段centering、重み座標、lazy replay、mask別solve。",
+      "acceptance": "元入力不変と数値oracleを維持。実際に保持するbytes/計算回数を確認し、未測定の速度比を保証しない。"
+    },
+    {
+      "id": "W6",
+      "title": "公開入口と互換・文書の正本を維持する",
+      "prior": [
+        "R03",
+        "R19",
+        "R20"
+      ],
+      "deep": [
+        "D04",
+        "D08",
+        "D10",
+        "D12"
+      ],
+      "goal": "有効化の誤記を入口で検出し、既定値はconstructorに保持。保存class経路と実旧bundleを守り、利用例とTask種別を区別する。",
+      "retain": "公開facade、遅延import、固定core、自己完結YAML、現在の配布単位。",
+      "acceptance": "通常利用にscenarioや複数設定の必須組合せを追加しない。wheel単体と旧bundleを継続して利用できる。"
+    }
+  ],
+  "file_plan": [
+    {
+      "current": "decomposition/base.py",
+      "decision": "change_with_W1",
+      "proposal": "BaseDecomposerの小さいinterfaceと安全なbatch fallbackは維持。可変Kc対応時にchannel/legacy compositionを一つの内部adapterへ寄せる。Zernike固有処理は既存zernike_shared.pyへ戻す。",
+      "benefit": "汎用interfaceが手法固有と旧sample規約を同時に所有する状態を減らす。",
+      "risk": "保存済みChannelwiseAdapterの旧import経路はalias/互換読込で維持。",
+      "avoid": "helperごとのmicro-fileと深い数値カテゴリ階層。"
+    },
+    {
+      "current": "decomposition/pod.py + gappy_pod.py + pod_utils.py",
+      "decision": "change",
+      "proposal": "手法fileを維持し、Gappyへ小さいfit済みbasis結果を渡す。共通basis診断の実装はpod_utilsへ集約。",
+      "benefit": "完了trainerへの依存と不要basis保持を減らす。",
+      "risk": "重み付きphysical basis・rank/energy・再fit・旧stateの意味を保持。"
+    },
+    {
+      "current": "data/csv_import.py + scattered_import.py + loading.py + importing.py",
+      "decision": "change",
+      "proposal": "共通source/path/table/ID helperをdata/_sources.py等へ抽出。元点評価はevaluation/observations.py等へ移す。名前は実装時に既存ownerと合わせる。",
+      "benefit": "形式adapter間のprivate依存とimport→evaluation往復を解消。",
+      "risk": "公開data関数は必要な薄いre-exportを残し、入力形式とID対応を変えない。"
+    },
+    {
+      "current": "stage_result.py + representation_task.py",
+      "decision": "change_with_W4",
+      "proposal": "field_output.py等へrun非依存writerを抽出し、予測と再構成の物理schemaを統一。run lifecycleとartifact登録は既存実行側へ残す。",
+      "benefit": "path/array/field情報だけで保存を利用でき、writerがcfg/RunResult全体を知らずに済む。",
+      "risk": "NPZ互換、NPY逐次書込、temp cleanup、完成後の登録順を維持。"
+    },
+    {
+      "current": "analysis_task.py + representation_task.py + *_reporting.py",
+      "decision": "change_behavior_before_paths",
+      "proposal": "まず数値確定→要求出力→renderの段階と所有を整理。二つのtaskが使うmode/component出力規則だけ共有し、数値操作は既存のmodes/evaluation/Hodgeへ戻す。",
+      "benefit": "同じ失敗/出力規則の二重実装を解消し、reportingという名前の裏のfit/採点を明確化。",
+      "risk": "追加解析registry・callback engineは不要。全reporting fileの一括移動は行わない。"
+    },
+    {
+      "current": "stage.py + stage_inputs.py + training/*",
+      "decision": "change_small_wrappers_keep_training_roles",
+      "proposal": "外部Stage wrapperだけstage側へ寄せる。trainingの準備/候補評価/探索/選択/最終学習という分割は維持する。",
+      "benefit": "training→受入→trainingの論理循環を切る。",
+      "risk": "外部artifactの意味検証を削除しない。localにtransport処理を戻さない。"
+    },
+    {
+      "current": "config.py + policy.py + catalog.py",
+      "decision": "keep_core_design_simplify_boundary_opportunistically",
+      "proposal": "constructorを既定値の正本とする現在の仕組みを維持。未知key/有効化の確認順を修正し、正規化済み情報を同操作で作り直す箇所だけ整理。",
+      "benefit": "別のparameter registryを増やさず誤記と追跡の難しさを減らす。",
+      "risk": "全設定のclass化、schema library移行、signature cache追加を今回の必須改良にしない。"
+    },
+    {
+      "current": "representation.py + surrogate.py",
+      "decision": "keep_public_facades",
+      "proposal": "公開合成入口を維持し、同じ操作のA/Zやfit済みlayoutの受け渡しを改善する。",
+      "benefit": "利用者は一つのYAMLまたは現在のPython APIを継続利用できる。",
+      "risk": "service/controller階層への機械的細分化を避ける。"
+    },
+    {
+      "current": "geometry/__init__.py + mesh V×1 bridge",
+      "decision": "defer_broad_move",
+      "proposal": "物理演算の適合性とidentityの所有をW1で改善。geometry型や全backend shapeの移動は、その時点で必要な範囲に限定。",
+      "benefit": "誤cacheの根本を扱いつつ影響範囲を抑える。",
+      "risk": "DomainSpecや数値classのimport経路を整理目的だけで変更しない。"
+    },
+    {
+      "current": "config/tasks/* + examples/*",
+      "decision": "keep_self_contained_recipes",
+      "proposal": "14 YAMLは6実装Taskの利用recipeであると索引で説明。用途別の自己完結例は維持。",
+      "benefit": "複数fileのinclude合成を必須にせず、利用者が一つ選んで編集できる。",
+      "risk": "設定fileの数を減らすために例を削除したり、scenario/profileの必須組合せを導入しない。"
+    },
+    {
+      "current": "pkgs/ + vendor/wheels + integration/",
+      "decision": "keep",
+      "proposal": "配布単位、固定core artifact、core再構築、歴史的SDK資材の境界を維持。",
+      "benefit": "単体開発/buildが基盤checkoutへ依存しない。",
+      "risk": "単一packageであることだけを理由にrootへflattenしない。"
+    },
+    {
+      "current": "tests/numerical + workflow tests + fixtures + wheel verifier",
+      "decision": "keep_roles_prune_only_proven_redundancy",
+      "proposal": "数値oracle・漏洩防止・実旧bundle・別process wheel検証を維持。no-op flagや実装都合を固定する試験だけ関連設計変更時に整理。",
+      "benefit": "異なる失敗を検出する役割を保ったまま不要な二重実行を減らす。",
+      "risk": "試験件数削減を目標にしない。"
+    },
+    {
+      "current": "work/README.md + docs/IMPLEMENTATION_STATUS.md + work/reviews/",
+      "decision": "change_navigation_keep_evidence",
+      "proposal": "現行検討の入口をこの統合記録と実装状況へ揃え、以前の監査・性能受入は履歴/根拠として参照。",
+      "benefit": "古いcurrent記述と多数の検証directoryから利用者が正本を探す負担を減らす。",
+      "risk": "実再現入力、実旧bundle、原データ、Hodge RFCを一括削除しない。"
+    }
+  ],
+  "keep_and_reject": {
+    "keep": [
+      "raw係数/A/Z/codecの区別。FFT実数自由度とwaveletの構造を単一の偽のmode配列へ潰さない。",
+      "PODのdirect/randomized/incremental、centered/uncentered/joint/EMの数学的差、重み座標、PCA二段centering。",
+      "全件cacheを避けるlazy residual/channel viewと、sample依存maskの正しいsolve。",
+      "PreparedReference/PreparedFoldなど操作内の共通準備。fit済み状態をfold間で共有しない。",
+      "公開root/catalogの遅延importと新規fitの具体codec確定。実旧0.7.1全8bundleにあるAutoCodecV1読込。",
+      "stateと実行属性が同じobjectを参照するaliasは、実コピーや実害を確認せず削除しない。"
+    ],
+    "defer": [
+      "mesh shape全体の再設計、DomainSpecの全面移動、長期state format全面置換。",
+      "設定正規化14回の性能最適化。今回の観測は呼出回数であり遅さの実測ではない。",
+      "FieldDataset importの全adapter読込の軽量化。単一processのcold importは補助情報で、主な数値性能不具合とは扱わない。",
+      "別import CLIの廃止。実利用先確認と通常入口との仕様統一が先。",
+      "新たなgroup/block conformal、条件依存帯、3D/移動geometry。現在の改良と混同しない。"
+    ],
+    "reject": [
+      "全手法を一つの巨大strategy/class/solverへ統合する。",
+      "learned/spectral/physical等へ全数値moduleを一括移動する。",
+      "local/study/direct/inferを汎用DAG engineと中間JSON往復へ統一する。",
+      "全dictと診断値に個別のruntime contract/classを追加する。",
+      "追加解析plugin registry、callback framework、汎用state machineを今回の整理のために増やす。",
+      "単一file packageや行数の多さだけを理由に分割・統合する。",
+      "古い名前だけを根拠にcodec互換・実旧bundle・科学的検査を削除する。"
+    ]
+  },
+  "sequence": [
+    {
+      "step": 1,
+      "goal": "先行修正",
+      "scope": "前回R01〜R04/R09と今回D01。物理前提・offset精度・有効化誤記・要求出力の失敗・preview保持・失敗理由の保存を修正。",
+      "acceptance": "既存再現を最小の回帰受入へ変え、正常な指標と部分成果物を維持。"
+    },
+    {
+      "step": 2,
+      "goal": "表現と状態の所有",
+      "scope": "W1。固定geometry/layout、成分別Kc、物理解析と学習表現を整理。必要なadapterのみ同時に移設。",
+      "acceptance": "数値意味・旧bundle・公開APIを確認してから次へ。"
+    },
+    {
+      "step": 3,
+      "goal": "評価目的と結果phase",
+      "scope": "W2/W3。元観測/格子/欠測truth、数値結果→要求出力の流れ、表示snapshotの所有を統一。",
+      "acceptance": "共通support・measure・fold分離・要求出力失敗の一貫性。"
+    },
+    {
+      "step": 4,
+      "goal": "I/OとStage境界",
+      "scope": "W4。共通source helper、元点評価owner、run非依存field writer、canonical参照受渡し。",
+      "acceptance": "物理成果物単体の解釈と、入力変換/失敗/run記録の一貫性。"
+    },
+    {
+      "step": 5,
+      "goal": "確認できた無駄だけ削除",
+      "scope": "W5。Gappy trainer、GP std、同一射影分解、二重post、copy所有、unused設定/試験。",
+      "acceptance": "数値差・入力不変・実保持bytesと処理回数を確認。実測で不要なら追加最適化は停止。"
+    },
+    {
+      "step": 6,
+      "goal": "配布・実用途受入",
+      "scope": "W6。索引・互換・wheel、実規模/科学用途とリモートCIを確認し、その後にSDK統合。",
+      "acceptance": "合成受入を実観測/物理境界の認定へ読み替えない。"
+    }
+  ],
+  "evidence": {
+    "prior_review": "work/reviews/package_reviewer_audit_20261025.json",
+    "numerics": "work/verification/structural_review_20261025/numerics/review.json",
+    "numerical_probes": "work/verification/structural_review_20261025/numerics/probe_results.json",
+    "workflows": "work/verification/structural_review_20261025/workflows/findings.json",
+    "workflow_probes": "work/verification/structural_review_20261025/workflows/reproduction.json",
+    "layout": "work/verification/structural_review_20261025/layout/layout_review.json",
+    "persisted_module_paths": "work/verification/structural_review_20261025/layout/persisted_paths.json",
+    "root_probes": "work/verification/structural_review_20261025/root_probe_results.json"
+  },
+  "reproducers": [
+    "work/verification/structural_review_20261025/root_probe.py",
+    "work/verification/structural_review_20261025/numerics/probe.py",
+    "work/verification/structural_review_20261025/workflows/reproduce.py"
+  ],
+  "limits": [
+    "追加数値例は小さい合成入力。固定supportの呼出回数は速度保証ではなく、pickle protocol5の比較は配布bundle圧縮率の保証ではない。",
+    "部分geometry cacheの不具合は下位直接APIに限定して再現。通常Representationの完全geometryチェックは有効。",
+    "保存失敗はOSError注入、全候補失敗は実際の観測support/手法不適合で再現。",
+    "sourceは前回受入済み0.9.0と同一。今回は修正・削除・全suite再実行を行わず、独立processの再現と参照検証を実施。",
+    "ここに記載する新file名や配置は検討案。実際の責務変更を伴わない移動は実施しない。"
+  ],
+  "verification": {
+    "product_source_unchanged": true,
+    "source_and_evidence_links_checked": true,
+    "documentation_links_checked": true,
+    "independent_root_probe_scripts_run": [
+      "work/verification/structural_review_20261025/root_probe.py",
+      "work/verification/structural_review_20261025/numerics/probe.py",
+      "work/verification/structural_review_20261025/workflows/reproduce.py"
+    ],
+    "full_suite_rerun": false,
+    "product_implementation_performed": false
+  }
+}

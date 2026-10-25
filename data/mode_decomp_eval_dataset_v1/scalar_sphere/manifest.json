@@ -26,5 +26,34 @@
       -180.0,
       180.0
     ]
+  },
+  "geometry": {
+    "kind": "sphere_grid",
+    "radius": 1.0,
+    "angle_unit": "deg",
+    "n_lat": 18,
+    "n_lon": 36,
+    "lat_range": [
+      -90.0,
+      90.0
+    ],
+    "lon_range": [
+      -180.0,
+      180.0
+    ],
+    "axes": {
+      "lon": {
+        "start": -180.0,
+        "step": 10.285714285714286,
+        "count": 36,
+        "periodic": false
+      },
+      "lat": {
+        "start": -90.0,
+        "step": 10.588235294117647,
+        "count": 18,
+        "periodic": false
+      }
+    }
   }
 }

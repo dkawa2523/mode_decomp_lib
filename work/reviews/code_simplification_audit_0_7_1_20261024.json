@@ -1,0 +1,439 @@
+{
+  "date": "2026-10-24",
+  "reviewed_version": "0.7.1",
+  "scope": "99 Python source files / 19,317 lines, 70 test files, task configuration, examples, distribution scripts, integration patches and current guides",
+  "mode": "Read-only code review with small reproductions. No runtime/source/config/doc edits or deletions. Prior 439-pass suite was not rerun for this review.",
+  "conclusion": "整理の中心は、設定・数値データ・学習済みgeometry/layout・評価measure・保存互換性の正本をそれぞれ一つにすることです。単体実行内で検証やシリアライズを繰り返す一方、実際の入力不整合を見逃す経路が残っています。",
+  "priority_definitions": {
+    "P1": "誤動作または継続運用への影響があり、最初に対応する候補",
+    "P2": "責務・性能・拡張性を改善する構造整理",
+    "P3": "動作の所有者を確定した後に行う局所クリーンアップ"
+  },
+  "findings": [
+    {
+      "id": "A01",
+      "priority": "P1",
+      "confidence": "reproduced",
+      "title": "YAMLの手法設定typoが別手法へ化けて正常完了する",
+      "evidence": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/representation_task.py:85",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/representation.py:24",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/policy.py:30",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/config.py:36"
+      ],
+      "reproduction": "representation.decompostion.name=dct2 was accepted by the direct task and saved a pod_svd model; FieldRepresentation rejects the same unknown key.",
+      "impact": "A successful run can execute a method the user did not request.",
+      "action": "CLI/task/Pythonで同じrepresentation resolverを使います。未知keyを捨てるtask側の4要素再構築を削除し、既定値・params展開を一箇所で解決します。",
+      "retain": "Necessary unknown-method/shape/finite checks at the public boundary; no new parallel contract registry."
+    },
+    {
+      "id": "A02",
+      "priority": "P1",
+      "confidence": "reproduced",
+      "title": "表示・出典metadataが数値geometryの同一性に混入している",
+      "evidence": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/geometry/identity.py:46",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/schema.py:67",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/representation.py:78"
+      ],
+      "reproduction": "Array constructor with supplied x/y and NPY loader with the same explicit axes produce identical coordinates and weights but different hashes due to coordinate_source metadata. A fitted DCT rejects the other Dataset.",
+      "impact": "Equivalent Python and YAML inputs cannot be used interchangeably.",
+      "action": "数値座標・topology・mask・積分measureと意味のある単位／境界からidentityを定義し、出典・説明・表示metadataを外します。配列の所有・変更規則を決めずにhashを永続cacheする方法は避けます。",
+      "retain": "Real geometry/unit/topology mismatch detection. Avoid caching identity on mutable arrays without defining ownership."
+    },
+    {
+      "id": "A03",
+      "priority": "P1",
+      "confidence": "reproduced",
+      "title": "Dataset IDの存在だけでローカル内容の同一性確認を省略する",
+      "evidence": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/loading.py:205",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/stage_inputs.py:8"
+      ],
+      "reproduction": "Two local field.npy arrays differing by +1 have the same revision when manifest and clearml_dataset_id match.",
+      "impact": "Strict Stage/split checks do not detect this local content change. An adapter-resolved immutable Dataset is a different case.",
+      "action": "ローカル内容から一度だけ数値identityを確定します。自由記入のremote IDはprovenanceに限定し、解決済みremote snapshotの不変保証はadapter境界で所有します。",
+      "delete_candidate": "Unconditional content-hash omission on presence of data.clearml_dataset_id."
+    },
+    {
+      "id": "A04",
+      "priority": "P1",
+      "confidence": "reproduced",
+      "title": "対応済みのsingleton軸FFTがモードmetadata生成で失敗する",
+      "evidence": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/modes.py:186",
+        "pkgs/mode_decomp/tests/test_array_api.py"
+      ],
+      "reproduction": "FFT fit/reconstruction works for NHWC (1,1,8,1) and (1,8,1,1), but list_modes([0]) raises IndexError from x[0,1] or y[1,0].",
+      "action": "singleton/index軸で定義したgeometryの意味を周波数表示でも使います。taskごとの例外補修を増やさず、手法の適用条件とモード解析の対応範囲を揃えます。",
+      "retain": "Independent real FFT coordinates, norm and conjugate-symmetry invariants."
+    },
+    {
+      "id": "A05",
+      "priority": "P1",
+      "confidence": "reproduced and source-confirmed",
+      "title": "明示した疎符号化アルゴリズム・内積が自動変更される",
+      "evidence": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/dict_learning.py:26",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/dict_learning.py:186",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/pod.py:516",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/pod_svd.py:157"
+      ],
+      "reproduction": "OMP requested with 12 components, 8 samples and 16 features resolves to lasso_cd. Direct sklearn sparse_encode with the same dimensions and OMP returns finite (8,12) coefficients with at most two nonzeros. POD also falls back from requested domain_weights to euclidean if weights are absent.",
+      "impact": "Comparison may execute a different algorithm or inner product from the declared setting; warnings/effective metadata do not remove the semantic change.",
+      "action": "明示されたアルゴリズム・内積を実行するか、実際に非対応な条件を説明して停止します。任意のOMP→Lasso切替・重みなしへのfallbackを外し、PODのprojection準備を共通化します。",
+      "retain": "Effective solver/inner-product/rank/energy metadata that explains the actual mathematics."
+    },
+    {
+      "id": "A06",
+      "priority": "P1",
+      "confidence": "contract reproduced; compatibility of genuine old bundles not established",
+      "title": "モデルの利用可否を全runtime packageの完全一致で決めている",
+      "evidence": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/model_artifact.py:19",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/model_artifact.py:120",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/training/finalization.py:59",
+        "integration/ml_platform_core.patch:423"
+      ],
+      "reproduction": "The same current joblib with its sidecar's mode version changed from 0.7.1 to 0.7.0 is rejected solely by the version mismatch.",
+      "impact": "Every patch upgrade can require old environments or retraining without assessing bundle-format compatibility.",
+      "action": "再現用runtime記録とロード可否の判定を分離します。bundle schema・移行方針を明示し、実際に過去版で保存したbundleで互換受入を行います。sklearn/joblibの任意版間互換を仮定して検査全体を外してはいけません。",
+      "retain": "Artifact integrity and backend-specific compatibility checks. Do not assume arbitrary sklearn/joblib versions are compatible or simply disable all version checks."
+    },
+    {
+      "id": "A07",
+      "priority": "P2",
+      "confidence": "instrumented small pipeline",
+      "title": "同一ローカル実行のStageごとにDataset読込・コピー・検証を繰り返す",
+      "evidence": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/training/preparation.py:7",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/stage_inputs.py:8",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/schema.py:308",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/training/orchestrator.py:24"
+      ],
+      "reproduction": "For 20 samples and two candidates: four Dataset loads, 16 FieldDataset constructions, finite checks traversing 156 sample instances. Subsets do not share field memory. File hashes do have a stat cache; full repeated file hashing was not observed.",
+      "action": "Dataset・確定split/CV folds・評価measureを一つのローカル実行contextに持たせます。subsetはindex viewとしbackend境界だけで配列化します。外部Stage／再開時のdeserialize・整合検査はadapterで行います。",
+      "move_candidate": "ArtifactRef/path/config roundtrips, release/workspace/publication comparison and transport validation to Stage/SDK adapters.",
+      "retain": "Input validation and actual train/selection/calibration/test isolation, fresh fold fits and partial failure results."
+    },
+    {
+      "id": "A08",
+      "priority": "P2",
+      "confidence": "source-confirmed",
+      "title": "単一の固定候補でも選択用holdoutと2回のfitを要求する",
+      "evidence": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/training/preparation.py:14",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/training/candidate_training.py:40",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/training/finalization.py:79"
+      ],
+      "action": "tuningなしの事前固定1候補はproper train→任意calibration→testとします。実際に選択・探索を行う目的にだけselection/CVを導入します。",
+      "delete_candidate": "Unconditional candidate-selection Stage and selection score for this fixed-model case.",
+      "retain": "Selection isolation for multiple candidates/HPO and calibration reserved before selection."
+    },
+    {
+      "id": "A09",
+      "priority": "P2",
+      "confidence": "source-confirmed",
+      "title": "モデルを保存しない比較でもサイズ診断のため毎回全体をserializeする",
+      "evidence": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/analysis_task.py:194",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/analysis_task.py:204"
+      ],
+      "impact": "A full BytesIO model copy per candidate/repetition, plus a second serialization when save_models is true. Pickling becomes a success requirement for a non-saving scientific comparison.",
+      "action": "model_bytesのための必須BytesIO dumpを廃止します。明示保存時は実artifactからサイズを取り、保存しない場合は未測定とします。",
+      "retain": "Explicit model persistence and independent saved-model prediction tests."
+    },
+    {
+      "id": "A10",
+      "priority": "P2",
+      "confidence": "source-confirmed",
+      "title": "散布点追加評価でI/O・写像・support・捨てるfield scoreを再計算する",
+      "evidence": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/scattered_reporting.py:8",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/scattered_import.py:263",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/scattered_import.py:297",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/scattered_import.py:315",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/scattered_import.py:346"
+      ],
+      "impact": "Each candidate/baseline/repetition reloads the full canonical Dataset and compressed observations, reconstructs maps per sample, repeats reverse support tests, and computes a field score the caller discards.",
+      "action": "準備済みreference・元観測・写像を追加evaluatorへ渡し、往復誤差とsupportはsampleごとに一度だけ計算します。必要なsampleだけを読み、callerが捨てるfield再採点を削除します。",
+      "retain": "Continuous support checks for walls/holes and the original observation mask; do not remove the recent correctness fix."
+    },
+    {
+      "id": "A11",
+      "priority": "P2",
+      "confidence": "source-confirmed",
+      "title": "散布点取込で全sampleを保持し、stack/concatenateで配列を重複させる",
+      "evidence": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/scattered_import.py:176",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/scattered_import.py:214",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/scattered_import.py:238"
+      ],
+      "action": "CSV importerと同様の逐次NPY書込に揃え、共有point/grid mapを再利用します。元観測は対象sample範囲だけ読み出せる保存にし、atomicな出力確定は維持します。",
+      "delete_candidate": "Whole-run packed/converted/supported lists followed by stack/concatenate copies; point_scores(values,values,...) used only as an input validator.",
+      "retain": "Atomic final rename, source immutability and real observation validation."
+    },
+    {
+      "id": "A12",
+      "priority": "P2",
+      "confidence": "source-confirmed and short-vector behavior reproduced",
+      "title": "旧sample/channel adapterと暗黙の係数補修が数値層を複雑にする",
+      "evidence": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/representation.py:58",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/base.py:352",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/base.py:381",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/base.py:124",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/coefficients/codecs/basic.py:54",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/coefficients/codecs/fft_complex.py:41",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/coefficients/codecs/wavelet_pack.py:159"
+      ],
+      "reproduction": "NoOpCoeffCodec.decode([10], coeff_shape=[2,2]) silently yields [[10,0],[0,0]]. The high-level inverse already requires the exact packed dimension, so this is a lower-level permissive behavior rather than a demonstrated high-level corruption.",
+      "action": "数値入力をbatch配列・共通／sample別mask・geometryへ揃えます。joint/channelwiseの数学的違いは残し、SimpleNamespaceやsample再生成を外します。layoutとcodecをfit時に確定し、モード選択のゼロ化は明示APIが所有します。",
+      "delete_candidate": "Implicit short-vector padding in generic codec/decomposer paths after checking callers, factory-dropping pickle workarounds and duplicate metadata dispatch.",
+      "retain": "Intentional Fourier low-pass reconstruction, explicit selected-mode zeros and genuine wavelet/offset structures."
+    },
+    {
+      "id": "A13",
+      "priority": "P2",
+      "confidence": "source-confirmed",
+      "title": "POD・前処理・評価を通したメモリ上限のある処理になっていない",
+      "evidence": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/field_preprocessing/__init__.py:103",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/pod.py:255",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/pod.py:457",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/pod_svd.py:117",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/evaluation/analysis.py:81",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/evaluation/fields.py:26"
+      ],
+      "action": "中心化・重み・mask射影・backend mechanicsを共通化し、中心化有無／joint／欠測手法は分けて残します。読込・前処理・encoding・採点までbatch化し、同じ評価measureを再利用します。",
+      "impact": "IncrementalPCA's batch solver does not by itself prevent whole-field materialization, subset copies or repeated float64/mask/error arrays.",
+      "delete_candidate": "Unnecessary all-valid np.where copies and repeated same-reference measure/hash/report setup.",
+      "caveat": "No large-data memory benchmark was run; this is based on explicit allocation and call paths."
+    },
+    {
+      "id": "A14",
+      "priority": "P2",
+      "confidence": "source-confirmed",
+      "title": "モードの数学的意味を中央の手法名whitelistで推定している",
+      "evidence": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/modes.py:63",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/catalog.py:126"
+      ],
+      "impact": "Adding a new nonlinear decomposer to the catalog can be classified as additive unless another central special-case list is updated.",
+      "action": "各学習済み手法が少数のsynthesis分類と安定layoutを公開します。未知のsynthesisは加法的と断定せず摂動として扱います。大きなplugin／契約frameworkは追加しません。",
+      "retain": "A/Z distinction, nonlinear reference semantics and FFT physical labels."
+    },
+    {
+      "id": "A15",
+      "priority": "P2",
+      "confidence": "input inconsistencies reproduced",
+      "title": "fieldのkind・unitsを入力形式ごとのmanifest辞書に埋めている",
+      "evidence": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/schema.py:180",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/loading.py:273",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/representation.py:212",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/uncertainty.py:14",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/evaluation/fields.py:58"
+      ],
+      "reproduction": "Whitespace-only field units are accepted by array construction plus DCT fit, but rejected by the NPY loader.",
+      "action": "FieldDatasetに正規化したkind/components/unitsを属性として持たせ、manifestは出典記録に限定します。形式ごとのadapterで一度だけ意味を解決し、複数のunits parserを統合します。",
+      "delete_candidate": "Synthetic partial manifests for array input and duplicate units parsers with different rules.",
+      "retain": "Component ordering, declared vector semantics and mixed-unit metric scaling."
+    },
+    {
+      "id": "A16",
+      "priority": "P2",
+      "confidence": "path failure reproduced",
+      "title": "数値geometryが入力adapterとは別にファイルI/Oと旧alias解決を行う",
+      "evidence": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/loading.py:159",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/geometry/mesh.py:162",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/importing.py:39"
+      ],
+      "reproduction": "geometry.vertex_mask_path=vertices_mask.npy fails from cwd even when the file exists under data.local_path; mask aliases are not consistently resolved/copied by import.",
+      "action": "参照解決・読込・コピーをinput adapterに集約し、数値geometryは配列を受け取ります。旧mask/mesh path aliasはcanonical形式への移行境界へ隔離・退役します。",
+      "retain": "Canonical masks.domain/mesh input, geometry shape and positive-measure checks."
+    },
+    {
+      "id": "A17",
+      "priority": "P3",
+      "confidence": "source-confirmed",
+      "title": "一部のraw入力に不要なsample表・array_indexの準備を要求する",
+      "evidence": [
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/csv_import.py:151",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/scattered_import.py:134",
+        "pkgs/mode_decomp/src/ml_platform_mode_decomp/data/loading.py:93"
+      ],
+      "action": "NPY散布点は既知のNから位置ID/indexを生成し、raw CSVは宣言した行順を既定にします。複数fileや外部条件の対応付けに必要な場合だけ明示mappingを使います。",
+      "retain": "ID uniqueness and condition/field correspondence when the user supplies IDs or indices."
+    },
+    {
+      "id": "A18",
+      "priority": "P2",
+      "confidence": "source-confirmed",
+      "title": "通常開発・buildと過去SDK統合資材の責務が混ざっている",
+      "evidence": [
+        "pyproject.toml:8",
+        "scripts/build_wheels.py:28",
+        "scripts/platform_checkout.py:8",
+        "scripts/prepare_platform.py:31",
+        "scripts/prepare_platform.py:39",
+        "docs/07_TESTING_CI.md:7"
+      ],
+      "action": "coreの固定配布元を用意し、通常のmode buildとcore再構築を分けます。SDK準備は一つの対象版へ更新するまで歴史資材として隔離します。通常検査とrelease smokeの小さい継続実行入口に整理します。",
+      "impact": "Current platform preparation mixes old task definitions with new source and omits current guides/examples; the default build clones/patches core even for mode-only changes.",
+      "retain": "Clean source staging for wheels and historical patches/logs. Python 3.11/GPU acceptance is still separate from the current 3.12 CPU result."
+    }
+  ],
+  "direct_cleanup_candidates": [
+    {
+      "path": "pkgs/mode_decomp/tests/numerical/_operators.py:1",
+      "action": "Delete unused vector_curl/vector_divergence helper file; no call sites found.",
+      "condition": "Keep independent manufactured Helmholtz/Hodge oracles."
+    },
+    {
+      "path": "pkgs/mode_decomp/src/ml_platform_mode_decomp/decomposition/pod_utils.py:79",
+      "action": "Remove unused internal auto_n_modes helper and its __all__ entry.",
+      "condition": "No internal/docs/test callers found; do not remove used singular-rank/energy/ridge helpers."
+    },
+    {
+      "path": "pkgs/mode_decomp/src/ml_platform_mode_decomp/field_preprocessing/__init__.py:69",
+      "action": "Retire unused inverse_transform_std base/basic methods.",
+      "condition": "No current workflow/tests/docs callers found. Regressor predict_std is a separate useful numerical API and should not be removed with it."
+    },
+    {
+      "path": "pkgs/mode_decomp/src/ml_platform_mode_decomp/geometry/__init__.py:386",
+      "action": "Retire unused mask_source=dataset placeholder returning arbitrary geometry without a mask.",
+      "condition": "Keep the canonical fixed-domain mask path; no active example/test/workflow usage found."
+    },
+    {
+      "path": "pkgs/mode_decomp/src/ml_platform_mode_decomp/geometry/__init__.py:330",
+      "action": "Remove radius bound checks that follow masks constructed from exactly those bounds; similar annulus checks at 369-375.",
+      "condition": "Retain actual geometry input/area validation."
+    },
+    {
+      "path": "pkgs/mode_decomp/src/ml_platform_mode_decomp/stage_result.py:50",
+      "action": "Unify start/finish config snapshot ownership instead of writing config.yaml twice.",
+      "condition": "Retain a snapshot on failed runs; low-priority cleanup."
+    }
+  ],
+  "test_cleanup_candidates": [
+    {
+      "path": "pkgs/mode_decomp/tests/test_coefficients_and_preprocess.py:24",
+      "action": "Remove fixed catalog counts 29/9 and private model._alpha assertion.",
+      "retain": "Required named entries, lazy optional imports and caller configuration behavior."
+    },
+    {
+      "path": "pkgs/mode_decomp/tests/test_config_cli.py:24",
+      "action": "Replace obsolete data.manifest merge examples with one real inline data.fields precedence case; generic merge details belong to core.",
+      "retain": "One actual positional CLI/API smoke and meaningful override order."
+    },
+    {
+      "path": "pkgs/mode_decomp/tests/test_optional_outputs.py:65",
+      "action": "Merge duplicated scattered on/off runs into test_input_workflow.py:45.",
+      "retain": "Raw conversion once, source unchanged, point-score activation and HTML switch."
+    },
+    {
+      "path": "pkgs/mode_decomp/tests/test_analysis.py:274",
+      "action": "Consolidate repeated CLI-equality runs with test_mode_analysis.py:149 and test_config_cli.py:50.",
+      "retain": "Purpose-specific hidden truth, A/Z and nonlinear perturbation meaning via the Python API."
+    },
+    {
+      "path": "pkgs/mode_decomp/tests/numerical/test_models_ridge.py",
+      "action": "Merge public single/multi-output shape checks with test_models_interface_multioutput.py using parametrization.",
+      "retain": "(N,1) output semantics and numerical predictions."
+    },
+    {
+      "path": "pkgs/mode_decomp/tests/test_model_artifact.py:125",
+      "action": "Remove private _torch_device and exact two-file directory assumptions after replacing with behavior checks.",
+      "retain": "Self-contained saved-model predict, meaningful backend requirements, components/units."
+    },
+    {
+      "path": "pkgs/mode_decomp/tests/test_workflow.py:381",
+      "action": "Replace runtime-dict equality rejection test only after compatibility policy is defined.",
+      "retain": "Declared incompatibility and external artifact integrity failures; do not simply disable version validation."
+    },
+    {
+      "path": "pkgs/mode_decomp/tests/test_search.py:313",
+      "action": "Move release/workspace/Stage payload compatibility cases to adapter tests.",
+      "retain": "Actual data/evaluation/split mismatch checks at external boundaries."
+    },
+    {
+      "path": "scripts/verify_wheels.py:251",
+      "action": "Reduce duplicate 2-candidate x 6-trial x 3-fold release experiment to a small installed-package smoke.",
+      "retain": "Detailed fresh-fit/leakage/equal-budget oracles in pytest; installed CLI, shipped YAML and fresh-process inference in release QA."
+    },
+    {
+      "path": "scripts/verify_extensions.py:53",
+      "action": "Remove shares_memory assertion from release QA if zero-copy is not a public guarantee.",
+      "retain": "Dtype/value/input immutability and reconstruction; resolve public memory behavior before deletion."
+    },
+    {
+      "path": "pkgs/mode_decomp/tests/numerical/test_preprocess.py:7",
+      "action": "Replace global random and repeated fixtures with a seeded parametrized numerical case.",
+      "retain": "Observed/masked behavior, expected mean/std and inverse semantics."
+    }
+  ],
+  "checks_to_keep": [
+    "Independent real FFT coordinate/norm/conjugacy and arbitrary regression-output realness.",
+    "Hodge incidence, manufactured exact/coexact/harmonic, native weighted orthogonality/energy and node sampling residual.",
+    "Corrected finite-sample conformal rank and simultaneous versus pointwise semantics.",
+    "Changing calibration/test truth does not affect candidate selection or point predictions.",
+    "Fresh transforms within CV folds; actual group/time/gap boundaries.",
+    "Scattered thin-wall/hole/missing-mask/read-only-mask regressions and original source immutability.",
+    "Field/condition/ID correspondence, observed-value finiteness, positive physical measure and component/unit meaning.",
+    "Independent saved-model inference and failure without incomplete Dataset/model publication.",
+    "Two broad import-direction rules separating SDK/business and numerics/execution.",
+    "Wheel source-set/bytes check at release time only; it is not a normal runtime contract."
+  ],
+  "cleanup_of_review_assets": {
+    "issue": "Historical evidence and reusable validation workflows share hardcoded work-directory layouts.",
+    "evidence": [
+      "work/verification/package_acceptance_20261024/scattered/audit.py:27",
+      "work/verification/package_acceptance_20261024/scattered/audit.py:212",
+      "work/verification/package_acceptance_20261024/uncertainty/audit.py:31"
+    ],
+    "action": "Keep historical JSON/CSV and required source inputs. Move only experiments intended for continued use into one small input/output-parameterized maintained entry. Before-fix evidence should not depend on executing a removed old wheel.",
+    "preserve": [
+      "Original tracked 67 NPY files",
+      "Original user review and pre-implementation patch",
+      "Historical Hodge RFC",
+      "Integration patches/logs until integration is intentionally resumed"
+    ],
+    "no_deletions_performed": true
+  },
+  "implementation_order": [
+    "入力の意味を先に統一する: 設定resolver、数値geometry identity、field kind/units、明示アルゴリズム、singletonモードmetadata。",
+    "Dataset・split/folds・評価measureをローカルで一度だけ準備する。外部Stageの復元・来歴・公開・整合検査はadapterへ集約。",
+    "数値batch・projection・layoutの所有者を揃え、必須シリアライズ・捨てる再評価・全sample bufferingを外す。",
+    "実bundleによる保存互換方針を確定し、runtime/metadata完全一致を固定するテストを移動・置換する。",
+    "未使用helper／placeholderを削除候補として確定し、重複テストとrelease QAを統合。歴史的証跡と継続toolを分離。"
+  ],
+  "important_limits": [
+    "No existing method or numerical invariant should be removed solely because it is long or has many tests.",
+    "Centered versus noncentered POD, joint versus per-channel modes and missing-data algorithms are mathematically distinct even when implementation can be shared.",
+    "The exact-version reproduction changed sidecar metadata; it did not establish compatibility of genuine older serialized bundles.",
+    "Allocation/call-path findings are not a measured large-dataset timing or peak-memory benchmark.",
+    "This review intentionally identifies candidates without applying them."
+  ],
+  "review_integrity": {
+    "source_python_files": 99,
+    "source_python_lines": 19317,
+    "source_equal_previous_0_7_1_wheel": true,
+    "original_tracked_npy_unchanged": 67,
+    "original_platform_checkout_clean": true,
+    "full_tests_rerun_this_review": false,
+    "prior_full_tests": {
+      "passed": 439,
+      "skipped": 3,
+      "warnings": 4
+    }
+  },
+  "reproduction_evidence": {
+    "agent_inputs": "work/verification/cleanup_audit_20261024/input/",
+    "agent_execution": "work/verification/cleanup_audit_20261024/execution/inspection2/",
+    "root_singleton_modes": "(1,1,8,1)/(1,8,1,1): successful fit, list_modes IndexError",
+    "root_short_codec": "decode([10], shape=[2,2]) -> [[10,0],[0,0]]",
+    "root_omp": "12 dictionary atoms, 8 samples, 16 features: package resolves OMP to Lasso; sklearn sparse_encode(omp,n_nonzero_coefs=2) finite (8,12) max 2 nonzero"
+  }
+}

@@ -1,3 +1,0 @@
-name: fft2
-disk_policy: mask_zero_fill
-

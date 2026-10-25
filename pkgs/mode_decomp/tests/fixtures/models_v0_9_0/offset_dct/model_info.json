@@ -1,0 +1,63 @@
+{
+  "model_artifact_schema_version": 1,
+  "model_sha256": "10972e97bd8afe1eed7cb1fc30952249a1b0dd01190ce0d92768b75d552ccebf",
+  "runtime": {
+    "python": "3.12.13",
+    "packages": {
+      "joblib": "1.5.3",
+      "ml-platform-core": "0.2.1",
+      "ml-platform-mode-decomp": "0.9.0",
+      "numpy": "2.4.2",
+      "scikit-learn": "1.8.0",
+      "scipy": "1.17.0"
+    }
+  },
+  "required_packages": [
+    "joblib",
+    "numpy",
+    "scipy"
+  ],
+  "input_schema": {
+    "schema_version": 2,
+    "bundle_kind": "representation",
+    "field_shape": [
+      5,
+      6,
+      2
+    ],
+    "components": [
+      "a",
+      "b"
+    ],
+    "field_units": [
+      "K",
+      "K"
+    ],
+    "geometry_sha256": "e6eef3c0d0cec9a6932c1a8842712e2030c98b4a0c16b08c76be230f9ac08808",
+    "packed_dim": 62,
+    "target_dim": 62,
+    "condition_columns": [],
+    "coefficient_space": "z",
+    "coefficient_layout": {
+      "method": "offset_residual",
+      "field_shape": [
+        5,
+        6,
+        2
+      ],
+      "field_layout": "HWC",
+      "channels": 2,
+      "coeff_shape": [
+        2,
+        5,
+        6
+      ],
+      "coeff_layout": "CHW",
+      "flatten_order": "C",
+      "complex_format": "real",
+      "coeff_format": "offset_residual_v1"
+    },
+    "field_kind": "multichannel"
+  },
+  "provenance": {}
+}

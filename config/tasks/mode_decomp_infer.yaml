@@ -1,0 +1,10 @@
+task: mode_decomp_infer
+run:
+  name: field_inference
+data:
+  local_path: data/tiny_fields/new_conditions.csv
+model:
+  artifact_path: null
+  info_path: null
+output:
+  prediction_name: predictions.npz

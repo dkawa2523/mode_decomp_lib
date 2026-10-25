@@ -1,0 +1,26 @@
+task: mode_decomp_analysis
+run:
+  name: representation_comparison
+  seed: 42
+data:
+  local_path: data/nonlinear_fields
+split:
+  method: random
+  valid_size: 0.25
+analysis:
+  kind: representation
+  split_seeds: [11, 23, 47]
+model:
+  candidates:
+    - id: pod2
+      representation:
+        decomposition: {name: pod_svd, params: {n_modes: 2, inner_product: domain_weights}}
+    - id: pod4
+      representation:
+        decomposition: {name: pod_svd, params: {n_modes: 4, inner_product: domain_weights}}
+    - id: pod6
+      representation:
+        decomposition: {name: pod_svd, params: {n_modes: 6, inner_product: domain_weights}}
+    - id: fft5
+      representation:
+        decomposition: {name: fft2_lowpass, params: {block_size: 5}}

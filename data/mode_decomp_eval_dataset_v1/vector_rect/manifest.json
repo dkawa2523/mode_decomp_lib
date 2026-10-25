@@ -14,5 +14,22 @@
   },
   "domain": {
     "type": "rectangle"
+  },
+  "geometry": {
+    "kind": "rectangle",
+    "axes": {
+      "x": {
+        "start": 0.0,
+        "step": 0.015625,
+        "count": 64,
+        "periodic": true
+      },
+      "y": {
+        "start": 0.0,
+        "step": 0.015625,
+        "count": 64,
+        "periodic": true
+      }
+    }
   }
 }

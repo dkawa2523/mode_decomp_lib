@@ -1,0 +1,50 @@
+{
+  "model_artifact_schema_version": 1,
+  "model_sha256": "10a908f775b7a6a0444132b3ca2a16fe270e0a44135ff85c05849faa28485886",
+  "runtime": {
+    "python": "3.12.13",
+    "packages": {
+      "joblib": "1.5.3",
+      "ml-platform-core": "0.2.0",
+      "ml-platform-mode-decomp": "0.7.1",
+      "numpy": "2.4.2",
+      "scikit-learn": "1.8.0",
+      "scipy": "1.17.0"
+    }
+  },
+  "input_schema": {
+    "schema_version": 1,
+    "bundle_kind": "representation",
+    "field_shape": [
+      4,
+      1
+    ],
+    "components": [
+      "component_0"
+    ],
+    "field_units": [],
+    "geometry_sha256": "ce1466e956ec96933b36ce86810e26876b855acdc7e341611fd4dcfeb35812c3",
+    "packed_dim": 3,
+    "target_dim": 3,
+    "condition_columns": [],
+    "coefficient_space": "z",
+    "coefficient_layout": {
+      "method": "laplace_beltrami",
+      "field_shape": [
+        4,
+        1,
+        1
+      ],
+      "field_layout": "N1C",
+      "channels": 1,
+      "coeff_shape": [
+        1,
+        3
+      ],
+      "coeff_layout": "CK",
+      "flatten_order": "C",
+      "complex_format": "real"
+    }
+  },
+  "provenance": {}
+}

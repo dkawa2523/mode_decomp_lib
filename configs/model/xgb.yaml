@@ -1,4 +1,0 @@
-name: xgb
-target_space: z
-cond_scaler: standardize
-seed: ${seed}

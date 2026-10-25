@@ -1,28 +1,30 @@
-work/.autopilot/
 __pycache__/
 *.pyc
 outputs/
 work/_logs/
 .pytest_cache/
+.ruff_cache/
 .DS_Store
 .venv/
-.venv_release*/
-.venv_release/
-.venv_release_copy/
+.wheel-check/
+dist/
+build/
+*.egg-info/
+.import_linter_cache/
+work/verification/
+work/analysis_reports/
+data/tiny_fields/
+data/single_field/
+data/nonlinear_fields/
+data/scattered_measurements/
+data/scattered_fields/
+data/hodge_fields/
+data/normalized/
 
 # Large/generated artifacts (do not commit)
-runs/
 data/benchmarks/
 data/**/offset_noise_*/
-src/**/*.egg-info/
 
 # Keep eval datasets lightweight in Git: prefer `cond.npy/field.npy/mask.npy` + manifest.json.
 data/mode_decomp_eval_dataset_v1/**/conditions.csv
 data/mode_decomp_eval_dataset_v1/**/fields/*.csv
-
-# Generated benchmark reports
-summary_benchmark*.md
-summary_benchmark*.pdf
-
-# MkDocs build output
-docs_manual/site/

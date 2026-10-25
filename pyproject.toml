@@ -1,38 +1,68 @@
-# CONTRACT: Runtime deps are defined here and mirrored in requirements.txt.
+[tool.uv.workspace]
+members = ["pkgs/mode_decomp"]
 
-[build-system]
-requires = ["setuptools>=61", "wheel"]
-build-backend = "setuptools.build_meta"
+[tool.uv.sources]
+ml-platform-mode-decomp = { workspace = true }
+# Fixed standalone core artifact; rebuild only with integration/build_core.py.
+ml-platform-core = { path = "vendor/wheels/ml_platform_core-0.2.1-py3-none-any.whl" }
 
-[project]
-name = "mode-decomp-ml"
-version = "0.1.0"
-requires-python = ">=3.9"
-dependencies = [
-  "numpy",
-  "scipy",
-  "scikit-learn",
-  "matplotlib",
-  "hydra-core",
-  "omegaconf",
-  "optuna",
+[tool.uv.extra-build-dependencies]
+modred = ["setuptools<81"]
+
+[dependency-groups]
+dev = [
+  "ml-platform-mode-decomp",
+  "pytest>=8",
+  "ruff>=0.16.9",
+  "pyrefly>=1.3.1",
+  "radon>=6.0.1",
+  "import-linter>=2.5.2",
 ]
-
-[project.optional-dependencies]
-pod = [
-  "modred",
-]
-optional_tests = [
-  "PyWavelets",
-  "lightgbm",
-  "gpytorch",
-]
-
-[tool.setuptools]
-package-dir = {"" = "src"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["pkgs/mode_decomp/tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+src = ["pkgs/mode_decomp/src", "pkgs/mode_decomp/tests"]
+exclude = ["work", "data", ".venv", "dist"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "B", "BLE", "S110", "S112"]
+
+[tool.pyrefly]
+project-includes = ["pkgs/mode_decomp/src"]
+search-path = ["pkgs/mode_decomp/src"]
+
+[tool.radon]
+cc_min = "C"
+show_complexity = true
+total_average = true
+show_mi = true
+
+[tool.importlinter]
+root_packages = ["ml_platform_mode_decomp"]
+include_external_packages = true
+exclude_type_checking_imports = true
+
+[[tool.importlinter.contracts]]
+id = "sdk-free-business"
+name = "The business package does not import an execution SDK or another business package"
+type = "forbidden"
+source_modules = ["ml_platform_mode_decomp"]
+forbidden_modules = ["clearml", "ml_platform_spdml", "ml_platform_tabular", "hydra", "omegaconf"]
+
+[[tool.importlinter.contracts]]
+id = "numerics-without-execution"
+name = "Numerical units do not know run management, transport, persistence, or reporting"
+type = "forbidden"
+source_modules = [
+  "ml_platform_mode_decomp.decomposition", "ml_platform_mode_decomp.coefficients",
+  "ml_platform_mode_decomp.regressors", "ml_platform_mode_decomp.field_preprocessing",
+]
+forbidden_modules = [
+  "ml_platform_mode_decomp.training", "ml_platform_mode_decomp.stage",
+  "ml_platform_mode_decomp.stage_result", "ml_platform_mode_decomp.model_artifact",
+  "matplotlib", "optuna",
+]

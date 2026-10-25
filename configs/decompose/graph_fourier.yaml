@@ -1,4 +1,0 @@
-# Source: configs/decompose/analytic/graph_fourier.yaml
-
-defaults:
-  - /decompose/analytic/graph_fourier

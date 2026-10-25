@@ -1,0 +1,26 @@
+task: mode_decomp_analysis
+run:
+  name: imputation_comparison
+  seed: 42
+data:
+  local_path: data/nonlinear_fields
+split:
+  method: random
+  valid_size: 0.25
+analysis:
+  kind: imputation
+  split_seeds: [11, 23, 47]
+  observed_fraction: 0.3
+  observation_pattern: shared
+  mask_seed: 81
+model:
+  candidates:
+    - id: gappy4
+      representation:
+        decomposition: {name: gappy_pod, params: {n_modes: 4, inner_product: domain_weights, reg_lambda: 0.000001}}
+    - id: gappy6
+      representation:
+        decomposition: {name: gappy_pod, params: {n_modes: 6, inner_product: domain_weights, reg_lambda: 0.000001}}
+    - id: rbf
+      representation:
+        decomposition: {name: rbf_expansion, params: {stride: 4, length_scale: 1, ridge_alpha: 0.0001}}

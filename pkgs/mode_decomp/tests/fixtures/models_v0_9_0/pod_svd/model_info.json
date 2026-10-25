@@ -1,0 +1,61 @@
+{
+  "model_artifact_schema_version": 1,
+  "model_sha256": "cf9d1c8fbb808993fa76014f49b4c832807c7dc93971b5f18c9b1d7cc48a92b0",
+  "runtime": {
+    "python": "3.12.13",
+    "packages": {
+      "joblib": "1.5.3",
+      "ml-platform-core": "0.2.1",
+      "ml-platform-mode-decomp": "0.9.0",
+      "numpy": "2.4.2",
+      "scikit-learn": "1.8.0",
+      "scipy": "1.17.0"
+    }
+  },
+  "required_packages": [
+    "joblib",
+    "numpy",
+    "scipy"
+  ],
+  "input_schema": {
+    "schema_version": 2,
+    "bundle_kind": "representation",
+    "field_shape": [
+      5,
+      6,
+      2
+    ],
+    "components": [
+      "a",
+      "b"
+    ],
+    "field_units": [
+      "K",
+      "K"
+    ],
+    "geometry_sha256": "e6eef3c0d0cec9a6932c1a8842712e2030c98b4a0c16b08c76be230f9ac08808",
+    "packed_dim": 4,
+    "target_dim": 4,
+    "condition_columns": [],
+    "coefficient_space": "z",
+    "coefficient_layout": {
+      "method": "pod_svd",
+      "field_shape": [
+        5,
+        6,
+        2
+      ],
+      "field_layout": "HWC",
+      "channels": 2,
+      "coeff_shape": [
+        2,
+        2
+      ],
+      "coeff_layout": "CK",
+      "flatten_order": "C",
+      "complex_format": "real"
+    },
+    "field_kind": "multichannel"
+  },
+  "provenance": {}
+}

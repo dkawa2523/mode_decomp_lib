@@ -1,0 +1,13 @@
+{
+  "runtime": {
+    "ml-platform-mode-decomp": "0.7.1",
+    "ml-platform-core": "0.2.0",
+    "numpy": "2.4.2",
+    "scipy": "1.17.0",
+    "scikit-learn": "1.8.0",
+    "joblib": "1.5.3"
+  },
+  "module_path": "C:\\Users\\user\\Desktop\\mode_decomp_lib-1\\work\\verification\\refinement_20261024\\legacy_producer\\Lib\\site-packages\\ml_platform_mode_decomp\\__init__.py",
+  "payload_sha256": "c95fe096a764e7a38664f2b2387a27039dadb68f0d3859ce5e395c355559e151",
+  "verified_in_producer": true
+}

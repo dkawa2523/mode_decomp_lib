@@ -1,0 +1,264 @@
+{
+  "date": "2026-10-24",
+  "status": "design_only_not_implemented",
+  "based_on_version": "0.7.1",
+  "audit": "work/reviews/code_simplification_audit_0_7_1_20261024.json",
+  "objective": "単体で使えるfield表現・条件付きfield予測パッケージを先に完成させる。設定・入力・数値状態・評価・保存の所有者を揃え、過剰な内部受渡しと診断を取り除く。基盤SDKとの再統合は別工程とする。",
+  "decision": "同一実行の準備済みデータ・分割・評価referenceは共有し、学習済み前処理・分解・回帰・較正状態は候補・trial・foldごとに独立させる。",
+  "scope": {
+    "preserve": [
+      "一つのrun YAML、ファイルなしのfrom_arrays、既存のFieldRepresentation・FieldSurrogate・FieldCalibrator・HodgeDecomposition・load_config・run_task・load_model",
+      "direct representation、heldout representation/surrogate/imputation比較、pipelineでの選択・最終学習、保存後推論という解析目的",
+      "FFT独立実数座標、A/Zの区別、元fieldでの共通評価、非直交誤差のcross term",
+      "domain maskとobservation mask、観測値finite、成分・単位・正の積分measure、group/time/gap分離、較正・最終testの独立性",
+      "0.7.1で修正済みの散布点の壁・穴・欠測帯のcontinuous supportと入力mask不変"
+    ],
+    "exclude_from_this_refinement": [
+      "基盤全体の再設計、ClearML/Agent/Registryへの実接続受入、SDK旧patchの現行化",
+      "任意次元・移動格子・任意PDE境界条件・条件付き被覆保証の一括実装",
+      "汎用Contract/CapabilityRegistry/Storage/Stage framework、強制シナリオ、必須の追加設定file",
+      "全backend共通の自動保存形式移行、strict:falseによる無条件読込、黙った再学習や係数補修"
+    ],
+    "source_changes_this_turn": false,
+    "tests_rerun_this_turn": false
+  },
+  "architecture": {
+    "normal_flow": [
+      "YAMLまたはPython引数を入口で解決する",
+      "必要なraw入力だけ一度canonical NPYへ変換し、Datasetを読込・検証する",
+      "coordinatorが分割index・CV folds・共通評価referenceを一度準備する",
+      "役割ごとのindexと必要なbatchだけを数値処理へ渡す",
+      "fit・transform・predict・score・必要な較正を実行する",
+      "要求された成果物を確定し、RunResultを返す"
+    ],
+    "owners": [
+      {"owner": "config.py", "owns": "representationの選択名、params正規化、未知key、明示値と既定値の解決。CLI/task/Python共通。", "does_not_own": "split実行、ファイル読込、学習状態"},
+      {"owner": "policy.py", "owns": "task目的、選択の要否、分割・探索・追加出力の実行方針。", "does_not_own": "別ルールのcomponent設定再構築"},
+      {"owner": "data/", "owns": "path解決、NPY/CSV/scattered読込、正規化、入力対応、原観測store、provenance。", "does_not_own": "分解法や予測の採点"},
+      {"owner": "FieldDataset", "owns": "field、conditions、IDs、components、field_kind、field_units、observation mask、sample metadata。", "does_not_own": "manifestを介した隠れた数値仕様、実行・公開方針"},
+      {"owner": "geometry/DomainSpec", "owns": "数値座標、topology、domain mask、積分measure/mass、単位・周期性・数値domain parameters。", "does_not_own": "ファイルI/O、自由記述metadataによる数値同一性"},
+      {"owner": "decomposition/・coefficients/・field_preprocessing/・regressors/", "owns": "各手法の明示parameter、数学的適用条件、fit状態、batch演算。", "does_not_own": "run path、SDK、Stage JSON、publication、HTML"},
+      {"owner": "representation.py・surrogate.py・uncertainty.py", "owns": "既存public API、fit済みlayoutとgeometry、A/Z、条件変換、較正済みfield帯。", "does_not_own": "Datasetの再読込や候補間の学習状態共有"},
+      {"owner": "training/・task入口", "owns": "一回の実行準備、候補・foldの実行、選択、最終fit、較正、test。", "does_not_own": "同一process内のArtifactRef/JSONによる輸送"},
+      {"owner": "evaluation/", "owns": "共通support・measure、元field誤差、誤差分解、原散布点評価。", "does_not_own": "予測値に応じた採点母集団の縮小、描画"},
+      {"owner": "model_artifact.py・run出力処理", "owns": "保存形式、backend互換、atomic確定、config snapshotと成果物の一度の登録。", "does_not_own": "数値kernel、全runtime辞書の一律一致"},
+      {"owner": "外部Stage adapter", "owns": "processを跨ぐ復元、plan/candidate対応、明示来歴、workspace/release/publication。", "does_not_own": "独自の学習・採点実装"}
+    ],
+    "directory_policy": "既存のdata/geometry/decomposition/coefficients/field_preprocessing/regressors/training/evaluationを活かす。保存されたclassのmodule pathを一斉変更しない。Stage輸送処理だけadapters/stages.py等へ集約し、不要になった旧実装を同時に除去する。公開互換のために必要な薄い入口だけを残し、二つの学習実装は維持しない。",
+    "prepared_execution": {
+      "visibility": "private、run_task一回のcoordinator内だけ",
+      "contents": ["検証済み親Dataset", "分割・foldのindexとIDs", "正規設定", "評価measure・baseline・散布点reference", "一回確定したrevisionと来歴"],
+      "index_coordinates": "内部planのindexはすべて親Datasetのglobal indexへ揃える。既存CVのproper-train内local indexはproper_train_indices[fold_local_indices]で準備時に一度だけ変換し、batch readerへはglobal indexだけを渡す。二種類のindexを同じ名前で保持しない。",
+      "forbidden_contents": ["候補を跨いで再利用するfit済み前処理・decomposer・regressor・calibrator", "全sampleの派生配列・Delaunay objectを無制限に保持するcache"],
+      "leakage_boundary": "coordinatorはtest truthを保持できるが、context全体をfit関数へ渡さない。数値kernelへはtrain/foldのindexに限定した入力を渡す。imputationのhidden値はモデル入力batchでNaNにし、truthは評価側だけが保持する。"
+    }
+  },
+  "public_configuration": {
+    "minimum_yaml_unchanged": "task: mode_decomp_representation\ndata:\n  local_path: .\n  fields: {path: field.npy, layout: HWC}\nrepresentation:\n  decomposition: {name: dct2}\n",
+    "component_form": "文書の標準は{name, params}。現在のflat config受入はresolverの一箇所へ限定する。重複指定は拒否する。representation_taskで既知4keyだけを抽出して未知keyを捨てる処理は削除する。",
+    "parameter_owner": "各手法の明示constructor引数を、受け取るparameterと数値既定値の正本にする。catalogは名前からconstructorへのlazy解決だけを担当する。既存cfg constructorは手法単位で移行し、その手法のMETHOD_DEFAULTS重複を同時に除去する。移行完了後にmethod_defaults.pyを削除する。別のparameter schema registryは作らない。",
+    "resolved_record": "設定入口は共通resolverを使用し、実際の既定値・seedを含むresolved設定をrunへ一度記録する。入力設定を変更しない。seedは受け取る手法だけへ注入する。数値parameterのtypoは手法constructorで拒否する。",
+    "paths": "data.local_path/runtime.output_dirは現行のcwd基準を維持する。fields/samples/mesh/mask/axis参照はすべてdata.local_path基準。geometry数値層ではpathを解釈しない。",
+    "split_naming": "この改良では名称変更だけのalias増設は行わず、既存split.valid_sizeを最終test比率として維持する。出力・文書ではfinal testと明記し、selection_sizeと較正比率の分母・実人数も表示する。",
+    "switches": [
+      {"setting": "tuning.enabled", "false": "候補1個なら選択なし、複数なら共通inner holdout。", "true": "候補数によらずproper train内の共通CVで探索。"},
+      {"setting": "uncertainty.enabled", "false": "較正分割・較正残差・帯を生成しない。", "true": "選択前に独立calibrationを予約し、最終fit後に較正。推論では保存状態を使用。"},
+      {"setting": "analysis.scattered.enabled", "false": "canonical化に必要な補間は行うが、原点追加採点・roundtrip reportの準備は省く。", "true": "原観測があるときだけ原点coverage・誤差・往復誤差を評価。"},
+      {"setting": "analysis.modes.enabled", "false": "個別mode応答・累積再構成・個別mode出力を省く。indices不要。", "true": "指定A座標の応答を、fitted手法の線形性・非線形摂動の意味に沿って出力。"},
+      {"setting": "analysis.components.enabled", "false": "追加のHodge成分reportを省く。手法本体が必要とする分解演算は変わらない。", "true": "成分・native edge energy・sampling residualを区別して出力。"},
+      {"setting": "report.enabled", "false": "主CSV/JSONは保存し、全体HTML描画を省く。", "true": "既存のanalysis用HTMLを生成。数値採点とは別の出力工程。"},
+      {"setting": "既存のmodel保存指定", "false": "サイズ測定だけを目的とするjoblib serializeを行わず、model_bytesは未測定。", "true": "一度保存し、実成果物のbyte数を記録。"}
+    ],
+    "no_new_user_requirements": ["シナリオfile", "必須profile/manifest/samples.csv", "手書きsplit/fold file", "local実行用Stage設定", "互換判定を利用者へ押し付けるstrict flag", "選択要否を重複指定するselection.enabled"]
+  },
+  "data_and_geometry": {
+    "field_meaning": "field_kind・field_unitsはDatasetの正規属性にする。C=1はscalar、それ以外はmultichannelを既定とし、vectorは明示する。空白unitsは全入口で拒否し、省略を無次元・既知物理単位と推定しない。manifestは出典と元設定だけにする。",
+    "identity": "座標・domain種・topology・固定mask・measure/mass・座標単位・周期性・数値domain parametersの既知属性からidentityを作る。canonical dtypeへ揃えてexact比較する。allcloseによる同一視はしない。path、説明、coordinate_source/weight_sourceはprovenanceとして除外する。Hodgeの分解規約等は学習済み手法設定で所有する。",
+    "revision": "file入力は内容revisionを必要な境界で一度計算し、run内で共有する。自由記入clearml_dataset_idだけで内容確認を省略しない。adapterが解決したimmutable snapshotはadapterが保証する。通常の配列fitに全field byteのhashを強制しない。推論入力が学習Dataset revisionと一致することは要求しない。",
+    "ownership": [
+      "from_arraysは原則借用する。パッケージはfield/conditions/maskへ書込まず、元配列のwriteable flagも変更しない。dtype変換や任意index gatherがcopyになることは明記する。",
+      "利用者は一つの操作中に入力とそのbase配列を変更しない。並行変更を監視するruntime診断は追加しない。",
+      "fit済みモデルは必要なgeometry/mean/basis/layoutを所有し、training field全体を保持しない。geometryはfit時に独立snapshotを持つ。",
+      "fingerprintの永続cacheは独立所有したfitted geometryだけへ限定し、可変の借用Datasetへ無期限cacheしない。",
+      "NPYはread-only mmapで読む。公開subset(indices)のndarray挙動は維持し、内部処理は親Datasetとindexを保持してbatchだけgatherする。全件copyを隠したview APIは作らない。"
+    ],
+    "masks": "domain maskはgeometry/topologyを定義し、observation maskはsample観測を定義する。effective maskは必要batchで交差させる。観測点だけfiniteを要求し、未観測・domain外はNaNを許す。推定値を観測済みとして元maskへ書き戻さない。",
+    "input_simplification": "NPY散布点は既知NからIDとindexを生成可能にする。CSVはsample行順を既定とする。提供されたID/conditions対応は保持・検査する。曖昧な複数file対応、独自group/timeがある場合だけ明示samples/mappingを要求する。",
+    "adapter_migration": "mesh/axis/domain-maskの読込・root解決・copyをdataへ集約し、mask_path/vertex_mask_path等の旧aliasは入力移行境界だけで解釈する。通常仕様はmasks.domainとgeometry.mesh.pathへ統一する。"
+  },
+  "workflow": {
+    "direct_representation": "渡された全入力へfitして再構成する。N=1も対応手法なら利用可。評価scopeはfitted_input_reconstructionであり、汎化性能とは表示しない。",
+    "heldout_analysis": "representation/surrogate/imputationの事前固定候補を同じ外側splitで比較する。test結果から自動winner・production modelを選ばない。split反復とmodel乱数反復を区別する。",
+    "fixed_candidate_pipeline": "候補1個・tuning無効ならproper trainへ一度fitし、必要な較正、最終test、保存へ進む。selection partition/selection score/候補選択Stageは生成しない。outer fixedでもselection_methodは要求せず、較正有効時だけ必要なcalibration_methodを解決する。",
+    "multiple_candidate_pipeline": "outer testとcalibrationを先に除外し、同じproper train内のfit/selectionで比較する。選択後にwinnerだけproper train全体へrefitし、較正、test、保存へ進む。",
+    "tuned_pipeline": "outer testとcalibrationを先に除外し、同じproper train内のCV folds・予算で探索する。foldごとに前処理からfresh fitする。選択後にproper trainへrefitし、較正、test、保存へ進む。",
+    "partition_semantics": "randomではvalid_sizeは全体からouter test、calibration_sizeは残りouter trainからcalibration、selection_sizeは較正除外後proper trainからselectionの割合。groupはgroup単位、time/fixedは実際の人数が一致しないためactual人数・比率・purgedを記録する。timeでは過去fit→必要gap→selection/calibration/testの順を守る。inner holdout選択もouter group/timeのmethod・column・必要gapを維持し、明示random指定で隔離を弱めない。fixed outerで実際に選択する場合だけinner methodを指定する。",
+    "calibration_rule": "calibrationは選択・CV・学習済み正規化のfitへ一切使わない。最終モデル固定後に較正し、較正後refitはしない。",
+    "local_transport_cleanup": "local orchestratorのDomainStepPlan→ArtifactRef→path文字列→config merge→Stage dispatch→JSON再読込を通常関数呼出しへ置換する。CandidateResultは小さい内部結果とし、外部Stage/resumeでだけserializeする。",
+    "external_boundary": "外部Stage/resumeはDataset snapshot integrity、plan IDとpartition/folds、candidate recipeとfit coverage、評価scopeを受入時に確認する。workspace/release/publicationは明示された外部contextだけで確認する。ローカル内部で同じ検査を再実行しない。"
+  },
+  "numerical_design": {
+    "batch_boundary": "内部のiter_batches(indices, batch_size)を共通化する。連続sliceはview、任意indexはそのbatchだけcopyする。FFT/DCTはN/C軸を含めvectorizeし、不可の手法は一つの逐次adapterを通す。backendがfull matrixを要する場合だけその境界で一度materializeする。",
+    "incremental_claim": "incremental solverだけで省メモリとは表示しない。loader・preprocess・fit・encode・scoreまで全件stackがない経路を測定して初めて説明する。全backendのout-of-core対応を保証しない。",
+    "fitted_layout": "raw coefficient構造・packing・複素数規則・dimensionはfit時に一度確定する。shapeを知るためにtraining先頭sampleを変換する場合、その結果をfit内で再利用する。transformでlayoutを変更せず、入力・出力dimensionだけを確認する。",
+    "coefficient_repair": "generic decodeはexact dimensionを要求する。短vectorの暗黙zero-paddingはcaller移行後に削除する。明示mode選択やlow-passが意図して行うzero化は保持する。高level inverseは既にdimension検査があり、現状の全APIが誤再構成しているとは扱わない。",
+    "method_semantics": "fitted手法にlinear/affine/nonlinearと係数layout程度の小さい意味情報を持たせる。中央catalog名の例外whitelistからadditiveを推定しない。未知手法のmodeは安全な非加法・摂動扱いとし、勝手に直交energyを付けない。",
+    "fft": "FFTは独立実数A座標を維持し、DC/Nyquist/共役pair・sine/cosineをmode labelへ反映する。singleton軸でも周波数metadataを構築できるようにする。物理spacing不明のindex座標から物理周波数を推定しない。",
+    "pod_sharing": "観測射影、weights、中心化の計算器、rank/energy選択、batch encode/reconstructを共有する。centered/noncentered、channel別/joint、complete/gappy/EM、euclidean/domain_weights、明示solverは数学的相違として残す。全PODを一つの巨大flag constructorへ集約しない。",
+    "explicit_methods": "OMP指定を条件だけでLassoへ切替えない。domain_weights指定でmeasureがなければEuclideanへwarn切替えせず停止する。適用できないgeometry・欠測policyも同様に理由を示す。実行方法だけの逐次adapterは数学的fallbackと区別する。",
+    "extension_recipe": "新しい分解法は明示constructor、fit/batch encode/decode、固定layout、小さいsynthesis意味、独立した数値例を実装し、lazy catalogへ登録する。workflow・単位parser・modeの中央例外一覧を同時編集しない構成にする。"
+  },
+  "evaluation_and_scientific_extensions": {
+    "field_comparison": "同じtruth/support/積分measure/sample weight/channel scaleで、元field単位の誤差を比較する。利用者が固定した物理channel scaleは共有できる。学習から推定するscale/mean/basisは、そのfitに許された集合だけで決め、CV中はfold-fitに限定する。全proper trainから推定してfold間で共有しない。fit用内積と共通採点内積は別項目として記録する。n_modesの同名数値だけで公平とせず、A/Z dimension・独立実数自由度・実効rank・時間・実保存sizeを併記する。",
+    "shared_measure": "referenceに依存する重み・mask・分母を一度準備し、各予測の残差を採点する。残差採点のためだけのDataset再構築を削除する。f_A-truth、f_Z-truth、f_Z-f_A、prediction-f_Z、2< f_Z-truth, prediction-f_Z >を同一measureで扱い、cross termを保持する。",
+    "shared_baselines": "mean/linear baselineと散布点roundtrip referenceはsplitごとに準備し、model seedごとに学び直さない。前処理・POD basis・回帰器は共有しない。",
+    "scattered": {
+      "input_store": "canonical field/maskは逐次NPYへwriteし、元観測はsample offset付きpacked NPYへ保存する。可変点数CSVはcount/writeの二段階とする。旧compressed NPZはadapterで読めるようにし、新しく生成する保存形式は一つにする。利用者の設定fileは増やさない。",
+      "reuse": "幾何写像は元点座標・順序/target axes/domain mask/allowed simplices/補間方式で再利用する。supportはさらに元observation maskとsample effective grid maskに依存する。往復誤差は値とpoint weightingにも依存する。run内の共有geometryと必要batchに限定し、global cacheは作らない。",
+      "comparison": "referenceから採点supportを固定し、予測NaNに応じて狭めない。既知supportで非有限の候補は採点失敗とする。原点coverageは点数割合、格子有効率と積分measure割合は別表示にする。異なる格子解像度は共通原点でも誤差を比較する。",
+      "retained_limits": "2D Cartesianから固定gridへの補間が現対応範囲。壁・穴・欠測帯を跨がないcontinuous supportは維持する。任意散布点上のすべての分解法のnative学習対応とは表示しない。"
+    },
+    "uncertainty": {
+      "settings": "既存のenabled/method=split_conformal/coverage/scope=simultaneous|pointwise/normalization=none|channel/calibration_size/calibration_seedを維持する。",
+      "meaning": "同時field帯と各固定座標の帯を区別し、target/observed coverage、全幅、calibration/test人数、finite-sample rankを出力する。stdやGaussian posteriorと表示しない。",
+      "support": "completeな較正truthを持つ固定の正measure supportを維持する。不規則観測や欠測から全field被覆を主張する補修は行わない。条件・時間・groupに対する交換可能性は自動診断で認定しない。",
+      "extension_boundary": "将来の条件依存widthは、proper trainだけで学ぶ正のresidual scaleと独立較正を持つ別手法として実装する。現global幅へ係数stdを雑に伝播させない。この新手法は今回の基盤整理の完了条件には入れない。"
+    },
+    "hodge": {
+      "settings": "decomposition.name=hodgeとparams.boundary=naturalを正規入口とし、analysis.components.enabledは追加reportだけを制御する。",
+      "meaning": "有限複体のexact/coexact/harmonicとnode sampling_residualを別成分として保持する。直交性・energy分解はnative edge内積の主張とし、node liftや任意PDE境界の主張へ拡張しない。naturalは流入出ゼロ・節点法線ゼロを意味しない。",
+      "minimum_outputs": "既存の成分・energy・残差へ、連結成分数/穴数/解像度/座標と単位の意味を一貫した形で付ける。rank選択やtopologyが変わる解像度では同じ物理分解と無条件に比較しない。",
+      "extension_boundary": "Dirichlet/Neumann・指定流入出等は離散空間と弱形式を先に定義した別の明示boundary仕様として追加する。naturalへのaliasや後処理でそれらを模倣しない。今回それらのPDE solverを追加しない。"
+    }
+  },
+  "persistence_and_delivery": {
+    "first_action": "geometry identityやserialized classを変える前に、実0.7.1 wheel/core/lockでモデルを保存し、入力と期待再構成・予測・帯を固定する。sidecarの版だけ書換えたものを旧版互換試験にはしない。",
+    "fixtures": "小さい純数値representation、sklearnを含むsurrogate、calibrator付きsurrogateを必須例とする。構造化係数・optional backendはそのserialized状態を変更する工程で追加する。元bundleを変更しない。",
+    "authority": "artifact envelopeは保存形式・payload hash、input schemaはfield/condition/layout/数値geometry、runtime/provenanceは再現記録、backend方針は読込互換、外部expected_contextは来歴照合を所有する。",
+    "schema_migration": "既存のenvelope版とinput schema版の二つを活かす。geometry定義・入力意味が変わる新保存ではinput schemaを2へ更新し、envelope構造が同じならenvelope版は増やさない。schema 1は旧計算規則で検証してから内部の現意味へ正規化する。旧sidecarやhashを上書きしない。",
+    "class_compatibility": "最初の整理ではserialized class/module pathを維持し、関数抽出と内部実行経路の整理を優先する。状態変更が必要な箇所だけ既知旧状態の変換を追加し、実旧bundleで検証する。任意backendや未対応旧形式は明確に停止し、無理なunpickle修復や黙った再学習をしない。",
+    "load_sequence": ["対応envelope/input schemaを確認", "payload SHA256を確認", "実際に保存したbackendの互換を確認", "deserialize", "schemaの数値構造を検証し、必要な既知変換を行う", "明示expected_contextがある外部adapterだけ来歴を照合"],
+    "runtime_policy": "mode/coreのpatch完全一致を無条件には要求せず、schemaと実旧bundleで確認した対応範囲を宣言する。保存済みsklearn estimatorのsklearn版厳密一致は維持し、numpy/scipy/joblibも当初はproducer環境を再現する。未選択backend・描画依存を条件にしない。任意version間互換を保証しない。",
+    "core_change": "coreのhash/明示context確認を小さい追加APIへ分け、既存validate_model_integrityの意味は既存利用者向けに維持する。modeが新APIとfield/backend方針を使う。変更したcoreは新versionでbuildし、core-0.2.0を同名差替えしない。",
+    "atomic_save": "新しい成果物先の一時領域でpayloadとsidecarを完成させ、両方成功後に確定・登録する。既存bundleを暗黙上書きしない。保存失敗でmodel publicationを生成しない。",
+    "distribution": "coreをversion/SHA256付きの固定配布artifactとして利用可能にし、lockで解決する。通常build_wheelsはmodeのclean staging/wheel buildだけとする。coreの基盤clone/patch/buildは明示maintainer操作へ分離する。配布先自体の作成・公開は本設計では行わない。",
+    "acceptance": "clean cloneから基盤Git checkoutなしで環境構築・mode単体buildが成立する。SDKは不要で、保存後の別process推論が元training Datasetなしで成立する。",
+    "legacy_sdk": "現modeソースと旧SDK設定を混在させるprepare_platform入口を通常導線から外す。旧SDK patchと対応scriptはintegration/legacy_0_5等へ履歴として隔離する。統合再開時は対象commit・設定・examples・docsを一体で更新し再受入する。"
+  },
+  "outputs_and_errors": {
+    "numeric_failure": "fit/予測/必須採点の失敗は候補失敗として理由とpartial resultを残す。別手法への切替えで成功扱いしない。",
+    "unsupported_analysis": "適用できないmode/成分解析は未対応を明示する。Hodge等の手法本体の適用条件違反は数値失敗として扱い、表示問題に弱めない。",
+    "save_failure": "要求された保存が失敗した場合、保存失敗として返し、計算済み数値をpartial resultに残す。不完全modelを登録しない。",
+    "render_failure": "HTML/preview失敗は当該出力の失敗理由を残し、完了済み指標・modelは保持する。numeric completeとoutput completeを区別するが、汎用status frameworkは作らない。",
+    "snapshot": "開始時に解決済みconfigを一度保存し、失敗時にも保持する。finishで同じsnapshotを書き直さない。",
+    "model_size": "model_bytesは保存した実artifactから取得する。未保存はnull相当の未測定とし、仮serializeやゼロbyte扱いをしない。"
+  },
+  "file_actions": [
+    {"files": "config.py・policy.py・representation_task.py・method_defaults.py", "action": "共通resolverとconstructor正本へ集約。別component_config、taskの辞書再構築、二重既定値を退役。"},
+    {"files": "data/schema.py・data/loading.py・geometry/identity.py", "action": "kind/units正規属性、content revision、数値geometry identity、借用とfitted snapshotを実装。"},
+    {"files": "geometry/__init__.py・geometry/mesh.py・data/importing.py", "action": "path I/Oをdataへ移し、mask参照も同じroot規則に統一。旧aliasを移行境界へ限定。"},
+    {"files": "training/preparation.py・orchestrator.py・candidate_training.py・finalization.py・search.py", "action": "親Dataset/index/foldsを共有する通常関数へ。固定1候補の選択とrefit、local JSON再読込を除去。"},
+    {"files": "stage.py・stage_inputs.py・domain_plan.py", "action": "外部adapterへ集約。local入口から輸送依存を除去し、移行済み旧実装を削除。"},
+    {"files": "stage_result.py", "action": "run出力の共通所有者へ整理。config二重書込と業務本体のpublication処理を除去。"},
+    {"files": "representation.py・decomposition/base.py・coefficients/codecs/・modes.py", "action": "batch入力、fit時固定layout、小さいsynthesis意味へ。SimpleNamespace/_ChannelDataset、pickle workaround、暗黙paddingをcaller移行後に削除。"},
+    {"files": "decomposition/pod*.py・dict_learning.py・field_preprocessing/__init__.py", "action": "projection共通化、明示OMP/内積遵守、全有効時の不要copy除去。異なる数学的手法は維持。"},
+    {"files": "evaluation/fields.py・evaluation/analysis.py・analysis_task.py", "action": "共通measure、split別baseline、残差評価、保存時だけsize測定へ整理。"},
+    {"files": "data/scattered_import.py・scattered_reporting.py・data/scattered.py", "action": "逐次I/Oと原観測store、準備済みpoint evaluatorへ分離。捨てるfield採点、validator代わりのself-scoreを除去。壁・穴guardは維持。"},
+    {"files": "model_artifact.py・integration/ml_platform_core.patch", "action": "実bundle受入を先に用意し、形式・来歴・backend互換を分離。共通core既存APIの意味を保存。"},
+    {"files": "scripts/build_wheels.py・platform_checkout.py・prepare_platform.py", "action": "mode通常buildとcore maintainer buildを分離。古いSDK準備操作を履歴へ隔離。"}
+  ],
+  "cleanup": {
+    "direct_candidates": [
+      "tests/numerical/_operators.pyの未使用curl/div helper",
+      "decomposition/pod_utils.pyの未使用auto_n_modes",
+      "field_preprocessingの未使用inverse_transform_std。ただし回帰器のpredict_stdは維持",
+      "geometryの未使用mask_source=dataset placeholder",
+      "自身で作ったdisk/annulus範囲maskの直後の成立不能な同じ半径判定",
+      "run開始/終了のconfig重複書込"
+    ],
+    "replacement_required_first": [
+      "raw sample adapter・ChannelDataset・factory破棄のpickle対策",
+      "generic codecの暗黙padding・transformごとのlayout再構成",
+      "local Stage再load/分割再生成/全dict照合と輸送JSON",
+      "全sample list後のstack/concatenate、毎候補散布点再load、捨てるfield再採点",
+      "保存しない比較でも必須のsize診断serialize",
+      "METHOD_DEFAULTSとconstructorの二重既定値"
+    ],
+    "tests_to_consolidate": [
+      "catalog件数29/9・private _alpha/_torch_device・厳密2file集合の固定をpublic動作へ置換",
+      "未対応data.manifestのmerge試験を実inline data.fieldsのprecedence一例へ集約",
+      "散布点ON/OFFと各用途のCLI同値試験を共通smokeへ集約",
+      "ridge単出力/多出力shapeをparameter化し、(N,1)と数値予測を維持",
+      "全runtime dict一致を固定する試験は互換方針受入へ置換",
+      "workspace/release/Stage payload試験は外部adapterへ移動",
+      "wheel QAの大探索を小さいinstalled CLI/YAML/save/infer受入へ縮小",
+      "zero-copyがpublic保証でない箇所のshares_memory固定を除去",
+      "global randomのpreprocess重複fixtureを固定Generatorへ統合"
+    ],
+    "preserve": ["原データ67 NPY", "最初のreviewと変更前patch", "Hodge RFC", "旧SDK patchと必要な受入ログ", "before-fix JSON/CSVと再現に必要な入力"],
+    "historical_evidence": "workの過去監査scriptは歴史的証跡とし、通常ユーザーの実行要件にしない。継続利用する実験だけ入力/出力を引数に取る小さい検証入口へ移す。削除済み旧wheelを実行してbefore-fixを再生成することを必須にしない。",
+    "rule": "削除件数・テスト件数減を目標にせず、置換先のpublic動作・科学的意味・外部受入が確認された変更で旧処理を同時に消す。"
+  },
+  "verification": {
+    "keep_scientific_oracles": ["FFT実数自由度/norm/共役とsingleton軸", "Hodge incidence・manufactured成分・edge直交/energy・node residual", "split-conformal有限sample rank・scope", "A/Zとcross termの誤差恒等式", "散布点の壁/穴/欠測帯/read-only mask"],
+    "keep_boundaries": ["入力kind/units/shape/ID/観測finite/正measure", "calibration/test truth変更による選択・point予測不変", "fresh fold fitとgroup/time/gap", "元source/入力配列不変", "実旧bundleと別process保存後推論", "失敗時のpartial resultと不完全成果物非登録"],
+    "performance_acceptance": "同一CPU/lock/seed/入力の代表workloadで、経路別load回数・fit回数・wall time・peak RSSを変更前後に記録する。NPY固定候補、複数候補/CV、shared/variable点散布入力を対象にする。固定1候補のfit1回とraw変換1回は意味上の受入にする。内部constructorの詳細呼出回数を大量の単体試験で固定しない。現監査値は大規模benchmarkではないため、速度/メモリ削減率を事前保証しない。",
+    "continuous_checks": "二段にまとめる。通常CIはbase環境のpytest/lint/format/type/import方向、releaseはclean wheel installed smoke。宣言最小Python 3.11と通常採用版を確認し、optional backendは選択extraごとの受入へ限定する。GPUをbase品質検査の必須にしない。",
+    "release_source_check": "wheelへ削除済みmoduleが混入しないsource集合/byte確認はrelease時に維持する。通常runtimeへ同じ契約を追加しない。",
+    "prior_baseline": "直前の0.7.1受入は439 passed/3 skipped。これは過去のbaselineであり、今回の設計が実装・合格済みという意味ではない。"
+  },
+  "phases": [
+    {"id": "P0", "title": "互換と測定の基準を固定", "depends_on": [], "deliver": "実0.7.1 bundleと期待出力、現public最小例、代表workloadの計測入口、backend互換方針。", "done_when": "旧bundleを旧環境で再現でき、geometry/class変更前の正本が揃う。", "notes": "以降の変更で保存互換の失敗を発見できる状態を先に作る。"},
+    {"id": "P1", "title": "入力・設定・数学的意味の統一", "depends_on": ["P0"], "deliver": "共通resolver、Dataset kind/units、数値geometry identity、正しいrevision、mesh mask root解決、FFT singleton、OMP/内積遵守。", "done_when": "Python/YAMLの同等入力を同等に扱い、typoは同じ理由で失敗する。真のgeometry/単位差は拒否し、旧bundle受入も維持する。", "audit_ids": ["A01", "A02", "A03", "A04", "A05", "A15", "A16"]},
+    {"id": "P2", "title": "ローカル学習・比較・評価を一つの経路へ", "depends_on": ["P1"], "deliver": "親Dataset/index/folds共有、固定1候補の直接fit、共通measure/baseline、外部Stage adapter分離、size仮serialize除去。", "done_when": "固定1候補は選択なしfit1回、CV状態は独立、calibration/test漏洩なし。localでDataset/JSONの往復を行わず同じ科学的結果になる。", "audit_ids": ["A07", "A08", "A09", "A10", "A13"]},
+    {"id": "P3", "title": "batch数値処理と散布点I/Oを整理", "depends_on": ["P2"], "deliver": "batch境界、fitted layout、POD projection共通化、手法自身のmode意味、scattered逐次store/共有point評価、samples省略。", "done_when": "A/Z・mask・FFT/Hodge/較正の数値意味を保ち、暗黙padding・全samplebuffer・旧sample adapterを削除できる。代表workloadでメモリとI/Oの改善・退行を確認する。", "audit_ids": ["A10", "A11", "A12", "A13", "A14", "A17"]},
+    {"id": "P4", "title": "保存互換・単体配布を完成", "depends_on": ["P1", "P2", "P3"], "deliver": "schema別reader/新schema保存、backend互換の実装、atomic bundle、core固定artifact、新core追加API、mode単体build、旧SDK入口隔離。", "done_when": "確認済み旧bundleが対応環境で使え、未知/改変/非対応を正しく拒否する。基盤checkoutなしで環境構築・wheel build・元dataなしの別process推論が成立する。", "audit_ids": ["A06", "A18"], "notes": "互換の設計と実旧bundle試験はP0から全phaseで実施し、最後まで保留しない。core配布先と対応backend環境の決定はrelease前提条件。"},
+    {"id": "P5", "title": "クリーンアップ・継続検査・文書の完結", "depends_on": ["P4"], "deliver": "残った未使用file/旧分岐を除去、重複テスト統合、二段CI、正本文書更新、履歴資材と継続toolの分離。", "done_when": "利用入口が一つのYAML/既存Python APIで完結し、旧仕様の二重説明や通常導線の古いSDK設定がなく、必要な科学的・保存・漏洩受入が通る。", "notes": "各phaseでも置換済み旧処理と対応重複テストは同時削除し、P5へ無駄を蓄積しない。"}
+  ],
+  "finding_coverage": {
+    "A01": "P1 共通resolver/constructor正本",
+    "A02": "P0旧schema基準→P1数値geometry identity",
+    "A03": "P1内容revisionとadapterのimmutable保証",
+    "A04": "P1 FFT singleton mode metadata",
+    "A05": "P1明示OMP/内積遵守→P3projection共有",
+    "A06": "P0互換設計/実旧bundle→全phase維持→P4保存運用",
+    "A07": "P2同一実行共有と外部adapter",
+    "A08": "P2固定候補選択省略",
+    "A09": "P2保存時だけsize取得",
+    "A10": "P2評価reference共有→P3scatter evaluator",
+    "A11": "P3scatter逐次store",
+    "A12": "P3batch/fitted layout/暗黙padding退役",
+    "A13": "P2measure共有→P3projection/前処理/集計",
+    "A14": "P3手法が持つsynthesis意味",
+    "A15": "P1Dataset正規kind/units",
+    "A16": "P1data側の参照解決/geometry I/O分離",
+    "A17": "P3曖昧でないsamples/index自動生成",
+    "A18": "P4単体build/core固定配布/SDK履歴隔離→P5継続CI"
+  },
+  "completion_definition": [
+    "一つのYAMLまたは既存配列APIで、分解・比較・最終学習・保存後推論を目的に沿って使える",
+    "設定・kind/units・geometry・layout・評価measure・保存互換の正本が一つずつ決まっている",
+    "明示手法の黙った切替え、短係数補修、同一local実行の再load/輸送JSON、size用必須pickleがない",
+    "共有するのは入力・index・referenceだけで、fold/候補の学習状態とcalibration/testが独立している",
+    "散布点coverage/補間誤差、帯のscope/幅/実被覆、Hodgeのedge/node/境界の意味を混同しない",
+    "対応旧bundleとbackend環境が明示され、単体配布・clean wheel受入・継続CIが成立する",
+    "不要分岐・テスト・古い通常導線を削除し、原データと必要な歴史的証拠は保存する"
+  ],
+  "additional_design_findings": [
+    "CVのlocal indexと親Dataset indexの混在を、共有context移行時に解消する必要がある。global indexへ一度正規化する。",
+    "fit由来scaleの共有はfold漏洩になるため、固定物理scaleと学習済みscaleを区別する。",
+    "既存selection holdoutのselection_method明示変更にはouter group/time分離を弱め得る経路がある。CV/較正だけでなくholdout選択にも同じ方針を適用する。"
+  ],
+  "current_position": "A01-A18の監査と統合設計まで完了。この設計のproduction実装は未着手。次はP0の実旧bundle固定、その後P1を最初の実装単位として進める。",
+  "remaining_external_limits": [
+    "実測散布点・実物理境界データは未提供で、既存科学受入は合成場を中心とする。実データでの精度/被覆/境界妥当性の認定は別途必要。",
+    "既存大配列のメモリ問題は呼出・割当経路の監査であり、大規模peak RSS/time測定の定量値はまだない。",
+    "本当の旧serialized bundleの将来版互換はP0以降の受入対象であり、現時点で保証済みではない。",
+    "core固定配布先の作成・公開、optional backend/GPU環境の受入、SDK実接続は実施していない。"
+  ],
+  "external_reference": {
+    "url": "https://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations",
+    "accessed": "2026-10-24",
+    "use": "pickle/joblib等で異なるscikit-learn版から保存modelをロードすることは公式に非対応。同一環境を基本とし、mode/core patch制約の緩和を数値backend間の任意互換へ拡張しない。"
+  }
+}

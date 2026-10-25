@@ -1,0 +1,68 @@
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+pytest.importorskip("scipy")
+
+from ml_platform_mode_decomp.geometry import build_domain_spec
+from ml_platform_mode_decomp.coefficients.codecs import build_coeff_codec
+from ml_platform_mode_decomp.decomposition import build_decomposer
+
+
+def _domain_cfg() -> dict[str, object]:
+    return {"name": "rectangle", "x_range": [-1.0, 1.0], "y_range": [-1.0, 1.0]}
+
+
+def test_pswf2d_tensor_roundtrip_scalar() -> None:
+    rng = np.random.default_rng(0)
+    field = rng.normal(size=(6, 6)).astype(np.float64)
+    domain = build_domain_spec(_domain_cfg(), field.shape)
+
+    decomposer = build_decomposer(
+        {
+            "name": "pswf2d_tensor",
+            "c_x": 2.0,
+            "c_y": 2.0,
+            "n_x": field.shape[1],
+            "n_y": field.shape[0],
+            "mask_policy": "error",
+        }
+    )
+    codec = build_coeff_codec({"name": "none", "dtype_policy": "float64"})
+
+    raw_coeff = decomposer.transform(field, mask=None, domain_spec=domain)
+    raw_meta = decomposer.coeff_meta()
+    vector = codec.encode(raw_coeff, raw_meta)
+    raw_back = codec.decode(vector, raw_meta)
+    field_hat = decomposer.inverse_transform(raw_back, domain_spec=domain)
+
+    assert field_hat.shape == field.shape
+    assert np.allclose(field_hat, field, atol=1e-6)
+
+
+def test_pswf2d_tensor_include_mean_reconstructs_constant_with_partial_basis() -> None:
+    field = np.full((16, 16), 3.0, dtype=np.float64)
+    domain = build_domain_spec(_domain_cfg(), field.shape)
+
+    decomposer = build_decomposer(
+        {
+            "name": "pswf2d_tensor",
+            "c_x": 3.0,
+            "c_y": 3.0,
+            "n_x": 4,
+            "n_y": 4,
+            "mask_policy": "error",
+            "include_mean": True,
+        }
+    )
+    codec = build_coeff_codec({"name": "none", "dtype_policy": "float64"})
+
+    raw_coeff = decomposer.transform(field, mask=None, domain_spec=domain)
+    raw_meta = decomposer.coeff_meta()
+    vec = codec.encode(raw_coeff, raw_meta)
+    raw_back = codec.decode(vec, raw_meta)
+    field_hat = decomposer.inverse_transform(raw_back, domain_spec=domain)
+
+    assert field_hat.shape == field.shape
+    assert np.allclose(field_hat, field, atol=1e-6)

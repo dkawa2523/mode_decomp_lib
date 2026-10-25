@@ -1,7 +1,0 @@
-# Auto-generated shim for Hydra compatibility.
-# Source: configs/decompose/analytic/disk_slepian.yaml
-
-defaults:
-  - /decompose/analytic/disk_slepian
-  - _self_
-

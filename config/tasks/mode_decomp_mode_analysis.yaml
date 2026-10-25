@@ -1,0 +1,27 @@
+task: mode_decomp_analysis
+run:
+  name: selected_modes_comparison
+  seed: 42
+data:
+  local_path: data/nonlinear_fields
+split:
+  method: random
+  valid_size: 0.25
+analysis:
+  kind: representation
+  split_seeds: [11]
+  model_seeds: [42]
+  bootstrap_samples: 0
+  modes:
+    indices: [0, 1, 2]
+    cumulative_counts: [1, 2, 3]
+model:
+  candidates:
+    - id: pod2
+      representation:
+        decomposition: {name: pod_svd, params: {n_modes: 2, inner_product: domain_weights}}
+    - id: fft3
+      representation:
+        decomposition: {name: fft2_lowpass, params: {block_size: 3}}
+metrics:
+  names: [field_rmse, field_mae]

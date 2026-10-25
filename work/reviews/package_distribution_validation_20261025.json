@@ -1,0 +1,219 @@
+{
+  "date": "2026-10-25",
+  "title": "単体配布パッケージ0.10.4の受入",
+  "status": "ready_for_local_distribution",
+  "versions": {
+    "mode": "0.10.4",
+    "core": "0.2.1",
+    "input_schema": 3,
+    "field_output_schema": "field_output_v1"
+  },
+  "plan": "work/reviews/package_implementation_plan_20261025.json",
+  "previous": "work/reviews/package_refinement_validation_20261025.json",
+  "units": [
+    {
+      "id": "D1",
+      "status": "locally_accepted",
+      "title": "配布metadataとsource境界",
+      "changes": [
+        "pandasとPyYAMLを直接runtime依存に宣言。数値source105filesは0.10.3から不変。",
+        "package discoveryを製品namespaceへ限定。sdistからtests/cache/build/bytecodeを除外。未指定ライセンスを勝手に設定しない。",
+        "clean staged sourceからsdistを生成し、そのarchiveからwheelを構築。"
+      ],
+      "acceptance": "wheel/sdistの105sourceがcheckout bytesと一致。sdist131members、tests0。"
+    },
+    {
+      "id": "D2",
+      "status": "locally_accepted",
+      "title": "配布先だけで使えるZIP",
+      "changes": [
+        "2wheel、source archive、用途別14YAML、入力生成5script、利用guide9、root README、core来歴、SHA256SUMSを一つのZIPに集約。",
+        "開発用work/integration/tests/data/cacheを配布へ含めない。通常利用にhash確認・source build・uv・Gitを追加要求しない。",
+        "旧dist0.10.3wheelは比較基準へ保持後に削除。"
+      ],
+      "acceptance": "ZIP34files、33checksums、全Markdown相対link有効、590521bytes。"
+    },
+    {
+      "id": "D3",
+      "status": "locally_accepted",
+      "title": "標準pip consumer受入",
+      "changes": [
+        "新規stdlib venvを一つだけ作成。2localwheelを通常pipで導入しpip check。",
+        "ZIPの例と設定だけで、isolated installedCLI/API、単一YAML、学習・保存・訓練入力を隠した別process推論を実行。",
+        "純正consumer確認後、同envにpytestだけを追加して新数値依存でfull suite確認。"
+      ],
+      "acceptance": "consumer成功。NumPy2.5.4/SciPy1.18.1で579pass/33skip。追加前後で数値依存不変。"
+    },
+    {
+      "id": "D4",
+      "status": "locally_accepted",
+      "title": "案内・CI・記録の同期",
+      "changes": [
+        "利用guideのuv必須表現と壊れたanchorを整理。Win/Linuxのvenv+pip、配列/YAML、extras、ネットワーク依存を配布READMEへ記載。",
+        "CIのwheel jobを配布ZIP生成→標準pip consumer→同envのwheel受入へ変更。remote実行済みとは扱わない。",
+        "current plan/statusと配布受入記録を同期。"
+      ],
+      "acceptance": "development609pass/3skip、installed579pass/33skip、静的検査、旧14bundlematching環境、全例/出力、原入力67件不変。"
+    }
+  ],
+  "artifacts": {
+    "ml_platform_core-0.2.1-py3-none-any.whl": {
+      "bytes": 16109,
+      "sha256": "50eb272a670c0515c10ed1d1899d47b0c80a458da5ab5926d8f509c6d337b746"
+    },
+    "ml_platform_mode_decomp-0.10.4-py3-none-any.whl": {
+      "bytes": 291161,
+      "sha256": "49ab632c72c5738d8c5d29eee803fc8304e84978351bb5392a0fa07eb7e9e219"
+    },
+    "ml_platform_mode_decomp-0.10.4.tar.gz": {
+      "bytes": 221812,
+      "sha256": "1d8d5fb8ca6ba03c81bb27fd7fa1c349a3dafb34475db2a607ea7102ed692394"
+    },
+    "ml_platform_mode_decomp-0.10.4.zip": {
+      "bytes": 590521,
+      "sha256": "3a91ce70e06c0873e44968c935862e3afa136b3a26e844acba1c2c0fa7bd2efc"
+    },
+    "SHA256SUMS": {
+      "bytes": 425,
+      "sha256": "f24e9db3b746d777f29e2a27e5a95d953a229c759d93a726fde584aa5c4ea867"
+    }
+  },
+  "findings": [
+    "以前のwheel受入はcheckout側のYAML/examplesを参照し、配布先単独利用の検証ではなかった。",
+    "直接importするpandas/PyYAMLがcoreの推移依存に依存していた。",
+    "setuptools既定sdistに開発用testsが入っていた。",
+    "利用guideにuv前提の実行例や壊れたanchorが残っていた。"
+  ],
+  "acceptance": {
+    "development": {
+      "tests": 612,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 3,
+      "passed": 609
+    },
+    "development_runtime": {
+      "python": "3.12.13",
+      "numpy": "2.4.2",
+      "scipy": "1.17.0",
+      "scikit-learn": "1.8.0",
+      "pandas": "3.1.0",
+      "PyYAML": "6.0.3",
+      "joblib": "1.5.3"
+    },
+    "fresh_consumer_tests": {
+      "tests": 612,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 33,
+      "passed": 579
+    },
+    "consumer": {
+      "success": true,
+      "python": "3.12.13",
+      "installed_package": "C:\\Users\\user\\Desktop\\mode_decomp_lib-1\\work\\verification\\distribution_20261025\\consumer\\environment\\Lib\\site-packages\\ml_platform_mode_decomp\\__init__.py",
+      "isolated_python": true,
+      "console_entry_point": "C:\\Users\\user\\Desktop\\mode_decomp_lib-1\\work\\verification\\distribution_20261025\\consumer\\environment\\Scripts\\ml-platform-mode-decomp.exe",
+      "sdk_packages_absent": true,
+      "array_api_reconstruction": true,
+      "single_yaml_example": "C:\\Users\\user\\Desktop\\mode_decomp_lib-1\\work\\verification\\distribution_20261025\\consumer\\outputs\\direct\\direct_field_decomposition_representation_20261025T024054Z",
+      "pipeline_example": "C:\\Users\\user\\Desktop\\mode_decomp_lib-1\\work\\verification\\distribution_20261025\\consumer\\outputs\\training\\field_baseline_pipeline_20261025T024055Z",
+      "fresh_inference_example": "C:\\Users\\user\\Desktop\\mode_decomp_lib-1\\work\\verification\\distribution_20261025\\consumer\\outputs\\inference\\field_inference_inference_20261025T024056Z",
+      "training_input_hidden_before_inference": true,
+      "condition_column_reordering_and_ids": true,
+      "portable_npy_read": true,
+      "bundle_inputs_only": true,
+      "runtime": {
+        "ml-platform-mode-decomp": "0.10.4",
+        "ml-platform-core": "0.2.1",
+        "numpy": "2.5.4",
+        "scipy": "1.18.1",
+        "scikit-learn": "1.9.1",
+        "pandas": "3.1.0",
+        "PyYAML": "6.0.3",
+        "joblib": "1.6.0"
+      },
+      "bundle": "C:\\Users\\user\\Desktop\\mode_decomp_lib-1\\dist\\ml_platform_mode_decomp-0.10.4.zip",
+      "bundle_sha256": "3a91ce70e06c0873e44968c935862e3afa136b3a26e844acba1c2c0fa7bd2efc",
+      "checksums_verified": 33,
+      "created_with": "python -m venv",
+      "installed_with": "python -m pip install two local wheels",
+      "pip_check": true,
+      "uv_required": false
+    },
+    "fresh_consumer_skip_reasons": {
+      "optional_backends": 19,
+      "legacy_exact_numerical_runtime_mismatch": 14,
+      "note": "Not a Python minor mismatch; prior producer-compatible development environment verifies these 14 bundles."
+    },
+    "consumer_tests_record": "work/verification/distribution_20261025/consumer_test_report.json",
+    "wheel_acceptance": "work/verification/distribution_20261025/wheel_acceptance/report.json",
+    "artifact_audit": {
+      "version": "0.10.4",
+      "wheel_sources": 105,
+      "wheel_members": 110,
+      "sdist_members": 131,
+      "source_bytes_equal_in_wheel_and_sdist": true,
+      "wheel_built_from_sdist": true,
+      "unwanted_payload": false,
+      "direct_dependencies": [
+        "ml-platform-core<0.3,>=0.2.1",
+        "numpy>=2.0",
+        "pandas>=2.0",
+        "PyYAML>=6.0",
+        "scipy>=1.15",
+        "scikit-learn>=1.6",
+        "PyWavelets>=1.6; extra == \"wavelet\"",
+        "modred; extra == \"pod\"",
+        "torch>=2.4; extra == \"torch\"",
+        "torch>=2.4; extra == \"mtgp\"",
+        "gpytorch>=1.13; extra == \"mtgp\"",
+        "xgboost>=2; extra == \"gbdt\"",
+        "lightgbm>=4; extra == \"gbdt\"",
+        "catboost>=1.2; extra == \"gbdt\""
+      ],
+      "bundle_files": 34,
+      "bundle_checksums": 33,
+      "broken_bundle_links": [],
+      "wheel_sha256": "49ab632c72c5738d8c5d29eee803fc8304e84978351bb5392a0fa07eb7e9e219",
+      "sdist_sha256": "1d8d5fb8ca6ba03c81bb27fd7fa1c349a3dafb34475db2a607ea7102ed692394",
+      "bundle_sha256": "3a91ce70e06c0873e44968c935862e3afa136b3a26e844acba1c2c0fa7bd2efc"
+    },
+    "source_files": 105,
+    "source_sha256": "76ba28c0f9da446e76e59681cc648a243316f7b42f7976c2d4e457c2d5da5f48",
+    "numerical_source_unchanged_from_0103": true,
+    "original_arrays_unchanged": 67,
+    "static": {
+      "ruff": "passed",
+      "format": "211 files unchanged",
+      "pyrefly_errors": 0,
+      "import_direction": "2 kept, 0 broken",
+      "lock": "78 packages checked offline"
+    }
+  },
+  "delivery_scope": {
+    "bundle": "dist/ml_platform_mode_decomp-0.10.4.zip",
+    "source_build": "wheel built from delivered mode sdist",
+    "consumer_install": "standard venv + pip with both local wheels; external runtime dependencies retrieved normally",
+    "offline": "Full offline dependency wheelhouse is not included; platform/Python-specific dependency wheels must be supplied separately.",
+    "license": "No repository license was selected or invented.",
+    "publication": "No external registry/upload/push performed.",
+    "ci": "Local Windows acceptance passed; updated remote Linux/Windows CI definition has not been executed remotely."
+  },
+  "cleanup": {
+    "distribution": "Only current core/mode wheels, current mode sdist/ZIP and SHA256SUMS; historical wheels stay outside dist.",
+    "excluded": "Developer tests, fixtures, work/history, integration assets, input data and caches excluded from delivered artifacts.",
+    "retained_denied_paths": [
+      "work/verification/refinement_20261025/backend/baseline_source",
+      "work/verification/implementation_20261025/wheel_env"
+    ],
+    "denied_path_action": "No retries or alternate deletions; retained only in development workspace, excluded from distribution.",
+    "consumer_environment": "One new stdlib venv retained as acceptance evidence; no second consumer environment."
+  },
+  "follow_up": [
+    "Run updated remote CI against a committed release source when publishing.",
+    "Select distribution registry/channel and licensing policy if public publication is requested.",
+    "Real observation/future truth/actual physics-boundary validation is workload-specific and not implied by synthetic/package acceptance.",
+    "SDK integration and separately scoped scientific extensions remain future work."
+  ]
+}

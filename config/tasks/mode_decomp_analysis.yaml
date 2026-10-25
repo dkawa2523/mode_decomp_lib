@@ -1,0 +1,35 @@
+task: mode_decomp_analysis
+run:
+  name: nonlinear_surrogate_comparison
+  seed: 42
+data:
+  local_path: data/nonlinear_fields
+  source_manifest: field_dataset.yaml
+split:
+  method: random
+  valid_size: 0.25
+analysis:
+  kind: surrogate
+  split_seeds: [11, 23, 47]
+  model_seeds: [42]
+  bootstrap_samples: 1000
+model:
+  candidates:
+    - id: pod2_ridge
+      representation:
+        decomposition: {name: pod_svd, params: {n_modes: 2, inner_product: domain_weights}}
+      regression: {name: ridge, params: {alpha: 0.01}}
+    - id: pod6_ridge
+      representation:
+        decomposition: {name: pod_svd, params: {n_modes: 6, inner_product: domain_weights}}
+      regression: {name: ridge, params: {alpha: 0.01}}
+    - id: fft5_ridge
+      representation:
+        decomposition: {name: fft2_lowpass, params: {block_size: 5}}
+      regression: {name: ridge, params: {alpha: 0.01}}
+    - id: dct_ridge
+      representation:
+        decomposition: {name: dct2}
+      regression: {name: ridge, params: {alpha: 0.01}}
+metrics:
+  names: [field_rmse, field_mae]

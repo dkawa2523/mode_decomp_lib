@@ -1,4 +1,0 @@
-# Source: configs/decompose/analytic/laplace_beltrami.yaml
-
-defaults:
-  - /decompose/analytic/laplace_beltrami
