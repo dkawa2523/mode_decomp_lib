@@ -29,7 +29,7 @@ TuckerとQuadratic manifoldは追加依存なしで使えます。学習時は�
 
 現行sourceのbuild出力は`dist/0.11.0/`です。`scripts/build_distribution.py`はpackage version別の出力先を既定とし、cleanなsdist→wheel→consumer ZIPを作成します。旧root配布物とSHA256SUMSは保持します。新規配布物は配布先だけのvenv／pip環境で受け入れ、外部公開は別操作です。[配布ガイド](DISTRIBUTION.md)を参照してください。
 
-remote CI実行、外部registry公開、現行版のSDK統合、実ClearML環境での受入は別工程です。ローカルの検証成功と混同しません。core wheelの来歴と再構築手順は[integration](../integration/README.md)に保持します。
+remote CIはLinux／Windowsの品質検査と配布受入が成功しました。公開Darcy定常計算benchmarkでも、公式testを保持して未知case誤差・表現残差・容量を測定しています。[評価結果と再実行](PAIRED_ACCEPTANCE.md)に出典・保存尺度・分割・CI証跡をまとめています。ユーザー実用途での精度確認、外部registry公開、現行版のSDK統合、実ClearML環境での受入は別工程です。core wheelの来歴と再構築手順は[integration](../integration/README.md)に保持します。
 
 ## 現行の制約
 
@@ -40,8 +40,8 @@ remote CI実行、外部registry公開、現行版のSDK統合、実ClearML環�
 
 ## 次の工程
 
-1. 実用途のpaired dataで、未知caseのtarget誤差、低ランク表現の残差、sourceの識別力、容量を確認する。
-2. ローカルで確認したclean build・consumer受入をremote CIでも実行してから、配布channelへの公開を判断する。
+1. 公開benchmarkの保存値での評価を、ユーザー実用途のpaired data・物理尺度・group分割へ置き換え、用途別の精度・容量閾値を確認する。
+2. 成功したremote CIのartifactを確認し、配布channelへの公開を判断する。
 3. 実際に必要になった入力の拡張だけを追加する。複数sourceや可変geometryは用途と評価方法が明確になった時点で検討する。
 
 旧計画IDの一覧、生成済み監査JSON／log、旧SDK patchと検討途中のRFCは現行実行の依存ではないため整理しました。現在の仕様と受入手順を上記guideへ一本化します。

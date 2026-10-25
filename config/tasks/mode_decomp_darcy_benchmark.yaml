@@ -1,0 +1,105 @@
+# Prepare with: python examples/prepare_darcy_benchmark.py
+# Public steady Darcy simulation, not user measurement data.
+task: mode_decomp_pipeline
+run:
+  name: darcy_benchmark
+  seed: 42
+data:
+  local_path: data/benchmarks/darcy_32/target
+  source_manifest: field_dataset.yaml
+  input:
+    kind: field
+    local_path: data/benchmarks/darcy_32/source
+    source_manifest: field_dataset.yaml
+split:
+  method: fixed
+  valid_filter_column: official_split
+  valid_filter_value: test
+  selection_method: random
+  selection_size: 0.2
+model:
+  candidates:
+    - id: pod64_pod32_ridge_small
+      input_representation:
+        field_preprocess: {name: basic, params: {ops: [{name: field_standardize}]}}
+        decomposition: {name: pod_joint, params: {n_modes: 64, center: true, inner_product: domain_weights}}
+      representation:
+        field_preprocess: {name: basic, params: {ops: [{name: field_standardize}]}}
+        decomposition: {name: pod_joint, params: {n_modes: 32, center: true, inner_product: domain_weights}}
+      regression: {name: ridge, params: {alpha: 0.001}}
+    - id: pod64_pod32_ridge
+      input_representation:
+        field_preprocess: {name: basic, params: {ops: [{name: field_standardize}]}}
+        decomposition: {name: pod_joint, params: {n_modes: 64, center: true, inner_product: domain_weights}}
+      representation:
+        field_preprocess: {name: basic, params: {ops: [{name: field_standardize}]}}
+        decomposition: {name: pod_joint, params: {n_modes: 32, center: true, inner_product: domain_weights}}
+      regression: {name: ridge, params: {alpha: 1}}
+    - id: pod128_pod32_ridge
+      input_representation:
+        field_preprocess: {name: basic, params: {ops: [{name: field_standardize}]}}
+        decomposition: {name: pod_joint, params: {n_modes: 128, center: true, inner_product: domain_weights}}
+      representation:
+        field_preprocess: {name: basic, params: {ops: [{name: field_standardize}]}}
+        decomposition: {name: pod_joint, params: {n_modes: 32, center: true, inner_product: domain_weights}}
+      regression: {name: ridge, params: {alpha: 1}}
+    - id: tucker64_tucker64_ridge
+      input_representation:
+        field_preprocess: {name: basic, params: {ops: [{name: field_standardize}]}}
+        decomposition: {name: tucker, params: {ranks: [8, 8, 1], center: true, inner_product: domain_weights}}
+      representation:
+        field_preprocess: {name: basic, params: {ops: [{name: field_standardize}]}}
+        decomposition: {name: tucker, params: {ranks: [8, 8, 1], center: true, inner_product: domain_weights}}
+      regression: {name: ridge, params: {alpha: 1}}
+    - id: pod64_quadratic16_small
+      input_representation:
+        field_preprocess: {name: basic, params: {ops: [{name: field_standardize}]}}
+        decomposition: {name: pod_joint, params: {n_modes: 64, center: true, inner_product: domain_weights}}
+      representation:
+        field_preprocess: {name: basic, params: {ops: [{name: field_standardize}]}}
+        decomposition: {name: quadratic_manifold, params: {n_modes: 16, center: true, inner_product: domain_weights, quadratic_alpha: 0.0001}}
+      regression: {name: ridge, params: {alpha: 1}}
+    - id: pod64_quadratic16
+      input_representation:
+        field_preprocess: {name: basic, params: {ops: [{name: field_standardize}]}}
+        decomposition: {name: pod_joint, params: {n_modes: 64, center: true, inner_product: domain_weights}}
+      representation:
+        field_preprocess: {name: basic, params: {ops: [{name: field_standardize}]}}
+        decomposition: {name: quadratic_manifold, params: {n_modes: 16, center: true, inner_product: domain_weights, quadratic_alpha: 0.01}}
+      regression: {name: ridge, params: {alpha: 1}}
+    - id: pod64_pod32_gpr8
+      input_representation:
+        field_preprocess: {name: basic, params: {ops: [{name: field_standardize}]}}
+        decomposition: {name: pod_joint, params: {n_modes: 64, center: true, inner_product: domain_weights}}
+      representation:
+        field_preprocess: {name: basic, params: {ops: [{name: field_standardize}]}}
+        decomposition: {name: pod_joint, params: {n_modes: 32, center: true, inner_product: domain_weights}}
+      regression:
+        name: gpr
+        params:
+          alpha: 0.0001
+          optimizer: null
+          n_restarts_optimizer: 0
+          normalize_y: true
+          cond_scaler: standardize
+          white_noise: false
+          length_scale: 8
+    - id: pod64_pod32_gpr16
+      input_representation:
+        field_preprocess: {name: basic, params: {ops: [{name: field_standardize}]}}
+        decomposition: {name: pod_joint, params: {n_modes: 64, center: true, inner_product: domain_weights}}
+      representation:
+        field_preprocess: {name: basic, params: {ops: [{name: field_standardize}]}}
+        decomposition: {name: pod_joint, params: {n_modes: 32, center: true, inner_product: domain_weights}}
+      regression:
+        name: gpr
+        params:
+          alpha: 0.0001
+          optimizer: null
+          n_restarts_optimizer: 0
+          normalize_y: true
+          cond_scaler: standardize
+          white_noise: false
+          length_scale: 16
+metrics:
+  names: [field_rmse, field_mae]
